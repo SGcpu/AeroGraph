@@ -93,6 +93,25 @@ open http://localhost:5173
 - **Append-only**: events and lineage edges are never mutated; forking copies prefix events
 - **Deterministic**: ordering, diff, and loop analysis produce the same result for the same input
 
+## How Aerograph compares
+
+Aerograph is a cognitive observability and debugging layer for autonomous AI workflows, not an execution or orchestration engine.
+
+### The core difference
+
+| Tool | The core question it answers | The developer's UX |
+|---|---|---|
+| `trigger.dev` / `inngest.com` | How do we reliably execute and orchestrate this workflow at scale? | Infrastructure logs, queue states, retry schedules, and execution backbones. |
+| `LangSmith` / `LangChain` | How is my LLM app performing, and what did this specific prompt cost/trace to? | Structured telemetry, prompt logs, token counts, and LLM evaluation datasets. |
+| `Aerograph` | Why did my autonomous agents just make that decision? | A visual, replayable graph of reasoning paths, context drift, and emergent agent behavior. |
+
+### Detailed breakdown
+
+| Tool | Primary focus | Where Aerograph differs |
+|---|---|---|
+| `trigger.dev` | Reliable background job execution, durable task infrastructure, and operational recovery. | Aerograph does zero execution. While Trigger ensures the system runs, Aerograph traces why it ran that way — detecting loops and hallucinated agent handoffs. |
+| `inngest.com` | Event-driven workflow engines, long-running functions, and event coordination. | Aerograph is a flight recorder, not an engine. Inngest acts as the execution backbone; Aerograph acts as the DevTools layer to inspect internal behavioral failure points. |
+| `LangSmith` | LLM app tracing, prompt evaluation datasets, and production telemetry. | Aerograph is framework-agnostic cognitive debugging. Instead of linear log traces, Aerograph reconstructs multi-agent reasoning graphs, memory interactions, and decision paths in a replayable UI. |
 
 ## How This Project Is Split
 
