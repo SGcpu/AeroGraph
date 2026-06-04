@@ -1,0 +1,29 @@
+name: Cross-Language Parity
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "packages/contracts/src/__fixtures__/parity/**"
+      - "python/aerograph-sdk/src/aerograph_sdk/state_hash.py"
+      - "python/aerograph-sdk/src/aerograph_sdk/events.py"
+      - "packages/contracts/src/utils/hash.ts"
+
+jobs:
+  check-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install uv
+        run: pip install uv
+      - run: npm ci
+      - run: npm test -w packages/contracts
+      - run: uv pip install --system -e python/aerograph-sdk[dev]
+      - run: pytest python/aerograph-sdk/tests/test_state_hash_parity.py python/aerograph-sdk/tests/test_event_ordering.py

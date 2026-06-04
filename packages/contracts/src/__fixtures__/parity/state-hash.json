@@ -1,0 +1,105 @@
+{
+  "description": "Cross-language parity fixtures for getDeterministicStateHash. Each entry defines an input state object and the expected hash string. Both TypeScript and Python MUST produce identical outputs for these inputs.",
+  "fixtures": [
+    {
+      "id": "empty-state",
+      "description": "Empty object — serializes to '{}', not empty string",
+      "input": {},
+      "expectedCanonical": "{}",
+      "expectedHash": "5465b825"
+    },
+    {
+      "id": "simple-string",
+      "description": "Single string value",
+      "input": { "message": "hello" },
+      "expectedCanonical": "{\"message\":\"hello\"}",
+      "expectedHash": null
+    },
+    {
+      "id": "nested-object",
+      "description": "Nested object — keys must be sorted at each level",
+      "input": {
+        "z_key": "last",
+        "a_key": {
+          "z_nested": 2,
+          "a_nested": 1
+        }
+      },
+      "expectedCanonical": "{\"a_key\":{\"a_nested\":1,\"z_nested\":2},\"z_key\":\"last\"}",
+      "expectedHash": null
+    },
+    {
+      "id": "array-ordering-preserved",
+      "description": "Arrays must preserve element order",
+      "input": { "items": [3, 1, 2] },
+      "expectedCanonical": "{\"items\":[3,1,2]}",
+      "expectedHash": null
+    },
+    {
+      "id": "boolean-and-null",
+      "description": "Boolean and null values",
+      "input": { "active": true, "disabled": false, "missing": null },
+      "expectedCanonical": "{\"active\":true,\"disabled\":false,\"missing\":null}",
+      "expectedHash": null
+    },
+    {
+      "id": "unicode-ascii",
+      "description": "ASCII unicode string",
+      "input": { "text": "AeroGraph" },
+      "expectedCanonical": "{\"text\":\"AeroGraph\"}",
+      "expectedHash": null
+    },
+    {
+      "id": "unicode-bmp",
+      "description": "BMP unicode (U+00E9 = é)",
+      "input": { "text": "caf\u00e9" },
+      "expectedCanonical": "{\"text\":\"caf\u00e9\"}",
+      "expectedHash": null
+    },
+    {
+      "id": "integer-value",
+      "description": "Integer numeric value",
+      "input": { "count": 42 },
+      "expectedCanonical": "{\"count\":42}",
+      "expectedHash": null
+    },
+    {
+      "id": "float-value",
+      "description": "Float numeric value matching JS JSON.stringify",
+      "input": { "score": 3.14 },
+      "expectedCanonical": "{\"score\":3.14}",
+      "expectedHash": null
+    },
+    {
+      "id": "negative-zero",
+      "description": "Negative zero serializes as 0 in JS JSON.stringify",
+      "input": { "val": 0 },
+      "expectedCanonical": "{\"val\":0}",
+      "expectedHash": null
+    },
+    {
+      "id": "deep-nesting",
+      "description": "Deep nesting with key sorting at each level",
+      "input": {
+        "level1": {
+          "z": { "z": 1, "a": 2 },
+          "a": { "z": 3, "a": 4 }
+        }
+      },
+      "expectedCanonical": "{\"level1\":{\"a\":{\"a\":4,\"z\":3},\"z\":{\"a\":2,\"z\":1}}}",
+      "expectedHash": null
+    },
+    {
+      "id": "array-of-objects",
+      "description": "Array of objects — each object's keys sorted but array order preserved",
+      "input": {
+        "agents": [
+          { "name": "B", "id": "2" },
+          { "name": "A", "id": "1" }
+        ]
+      },
+      "expectedCanonical": "{\"agents\":[{\"id\":\"2\",\"name\":\"B\"},{\"id\":\"1\",\"name\":\"A\"}]}",
+      "expectedHash": null
+    }
+  ]
+}

@@ -32,8 +32,10 @@ An open-source flight recorder for AI agent workflows: local-first, append-only,
 ## Repository structure
 
 - `packages/contracts`: event schema + shared contracts (source of truth)
-- `packages/sdk`: reference SDK for emitting normalized trace events
-- `packages/adapter-langchain`: MVP adapter for LangChain workflows
+- `packages/sdk`: reference SDK for emitting normalized trace events (Node.js)
+- `packages/adapter-langchain`: MVP adapter for LangChain workflows (Node.js)
+- `python/aerograph-sdk`: reference SDK for emitting normalized trace events (Python)
+- `python/aerograph-langchain`: MVP adapter for LangChain workflows (Python)
 - `apps/collector`: trace ingest + SQLite storage + lineage/diff/analysis endpoints
 - `apps/web`: interactive trace graph UI with lineage panel, diff overlay, and loop warnings
 - `apps/demo`: demo emitter + Phase 2 smoke demo
@@ -56,6 +58,18 @@ npm test
 
 # Build:
 npm run build
+```
+
+### Updating Cross-Language Artifacts
+
+If you modify contracts in `packages/contracts`, you must update the derived JSON schemas and Python models:
+
+```sh
+# 1. Export JSON Schemas
+npm run schema:export -w packages/schema-exporter
+
+# 2. Regenerate Python models
+uv run python/aerograph-sdk/tools/generate_contracts.py
 ```
 
 ## Phase 2 Quick Start
@@ -118,7 +132,7 @@ Aerograph is a cognitive observability and debugging layer for autonomous AI wor
 This repository serves two different audiences:
 
 - Contributors work in the monorepo and run the collector, web UI, demos, and tests locally.
-- End users consume the reusable packages, usually `@aerograph/sdk` and `@aerograph/adapter-langchain`, from their own application.
+- End users consume the reusable packages, usually `@aerograph/sdk`, `@aerograph/adapter-langchain`, `aerograph-sdk`, and `aerograph-langchain`, from their own application.
 
 That split is intentional. The repo contains the product, but the public integration surface is the SDK and adapters. The collector and web UI are the viewing and storage layer that can be run locally or hosted separately.
 

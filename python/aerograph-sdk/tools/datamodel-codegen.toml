@@ -1,0 +1,30 @@
+"""
+python/aerograph-sdk/tools/datamodel-codegen.toml
+
+Pinned configuration for datamodel-code-generator.
+This file controls how Python Pydantic v2 models are generated from the JSON Schema artifact.
+"""
+[tool.datamodel-code-generator]
+# Input
+input-file-type = "jsonschema"
+
+# Output
+output-model-type = "pydantic_v2.BaseModel"
+target-python-version = "3.10"
+
+# Code style
+use-annotated = true
+use-double-quotes = false
+use-field-description = false
+use-schema-description = true
+capitalise-enum-members = false
+collapse-root-models = false
+disable-timestamp = true
+
+# Validation
+strict-nullable = true
+use-standard-collections = true
+use-union-operator = true
+
+# Imports
+base-class = "pydantic.BaseModel"

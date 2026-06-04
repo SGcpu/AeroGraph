@@ -1,0 +1,210 @@
+{
+  "description": "Cross-language parity fixtures for TraceEvent construction. One fixture per event kind. Both TypeScript and Python SDKs MUST be able to construct and validate these events.",
+  "schemaVersion": "1.0.0",
+  "fixtures": [
+    {
+      "kind": "prompt",
+      "description": "Prompt event from an agent actor",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_001",
+        "parentSpanId": null,
+        "occurredAt": "2026-05-31T00:00:00.000Z",
+        "actor": { "kind": "agent", "id": "agent-a", "name": "PlannerAgent" },
+        "kind": "prompt",
+        "status": "ok",
+        "title": "Plan the task",
+        "payload": { "text": "Please plan the following task..." },
+        "links": []
+      }
+    },
+    {
+      "kind": "response",
+      "description": "Response event with streaming telemetry",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_002",
+        "parentSpanId": "s_parity_001",
+        "occurredAt": "2026-05-31T00:00:01.000Z",
+        "actor": { "kind": "agent", "id": "agent-a", "name": "PlannerAgent" },
+        "kind": "response",
+        "status": "ok",
+        "title": "Response",
+        "payload": {
+          "text": "Here is my plan...",
+          "streamingTelemetry": {
+            "timeToFirstTokenMs": 120,
+            "totalDurationMs": 800,
+            "tokensPerSecond": 35.5,
+            "tokenCount": 28
+          }
+        },
+        "links": []
+      }
+    },
+    {
+      "kind": "tool_call",
+      "description": "Tool call event from a tool actor",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_003",
+        "parentSpanId": "s_parity_002",
+        "occurredAt": "2026-05-31T00:00:02.000Z",
+        "actor": { "kind": "tool", "id": "search-tool", "name": "SearchTool" },
+        "kind": "tool_call",
+        "status": "ok",
+        "title": "SearchTool",
+        "payload": { "input": { "query": "AeroGraph tracing", "max_results": 5 } },
+        "links": []
+      }
+    },
+    {
+      "kind": "tool_result",
+      "description": "Tool result event",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_004",
+        "parentSpanId": "s_parity_003",
+        "occurredAt": "2026-05-31T00:00:03.000Z",
+        "actor": { "kind": "tool", "id": "search-tool", "name": "SearchTool" },
+        "kind": "tool_result",
+        "status": "ok",
+        "title": "SearchTool",
+        "payload": { "output": { "results": ["result1", "result2"] } },
+        "links": []
+      }
+    },
+    {
+      "kind": "handoff",
+      "description": "Handoff event from system actor",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_005",
+        "parentSpanId": "s_parity_001",
+        "occurredAt": "2026-05-31T00:00:04.000Z",
+        "actor": { "kind": "system", "id": "orchestrator" },
+        "kind": "handoff",
+        "status": "ok",
+        "title": "handoff",
+        "payload": {
+          "fromAgentId": "agent-a",
+          "toAgentId": "agent-b",
+          "reason": "Specialized task"
+        },
+        "links": []
+      }
+    },
+    {
+      "kind": "error",
+      "description": "Error event",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_006",
+        "parentSpanId": "s_parity_003",
+        "occurredAt": "2026-05-31T00:00:05.000Z",
+        "actor": { "kind": "system", "id": "agent-a" },
+        "kind": "error",
+        "status": "error",
+        "title": "Search failed",
+        "payload": {
+          "message": "Connection timed out",
+          "details": { "attempt": 1, "timeout_ms": 5000 }
+        },
+        "links": []
+      }
+    },
+    {
+      "kind": "note",
+      "description": "Note event with arbitrary payload",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_007",
+        "parentSpanId": "s_parity_001",
+        "occurredAt": "2026-05-31T00:00:06.000Z",
+        "actor": { "kind": "system", "id": "agent-a" },
+        "kind": "note",
+        "status": "ok",
+        "title": "Context note",
+        "payload": { "chainName": "MyChain", "user_context": "enterprise" },
+        "links": []
+      }
+    },
+    {
+      "kind": "state_snapshot",
+      "description": "State snapshot event",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_008",
+        "parentSpanId": "s_parity_001",
+        "occurredAt": "2026-05-31T00:00:07.000Z",
+        "actor": { "kind": "system", "id": "agent-a" },
+        "kind": "state_snapshot",
+        "status": "ok",
+        "title": "State: plannerNode",
+        "payload": {
+          "nodeName": "plannerNode",
+          "stateHash": "deadbeef",
+          "stateDiff": { "plan": "step1" },
+          "removedKeys": [],
+          "fullState": { "plan": "step1", "context": "enterprise" }
+        },
+        "links": []
+      }
+    },
+    {
+      "kind": "retriever",
+      "description": "Retriever event with documents",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_009",
+        "parentSpanId": "s_parity_002",
+        "occurredAt": "2026-05-31T00:00:08.000Z",
+        "actor": { "kind": "tool", "id": "vector-db", "name": "VectorDB" },
+        "kind": "retriever",
+        "status": "ok",
+        "title": "VectorDB",
+        "payload": {
+          "query": "AeroGraph observability",
+          "documents": [
+            {
+              "pageContent": "AeroGraph captures agent traces.",
+              "metadata": { "source": "docs/overview.md" },
+              "score": 0.92
+            }
+          ]
+        },
+        "links": []
+      }
+    },
+    {
+      "kind": "checkpoint",
+      "description": "Checkpoint event",
+      "event": {
+        "schemaVersion": "1.0.0",
+        "traceId": "t_parity_001",
+        "spanId": "s_parity_010",
+        "parentSpanId": "s_parity_001",
+        "occurredAt": "2026-05-31T00:00:09.000Z",
+        "actor": { "kind": "system", "id": "agent-a" },
+        "kind": "checkpoint",
+        "status": "ok",
+        "title": "Checkpoint: ckpt-001",
+        "payload": {
+          "checkpointId": "ckpt-001",
+          "reason": "Post-planning checkpoint",
+          "state": { "plan": "step1", "step": 1 }
+        },
+        "links": []
+      }
+    }
+  ]
+}

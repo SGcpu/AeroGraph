@@ -6,7 +6,7 @@ export function getDeterministicStateHash(state: Record<string, any>): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < serialized.length; i++) {
     h ^= serialized.charCodeAt(i);
-    h = (h * 0x01000193) >>> 0;
+    h = Math.imul(h, 0x01000193) >>> 0;
   }
   return h.toString(16).padStart(8, '0');
 }

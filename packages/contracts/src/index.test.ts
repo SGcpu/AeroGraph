@@ -1,4 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import path from "path";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import {
   sortTraceEventsDeterministic,
   traceDiffResultSchema,
@@ -136,4 +142,46 @@ describe("contracts: Phase 2 shapes", () => {
       })
     ).not.toThrow();
   });
+});
+
+describe("contracts: ordering parity fixtures", () => {
+  interface OrderingFixture {
+    id: string;
+    description: string;
+    input: Array<{ occurredAt: string; spanId: string; kind: string }>;
+    expected: Array<{ occurredAt: string; spanId: string; kind: string }>;
+  }
+
+  const fixturesPath = path.join(
+    __dirname,
+    "__fixtures__/parity/event-ordering.json"
+  );
+  const fixturesData = JSON.parse(readFileSync(fixturesPath, "utf-8"));
+
+  for (const fixture of fixturesData.fixtures as OrderingFixture[]) {
+    it(`[${fixture.id}] ${fixture.description}`, () => {
+      const sorted = sortTraceEventsDeterministic(fixture.input as any);
+      const keys = sorted.map((e: any) => `${e.occurredAt}|${e.spanId}|${e.kind}`);
+      const expectedKeys = fixture.expected.map(
+        (e) => `${e.occurredAt}|${e.spanId}|${e.kind}`
+      );
+      expect(keys).toEqual(expectedKeys);
+    });
+  }
+});
+
+describe("contracts: trace-events parity fixtures", () => {
+  const fixturesPath = path.join(
+    __dirname,
+    "__fixtures__/parity/trace-events.json"
+  );
+  const fixturesData = JSON.parse(readFileSync(fixturesPath, "utf-8"));
+
+  for (const fixture of fixturesData.fixtures as { kind: string; description: string; event: unknown }[]) {
+    it(`[${fixture.kind}] ${fixture.description}`, () => {
+      expect(() => validateTraceEvent(fixture.event)).not.toThrow();
+      const parsed = validateTraceEvent(fixture.event);
+      expect(parsed.kind).toBe(fixture.kind);
+    });
+  }
 });

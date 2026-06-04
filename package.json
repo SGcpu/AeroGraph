@@ -20,9 +20,12 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build -w @aerograph/contracts -w @aerograph/sdk -w @aerograph/adapter-langchain -w apps-collector -w apps-demo -w apps-web",
+    "build": "npm run build -w @aerograph/contracts -w @aerograph/sdk -w @aerograph/adapter-langchain -w @aerograph/schema-exporter -w apps-collector -w apps-demo -w apps-web",
     "dev": "npm run --workspaces dev",
-    "test": "npm run build -w @aerograph/contracts -w @aerograph/sdk -w @aerograph/adapter-langchain && npm run --workspaces test",
-    "lint": "npm run --workspaces lint"
+    "test": "npm run build -w @aerograph/contracts -w @aerograph/sdk -w @aerograph/adapter-langchain -w @aerograph/schema-exporter && npm run --workspaces test",
+    "lint": "npm run --workspaces lint",
+    "schema:export": "npm run build -w @aerograph/contracts -w @aerograph/schema-exporter && npm run schema:export -w @aerograph/schema-exporter",
+    "schema:check": "npm run build -w @aerograph/contracts -w @aerograph/schema-exporter && npm run schema:check -w @aerograph/schema-exporter",
+    "drift:check": "npm run schema:check && echo 'Schema drift check passed.'"
   }
 }

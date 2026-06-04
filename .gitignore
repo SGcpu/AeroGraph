@@ -14,6 +14,16 @@ apps/collector/data/
 Thumbs.db
 .agents/
 apps/collector/data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .DS_Store
 Thumbs.db
 *.tmp
@@ -24,3 +34,4 @@ specs/
 docs/architecture
 .vscode/
 AGENTS.md
+uv.lock

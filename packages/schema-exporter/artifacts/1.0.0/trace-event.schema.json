@@ -1,0 +1,5217 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "AeroGraph TraceEvent Schema",
+  "description": "Language-neutral JSON Schema artifact exported from @aerograph/contracts. Used to generate and validate non-TypeScript runtime bindings.",
+  "schemaVersion": "1.0.0",
+  "generatedAt": "2026-05-31T17:01:00.074Z",
+  "traceEventSchema": {
+    "$ref": "#/definitions/TraceEvent",
+    "definitions": {
+      "TraceEvent": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "agent"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "prompt"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "agent"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "response"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string"
+                  },
+                  "streamingTelemetry": {
+                    "type": "object",
+                    "properties": {
+                      "timeToFirstTokenMs": {
+                        "type": "number"
+                      },
+                      "totalDurationMs": {
+                        "type": "number"
+                      },
+                      "tokensPerSecond": {
+                        "type": "number"
+                      },
+                      "tokenCount": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "timeToFirstTokenMs",
+                      "totalDurationMs",
+                      "tokensPerSecond",
+                      "tokenCount"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "required": [
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "tool"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "tool_call"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "input"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "tool"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "tool_result"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "output": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "output"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "system"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "handoff"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "fromAgentId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "toAgentId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "fromAgentId",
+                  "toAgentId"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "agent",
+                      "tool",
+                      "system"
+                    ]
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "error"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "details": {
+                    "type": "object",
+                    "additionalProperties": {},
+                    "default": {}
+                  }
+                },
+                "required": [
+                  "message"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "agent",
+                      "tool",
+                      "system"
+                    ]
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "note"
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "system"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "state_snapshot"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "nodeName": {
+                    "type": "string"
+                  },
+                  "stateHash": {
+                    "type": "string"
+                  },
+                  "stateDiff": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  },
+                  "removedKeys": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "fullState": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "nodeName",
+                  "stateHash",
+                  "stateDiff",
+                  "fullState"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "tool"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "retriever"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "documents": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "pageContent": {
+                          "type": "string"
+                        },
+                        "metadata": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "score": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "pageContent",
+                        "metadata"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": [
+                  "query",
+                  "documents"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "const": "system"
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "kind",
+                  "id"
+                ],
+                "additionalProperties": false
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "error"
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "rel": {
+                      "type": "string",
+                      "enum": [
+                        "follows",
+                        "caused_by",
+                        "handoff_to"
+                      ]
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "rel",
+                    "spanId"
+                  ],
+                  "additionalProperties": false
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "checkpoint"
+              },
+              "payload": {
+                "type": "object",
+                "properties": {
+                  "checkpointId": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  },
+                  "state": {
+                    "type": "object",
+                    "additionalProperties": {}
+                  }
+                },
+                "required": [
+                  "checkpointId",
+                  "reason",
+                  "state"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "traceSchema": {
+    "$ref": "#/definitions/Trace",
+    "definitions": {
+      "Trace": {
+        "type": "object",
+        "properties": {
+          "traceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "rootSpanId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "agent"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "prompt"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "agent"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "response"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        },
+                        "streamingTelemetry": {
+                          "type": "object",
+                          "properties": {
+                            "timeToFirstTokenMs": {
+                              "type": "number"
+                            },
+                            "totalDurationMs": {
+                              "type": "number"
+                            },
+                            "tokensPerSecond": {
+                              "type": "number"
+                            },
+                            "tokenCount": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "timeToFirstTokenMs",
+                            "totalDurationMs",
+                            "tokensPerSecond",
+                            "tokenCount"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "tool"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "tool_call"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "input": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "input"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "tool"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "tool_result"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "output": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "output"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "system"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "handoff"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "fromAgentId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "toAgentId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fromAgentId",
+                        "toAgentId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "agent",
+                            "tool",
+                            "system"
+                          ]
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "error"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {},
+                          "default": {}
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "agent",
+                            "tool",
+                            "system"
+                          ]
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "note"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "system"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "state_snapshot"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "nodeName": {
+                          "type": "string"
+                        },
+                        "stateHash": {
+                          "type": "string"
+                        },
+                        "stateDiff": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "removedKeys": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "fullState": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "nodeName",
+                        "stateHash",
+                        "stateDiff",
+                        "fullState"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "tool"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "retriever"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "query": {
+                          "type": "string"
+                        },
+                        "documents": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "pageContent": {
+                                "type": "string"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              },
+                              "score": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "pageContent",
+                              "metadata"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "query",
+                        "documents"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "system"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "checkpoint"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "checkpointId": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "checkpointId",
+                        "reason",
+                        "state"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "traceId",
+          "createdAt",
+          "rootSpanId",
+          "events"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "traceMetaSchema": {
+    "$ref": "#/definitions/TraceMeta",
+    "definitions": {
+      "TraceMeta": {
+        "type": "object",
+        "properties": {
+          "traceId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "eventCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "rootSpanId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "derivedFrom": {
+            "type": "object",
+            "properties": {
+              "baseTraceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "forkedFromSpanId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "baseTraceId",
+              "forkedFromSpanId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "traceId",
+          "createdAt",
+          "updatedAt",
+          "eventCount",
+          "rootSpanId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "traceWithMetaSchema": {
+    "$ref": "#/definitions/TraceWithMeta",
+    "definitions": {
+      "TraceWithMeta": {
+        "type": "object",
+        "properties": {
+          "meta": {
+            "type": "object",
+            "properties": {
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "eventCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "rootSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "derivedFrom": {
+                "type": "object",
+                "properties": {
+                  "baseTraceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "forkedFromSpanId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "baseTraceId",
+                  "forkedFromSpanId"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "traceId",
+              "createdAt",
+              "updatedAt",
+              "eventCount",
+              "rootSpanId"
+            ],
+            "additionalProperties": false
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "agent"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "prompt"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "agent"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "response"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "text": {
+                          "type": "string"
+                        },
+                        "streamingTelemetry": {
+                          "type": "object",
+                          "properties": {
+                            "timeToFirstTokenMs": {
+                              "type": "number"
+                            },
+                            "totalDurationMs": {
+                              "type": "number"
+                            },
+                            "tokensPerSecond": {
+                              "type": "number"
+                            },
+                            "tokenCount": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "timeToFirstTokenMs",
+                            "totalDurationMs",
+                            "tokensPerSecond",
+                            "tokenCount"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": [
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "tool"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "tool_call"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "input": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "input"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "tool"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "tool_result"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "output": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "output"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "system"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "handoff"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "fromAgentId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "toAgentId": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "reason": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "fromAgentId",
+                        "toAgentId"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "agent",
+                            "tool",
+                            "system"
+                          ]
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "error"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "details": {
+                          "type": "object",
+                          "additionalProperties": {},
+                          "default": {}
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "agent",
+                            "tool",
+                            "system"
+                          ]
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "note"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "additionalProperties": {}
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "system"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "state_snapshot"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "nodeName": {
+                          "type": "string"
+                        },
+                        "stateHash": {
+                          "type": "string"
+                        },
+                        "stateDiff": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        },
+                        "removedKeys": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "fullState": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "nodeName",
+                        "stateHash",
+                        "stateDiff",
+                        "fullState"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "tool"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "retriever"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "query": {
+                          "type": "string"
+                        },
+                        "documents": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "pageContent": {
+                                "type": "string"
+                              },
+                              "metadata": {
+                                "type": "object",
+                                "additionalProperties": {}
+                              },
+                              "score": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "pageContent",
+                              "metadata"
+                            ],
+                            "additionalProperties": false
+                          }
+                        }
+                      },
+                      "required": [
+                        "query",
+                        "documents"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "schemaVersion": {
+                      "type": "string",
+                      "const": "1.0.0"
+                    },
+                    "traceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "spanId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "parentSpanId": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "occurredAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "actor": {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "const": "system"
+                        },
+                        "id": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "id"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok",
+                        "error"
+                      ]
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rel": {
+                            "type": "string",
+                            "enum": [
+                              "follows",
+                              "caused_by",
+                              "handoff_to"
+                            ]
+                          },
+                          "spanId": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        },
+                        "required": [
+                          "rel",
+                          "spanId"
+                        ],
+                        "additionalProperties": false
+                      },
+                      "default": []
+                    },
+                    "kind": {
+                      "type": "string",
+                      "const": "checkpoint"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "checkpointId": {
+                          "type": "string"
+                        },
+                        "reason": {
+                          "type": "string"
+                        },
+                        "state": {
+                          "type": "object",
+                          "additionalProperties": {}
+                        }
+                      },
+                      "required": [
+                        "checkpointId",
+                        "reason",
+                        "state"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "schemaVersion",
+                    "traceId",
+                    "spanId",
+                    "parentSpanId",
+                    "occurredAt",
+                    "actor",
+                    "status",
+                    "kind",
+                    "payload"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          }
+        },
+        "required": [
+          "meta",
+          "events"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "traceListResponseSchema": {
+    "$ref": "#/definitions/TraceListResponse",
+    "definitions": {
+      "TraceListResponse": {
+        "type": "object",
+        "properties": {
+          "traces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "traceId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "eventCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "rootSpanId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "derivedFrom": {
+                  "type": "object",
+                  "properties": {
+                    "baseTraceId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "forkedFromSpanId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "required": [
+                    "baseTraceId",
+                    "forkedFromSpanId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "traceId",
+                "createdAt",
+                "updatedAt",
+                "eventCount",
+                "rootSpanId"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "traces"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "$schema": "http://json-schema.org/draft-07/schema#"
+  },
+  "pythonCodegenSchema": {
+    "$schema": "https://json-schema.org/draft-07/schema#",
+    "definitions": {
+      "AeroGraph": {
+        "type": "object",
+        "properties": {
+          "TraceEventKind": {
+            "type": "string",
+            "enum": [
+              "prompt",
+              "response",
+              "tool_call",
+              "tool_result",
+              "handoff",
+              "error",
+              "note",
+              "state_snapshot",
+              "retriever",
+              "checkpoint"
+            ]
+          },
+          "TraceEventStatus": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "error"
+            ]
+          },
+          "ActorKind": {
+            "type": "string",
+            "enum": [
+              "agent",
+              "tool",
+              "system"
+            ]
+          },
+          "Actor": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "$ref": "#/definitions/AeroGraph/properties/ActorKind"
+              },
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "AgentActor": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "agent"
+              },
+              "id": {
+                "$ref": "#/definitions/AeroGraph/properties/Actor/properties/id"
+              },
+              "name": {
+                "$ref": "#/definitions/AeroGraph/properties/Actor/properties/name"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "ToolActor": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "tool"
+              },
+              "id": {
+                "$ref": "#/definitions/AeroGraph/properties/Actor/properties/id"
+              },
+              "name": {
+                "$ref": "#/definitions/AeroGraph/properties/Actor/properties/name"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "SystemActor": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "const": "system"
+              },
+              "id": {
+                "$ref": "#/definitions/AeroGraph/properties/Actor/properties/id"
+              },
+              "name": {
+                "$ref": "#/definitions/AeroGraph/properties/Actor/properties/name"
+              }
+            },
+            "required": [
+              "kind",
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "LinkRel": {
+            "type": "string",
+            "enum": [
+              "follows",
+              "caused_by",
+              "handoff_to"
+            ]
+          },
+          "TraceLink": {
+            "type": "object",
+            "properties": {
+              "rel": {
+                "$ref": "#/definitions/AeroGraph/properties/LinkRel"
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "rel",
+              "spanId"
+            ],
+            "additionalProperties": false
+          },
+          "PromptPayload": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "StreamingTelemetry": {
+            "type": "object",
+            "properties": {
+              "timeToFirstTokenMs": {
+                "type": "number"
+              },
+              "totalDurationMs": {
+                "type": "number"
+              },
+              "tokensPerSecond": {
+                "type": "number"
+              },
+              "tokenCount": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "timeToFirstTokenMs",
+              "totalDurationMs",
+              "tokensPerSecond",
+              "tokenCount"
+            ],
+            "additionalProperties": false
+          },
+          "ResponsePayload": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "streamingTelemetry": {
+                "$ref": "#/definitions/AeroGraph/properties/StreamingTelemetry"
+              }
+            },
+            "required": [
+              "text"
+            ],
+            "additionalProperties": false
+          },
+          "ToolCallPayload": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "input"
+            ],
+            "additionalProperties": false
+          },
+          "ToolResultPayload": {
+            "type": "object",
+            "properties": {
+              "output": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "output"
+            ],
+            "additionalProperties": false
+          },
+          "HandoffPayload": {
+            "type": "object",
+            "properties": {
+              "fromAgentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "toAgentId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fromAgentId",
+              "toAgentId"
+            ],
+            "additionalProperties": false
+          },
+          "ErrorPayload": {
+            "type": "object",
+            "properties": {
+              "message": {
+                "type": "string",
+                "minLength": 1
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": {},
+                "default": {}
+              }
+            },
+            "required": [
+              "message"
+            ],
+            "additionalProperties": false
+          },
+          "StateSnapshotPayload": {
+            "type": "object",
+            "properties": {
+              "nodeName": {
+                "type": "string"
+              },
+              "stateHash": {
+                "type": "string"
+              },
+              "stateDiff": {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              "removedKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "fullState": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "nodeName",
+              "stateHash",
+              "stateDiff",
+              "fullState"
+            ],
+            "additionalProperties": false
+          },
+          "RetrieverDocument": {
+            "type": "object",
+            "properties": {
+              "pageContent": {
+                "type": "string"
+              },
+              "metadata": {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              "score": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "pageContent",
+              "metadata"
+            ],
+            "additionalProperties": false
+          },
+          "RetrieverPayload": {
+            "type": "object",
+            "properties": {
+              "query": {
+                "type": "string"
+              },
+              "documents": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/AeroGraph/properties/RetrieverDocument"
+                }
+              }
+            },
+            "required": [
+              "query",
+              "documents"
+            ],
+            "additionalProperties": false
+          },
+          "CheckpointPayload": {
+            "type": "object",
+            "properties": {
+              "checkpointId": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "state": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "checkpointId",
+              "reason",
+              "state"
+            ],
+            "additionalProperties": false
+          },
+          "PromptEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "spanId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "parentSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "occurredAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/AgentActor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1
+              },
+              "links": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/AeroGraph/properties/TraceLink"
+                },
+                "default": []
+              },
+              "kind": {
+                "type": "string",
+                "const": "prompt"
+              },
+              "payload": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptPayload"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "ResponseEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/schemaVersion"
+              },
+              "traceId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/traceId"
+              },
+              "spanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/spanId"
+              },
+              "parentSpanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/parentSpanId"
+              },
+              "occurredAt": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/occurredAt"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/AgentActor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/title"
+              },
+              "links": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/links"
+              },
+              "kind": {
+                "type": "string",
+                "const": "response"
+              },
+              "payload": {
+                "$ref": "#/definitions/AeroGraph/properties/ResponsePayload"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "ToolCallEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/schemaVersion"
+              },
+              "traceId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/traceId"
+              },
+              "spanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/spanId"
+              },
+              "parentSpanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/parentSpanId"
+              },
+              "occurredAt": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/occurredAt"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/ToolActor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/title"
+              },
+              "links": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/links"
+              },
+              "kind": {
+                "type": "string",
+                "const": "tool_call"
+              },
+              "payload": {
+                "$ref": "#/definitions/AeroGraph/properties/ToolCallPayload"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "ToolResultEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/schemaVersion"
+              },
+              "traceId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/traceId"
+              },
+              "spanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/spanId"
+              },
+              "parentSpanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/parentSpanId"
+              },
+              "occurredAt": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/occurredAt"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/ToolActor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/title"
+              },
+              "links": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/links"
+              },
+              "kind": {
+                "type": "string",
+                "const": "tool_result"
+              },
+              "payload": {
+                "$ref": "#/definitions/AeroGraph/properties/ToolResultPayload"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "HandoffEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/schemaVersion"
+              },
+              "traceId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/traceId"
+              },
+              "spanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/spanId"
+              },
+              "parentSpanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/parentSpanId"
+              },
+              "occurredAt": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/occurredAt"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/SystemActor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/title"
+              },
+              "links": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/links"
+              },
+              "kind": {
+                "type": "string",
+                "const": "handoff"
+              },
+              "payload": {
+                "$ref": "#/definitions/AeroGraph/properties/HandoffPayload"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "ErrorEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/schemaVersion"
+              },
+              "traceId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/traceId"
+              },
+              "spanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/spanId"
+              },
+              "parentSpanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/parentSpanId"
+              },
+              "occurredAt": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/occurredAt"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/Actor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/title"
+              },
+              "links": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/links"
+              },
+              "kind": {
+                "type": "string",
+                "const": "error"
+              },
+              "payload": {
+                "$ref": "#/definitions/AeroGraph/properties/ErrorPayload"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "NoteEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/schemaVersion"
+              },
+              "traceId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/traceId"
+              },
+              "spanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/spanId"
+              },
+              "parentSpanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/parentSpanId"
+              },
+              "occurredAt": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/occurredAt"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/Actor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/title"
+              },
+              "links": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/links"
+              },
+              "kind": {
+                "type": "string",
+                "const": "note"
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "StateSnapshotEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/schemaVersion"
+              },
+              "traceId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/traceId"
+              },
+              "spanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/spanId"
+              },
+              "parentSpanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/parentSpanId"
+              },
+              "occurredAt": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/occurredAt"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/SystemActor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/title"
+              },
+              "links": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/links"
+              },
+              "kind": {
+                "type": "string",
+                "const": "state_snapshot"
+              },
+              "payload": {
+                "$ref": "#/definitions/AeroGraph/properties/StateSnapshotPayload"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "RetrieverEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/schemaVersion"
+              },
+              "traceId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/traceId"
+              },
+              "spanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/spanId"
+              },
+              "parentSpanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/parentSpanId"
+              },
+              "occurredAt": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/occurredAt"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/ToolActor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/title"
+              },
+              "links": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/links"
+              },
+              "kind": {
+                "type": "string",
+                "const": "retriever"
+              },
+              "payload": {
+                "$ref": "#/definitions/AeroGraph/properties/RetrieverPayload"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "CheckpointEvent": {
+            "type": "object",
+            "properties": {
+              "schemaVersion": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/schemaVersion"
+              },
+              "traceId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/traceId"
+              },
+              "spanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/spanId"
+              },
+              "parentSpanId": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/parentSpanId"
+              },
+              "occurredAt": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/occurredAt"
+              },
+              "actor": {
+                "$ref": "#/definitions/AeroGraph/properties/SystemActor"
+              },
+              "status": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceEventStatus"
+              },
+              "title": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/title"
+              },
+              "links": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/links"
+              },
+              "kind": {
+                "type": "string",
+                "const": "checkpoint"
+              },
+              "payload": {
+                "$ref": "#/definitions/AeroGraph/properties/CheckpointPayload"
+              }
+            },
+            "required": [
+              "schemaVersion",
+              "traceId",
+              "spanId",
+              "parentSpanId",
+              "occurredAt",
+              "actor",
+              "status",
+              "kind",
+              "payload"
+            ],
+            "additionalProperties": false
+          },
+          "TraceEvent": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent"
+              },
+              {
+                "$ref": "#/definitions/AeroGraph/properties/ResponseEvent"
+              },
+              {
+                "$ref": "#/definitions/AeroGraph/properties/ToolCallEvent"
+              },
+              {
+                "$ref": "#/definitions/AeroGraph/properties/ToolResultEvent"
+              },
+              {
+                "$ref": "#/definitions/AeroGraph/properties/HandoffEvent"
+              },
+              {
+                "$ref": "#/definitions/AeroGraph/properties/ErrorEvent"
+              },
+              {
+                "$ref": "#/definitions/AeroGraph/properties/NoteEvent"
+              },
+              {
+                "$ref": "#/definitions/AeroGraph/properties/StateSnapshotEvent"
+              },
+              {
+                "$ref": "#/definitions/AeroGraph/properties/RetrieverEvent"
+              },
+              {
+                "$ref": "#/definitions/AeroGraph/properties/CheckpointEvent"
+              }
+            ]
+          },
+          "Trace": {
+            "type": "object",
+            "properties": {
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "rootSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/AeroGraph/properties/TraceEvent"
+                }
+              }
+            },
+            "required": [
+              "traceId",
+              "createdAt",
+              "rootSpanId",
+              "events"
+            ],
+            "additionalProperties": false
+          },
+          "TraceMeta": {
+            "type": "object",
+            "properties": {
+              "traceId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "eventCount": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "rootSpanId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "derivedFrom": {
+                "type": "object",
+                "properties": {
+                  "baseTraceId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "forkedFromSpanId": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": [
+                  "baseTraceId",
+                  "forkedFromSpanId"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "traceId",
+              "createdAt",
+              "updatedAt",
+              "eventCount",
+              "rootSpanId"
+            ],
+            "additionalProperties": false
+          },
+          "TraceWithMeta": {
+            "type": "object",
+            "properties": {
+              "meta": {
+                "$ref": "#/definitions/AeroGraph/properties/TraceMeta"
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/AeroGraph/properties/TraceEvent"
+                }
+              }
+            },
+            "required": [
+              "meta",
+              "events"
+            ],
+            "additionalProperties": false
+          },
+          "TraceListResponse": {
+            "type": "object",
+            "properties": {
+              "traces": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/AeroGraph/properties/TraceMeta"
+                }
+              }
+            },
+            "required": [
+              "traces"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "TraceEventKind",
+          "TraceEventStatus",
+          "ActorKind",
+          "Actor",
+          "AgentActor",
+          "ToolActor",
+          "SystemActor",
+          "LinkRel",
+          "TraceLink",
+          "PromptPayload",
+          "StreamingTelemetry",
+          "ResponsePayload",
+          "ToolCallPayload",
+          "ToolResultPayload",
+          "HandoffPayload",
+          "ErrorPayload",
+          "StateSnapshotPayload",
+          "RetrieverDocument",
+          "RetrieverPayload",
+          "CheckpointPayload",
+          "PromptEvent",
+          "ResponseEvent",
+          "ToolCallEvent",
+          "ToolResultEvent",
+          "HandoffEvent",
+          "ErrorEvent",
+          "NoteEvent",
+          "StateSnapshotEvent",
+          "RetrieverEvent",
+          "CheckpointEvent",
+          "TraceEvent",
+          "Trace",
+          "TraceMeta",
+          "TraceWithMeta",
+          "TraceListResponse"
+        ],
+        "additionalProperties": false
+      }
+    }
+  }
+}

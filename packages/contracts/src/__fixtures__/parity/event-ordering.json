@@ -1,0 +1,80 @@
+{
+  "description": "Cross-language parity fixtures for event ordering. The expected output of sortTraceEventsDeterministic (compareTraceEvents) on the given input. TypeScript and Python MUST produce identical orderings.",
+  "rule": "Primary: occurredAt (lexicographic). Secondary: spanId (lexicographic). Tertiary: kind (lexicographic).",
+  "fixtures": [
+    {
+      "id": "different-timestamps",
+      "description": "Different timestamps → sort by time ascending",
+      "input": [
+        { "occurredAt": "2026-05-31T00:00:02.000Z", "spanId": "s2", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:01.000Z", "spanId": "s1", "kind": "response" },
+        { "occurredAt": "2026-05-31T00:00:03.000Z", "spanId": "s3", "kind": "note" }
+      ],
+      "expected": [
+        { "occurredAt": "2026-05-31T00:00:01.000Z", "spanId": "s1", "kind": "response" },
+        { "occurredAt": "2026-05-31T00:00:02.000Z", "spanId": "s2", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:03.000Z", "spanId": "s3", "kind": "note" }
+      ]
+    },
+    {
+      "id": "same-timestamp-different-spanid",
+      "description": "Same timestamp → sort by spanId ascending",
+      "input": [
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s_zzz", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s_aaa", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s_mmm", "kind": "prompt" }
+      ],
+      "expected": [
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s_aaa", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s_mmm", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s_zzz", "kind": "prompt" }
+      ]
+    },
+    {
+      "id": "same-timestamp-same-spanid-different-kind",
+      "description": "Same timestamp + spanId → sort by kind ascending",
+      "input": [
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "response" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "note" }
+      ],
+      "expected": [
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "note" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "response" }
+      ]
+    },
+    {
+      "id": "single-event",
+      "description": "Single event → returned as-is",
+      "input": [
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "prompt" }
+      ],
+      "expected": [
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "prompt" }
+      ]
+    },
+    {
+      "id": "empty",
+      "description": "Empty array → empty result",
+      "input": [],
+      "expected": []
+    },
+    {
+      "id": "mixed-tie-break",
+      "description": "Mixed case: timestamp tie-break by spanId then kind",
+      "input": [
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s2", "kind": "response" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "response" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:01.000Z", "spanId": "s0", "kind": "note" }
+      ],
+      "expected": [
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "prompt" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s1", "kind": "response" },
+        { "occurredAt": "2026-05-31T00:00:00.000Z", "spanId": "s2", "kind": "response" },
+        { "occurredAt": "2026-05-31T00:00:01.000Z", "spanId": "s0", "kind": "note" }
+      ]
+    }
+  ]
+}

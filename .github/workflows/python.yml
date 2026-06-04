@@ -1,0 +1,33 @@
+name: Python SDK & Adapter
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "python/**"
+      - "packages/schema-exporter/artifacts/**"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install uv
+        run: pip install uv
+      - name: Install aerograph-sdk dependencies
+        run: uv pip install --system -e python/aerograph-sdk[dev]
+      - name: Install aerograph-langchain dependencies
+        run: uv pip install --system -e python/aerograph-langchain[dev]
+      - name: Test aerograph-sdk
+        run: pytest python/aerograph-sdk/tests
+      - name: Test aerograph-langchain
+        run: pytest python/aerograph-langchain/tests
+      - name: Check Model Drift
+        run: python python/aerograph-sdk/tools/check_generated_contracts.py

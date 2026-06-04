@@ -1,0 +1,26 @@
+{
+  "name": "@aerograph/schema-exporter",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Build/CI tooling: export versioned JSON Schema artifacts from Zod contracts.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "license": "Apache-2.0",
+  "scripts": {
+    "prebuild": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "tsc -p tsconfig.json",
+    "schema:export": "node dist/cli.js export",
+    "schema:check": "node dist/cli.js check",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aerograph/contracts": "*",
+    "zod-to-json-schema": "^3.24.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0",
+    "@types/node": "^22.0.0"
+  }
+}

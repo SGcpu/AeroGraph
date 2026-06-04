@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "aerograph-langchain"
+version = "0.2.0"
+description = "LangChain callback adapter for AeroGraph — automatically record LangChain traces."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+keywords = ["ai", "agent", "tracing", "langchain", "aerograph"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+  "aerograph-sdk>=0.2.0",
+  "langchain-core>=0.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.24.0",
+  "langchain>=0.2.0",
+  "langchain-core>=0.2.0",
+]
+langgraph = [
+  "langgraph>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/SGcpu/AeroGraph"
+Repository = "https://github.com/SGcpu/AeroGraph"
+Issues = "https://github.com/SGcpu/AeroGraph/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aerograph_langchain"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "integration: marks tests as integration tests (requires external services)",
+]
+
+[tool.uv.sources]
+aerograph-sdk = { path = "../aerograph-sdk", editable = true }

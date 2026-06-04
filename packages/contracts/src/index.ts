@@ -19,15 +19,26 @@ export type TraceEventStatus = z.infer<typeof traceEventStatusSchema>;
 
 export const traceEventSchemaVersion = "1.0.0" as const;
 
-const actorSchema = z.object({
-  kind: z.enum(["agent", "tool", "system"]),
+export const actorKindSchema = z.enum(["agent", "tool", "system"]);
+export type ActorKind = z.infer<typeof actorKindSchema>;
+
+export const actorSchema = z.object({
+  kind: actorKindSchema,
   id: z.string().min(1),
   name: z.string().min(1).optional()
 });
 
-const agentActorSchema = actorSchema.extend({ kind: z.literal("agent") });
-const toolActorSchema = actorSchema.extend({ kind: z.literal("tool") });
-const systemActorSchema = actorSchema.extend({ kind: z.literal("system") });
+export const agentActorSchema = actorSchema.extend({ kind: z.literal("agent") });
+export const toolActorSchema = actorSchema.extend({ kind: z.literal("tool") });
+export const systemActorSchema = actorSchema.extend({ kind: z.literal("system") });
+
+export const linkRelSchema = z.enum(["follows", "caused_by", "handoff_to"]);
+export type LinkRel = z.infer<typeof linkRelSchema>;
+
+export const traceLinkSchema = z.object({
+  rel: linkRelSchema,
+  spanId: z.string().min(1)
+});
 
 const baseEventSchema = z.object({
   schemaVersion: z.literal(traceEventSchemaVersion),
@@ -38,104 +49,119 @@ const baseEventSchema = z.object({
   actor: actorSchema,
   status: traceEventStatusSchema,
   title: z.string().min(1).optional(),
-  links: z
-    .array(
-      z.object({
-        rel: z.enum(["follows", "caused_by", "handoff_to"]),
-        spanId: z.string().min(1)
-      })
-    )
-    .default([])
+  links: z.array(traceLinkSchema).default([])
 });
 
-const promptEventSchema = baseEventSchema.extend({
+export const promptPayloadSchema = z.object({ text: z.string() });
+
+export const promptEventSchema = baseEventSchema.extend({
   kind: z.literal("prompt"),
   actor: agentActorSchema,
-  payload: z.object({ text: z.string() })
+  payload: promptPayloadSchema
 });
 
-const responseEventSchema = baseEventSchema.extend({
+export const streamingTelemetrySchema = z.object({
+  timeToFirstTokenMs: z.number(),
+  totalDurationMs: z.number(),
+  tokensPerSecond: z.number(),
+  tokenCount: z.number()
+});
+
+export const responsePayloadSchema = z.object({ 
+  text: z.string(),
+  streamingTelemetry: streamingTelemetrySchema.optional()
+});
+
+export const responseEventSchema = baseEventSchema.extend({
   kind: z.literal("response"),
   actor: agentActorSchema,
-  payload: z.object({ 
-    text: z.string(),
-    streamingTelemetry: z.object({
-      timeToFirstTokenMs: z.number(),
-      totalDurationMs: z.number(),
-      tokensPerSecond: z.number(),
-      tokenCount: z.number()
-    }).optional()
-  })
+  payload: responsePayloadSchema
 });
 
-const toolCallEventSchema = baseEventSchema.extend({
+export const toolCallPayloadSchema = z.object({ input: z.record(z.string(), z.unknown()) });
+
+export const toolCallEventSchema = baseEventSchema.extend({
   kind: z.literal("tool_call"),
   actor: toolActorSchema,
-  payload: z.object({ input: z.record(z.string(), z.unknown()) })
+  payload: toolCallPayloadSchema
 });
 
-const toolResultEventSchema = baseEventSchema.extend({
+export const toolResultPayloadSchema = z.object({ output: z.record(z.string(), z.unknown()) });
+
+export const toolResultEventSchema = baseEventSchema.extend({
   kind: z.literal("tool_result"),
   actor: toolActorSchema,
-  payload: z.object({ output: z.record(z.string(), z.unknown()) })
+  payload: toolResultPayloadSchema
 });
 
-const handoffEventSchema = baseEventSchema.extend({
+export const handoffPayloadSchema = z.object({
+  fromAgentId: z.string().min(1),
+  toAgentId: z.string().min(1),
+  reason: z.string().optional()
+});
+
+export const handoffEventSchema = baseEventSchema.extend({
   kind: z.literal("handoff"),
   actor: systemActorSchema,
-  payload: z.object({
-    fromAgentId: z.string().min(1),
-    toAgentId: z.string().min(1),
-    reason: z.string().optional()
-  })
+  payload: handoffPayloadSchema
 });
 
-const errorEventSchema = baseEventSchema.extend({
+export const errorPayloadSchema = z.object({
+  message: z.string().min(1),
+  details: z.record(z.string(), z.unknown()).default({})
+});
+
+export const errorEventSchema = baseEventSchema.extend({
   kind: z.literal("error"),
-  payload: z.object({
-    message: z.string().min(1),
-    details: z.record(z.string(), z.unknown()).default({})
-  })
+  payload: errorPayloadSchema
 });
 
-const noteEventSchema = baseEventSchema.extend({
+export const noteEventSchema = baseEventSchema.extend({
   kind: z.literal("note"),
   payload: z.record(z.string(), z.unknown())
 });
 
-const stateSnapshotEventSchema = baseEventSchema.extend({
+export const stateSnapshotPayloadSchema = z.object({
+  nodeName: z.string(),
+  stateHash: z.string(),
+  stateDiff: z.record(z.string(), z.unknown()),
+  removedKeys: z.array(z.string()).optional(),
+  fullState: z.record(z.string(), z.unknown())
+});
+
+export const stateSnapshotEventSchema = baseEventSchema.extend({
   kind: z.literal("state_snapshot"),
   actor: systemActorSchema,
-  payload: z.object({
-    nodeName: z.string(),
-    stateHash: z.string(),
-    stateDiff: z.record(z.string(), z.unknown()),
-    removedKeys: z.array(z.string()).optional(),
-    fullState: z.record(z.string(), z.unknown())
-  })
+  payload: stateSnapshotPayloadSchema
 });
 
-const retrieverEventSchema = baseEventSchema.extend({
+export const retrieverDocumentSchema = z.object({
+  pageContent: z.string(),
+  metadata: z.record(z.string(), z.unknown()),
+  score: z.number().optional()
+});
+
+export const retrieverPayloadSchema = z.object({
+  query: z.string(),
+  documents: z.array(retrieverDocumentSchema)
+});
+
+export const retrieverEventSchema = baseEventSchema.extend({
   kind: z.literal("retriever"),
   actor: toolActorSchema,
-  payload: z.object({
-    query: z.string(),
-    documents: z.array(z.object({
-      pageContent: z.string(),
-      metadata: z.record(z.string(), z.unknown()),
-      score: z.number().optional()
-    }))
-  })
+  payload: retrieverPayloadSchema
 });
 
-const checkpointEventSchema = baseEventSchema.extend({
+export const checkpointPayloadSchema = z.object({
+  checkpointId: z.string(),
+  reason: z.string(),
+  state: z.record(z.string(), z.unknown())
+});
+
+export const checkpointEventSchema = baseEventSchema.extend({
   kind: z.literal("checkpoint"),
   actor: systemActorSchema,
-  payload: z.object({
-    checkpointId: z.string(),
-    reason: z.string(),
-    state: z.record(z.string(), z.unknown())
-  })
+  payload: checkpointPayloadSchema
 });
 
 export const traceEventSchema = z.discriminatedUnion("kind", [
@@ -316,4 +342,4 @@ export function validateTraceAnalysis(input: unknown): TraceAnalysis {
   return traceAnalysisSchema.parse(input);
 }
 
-export * from "./utils/hash";
+export * from "./utils/hash.js";
