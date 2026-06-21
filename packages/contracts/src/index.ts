@@ -17,7 +17,29 @@ export type TraceEventKind = z.infer<typeof traceEventKindSchema>;
 export const traceEventStatusSchema = z.enum(["ok", "error"]);
 export type TraceEventStatus = z.infer<typeof traceEventStatusSchema>;
 
-export const traceEventSchemaVersion = "1.0.0" as const;
+export const traceEventSchemaVersion = "1.1.0" as const;
+export const traceEventSchemaVersionLegacy = "1.0.0" as const;
+
+// ─── Canonical Telemetry Model (v1.1.0) ──────────────────────────────────────
+
+/** Model identity metadata (name, provider, version). Cost is NOT stored — derived at analytics time. */
+export const telemetryModelInfoSchema = z.object({
+  name: z.string().min(1),
+  provider: z.string().min(1).optional(),
+  version: z.string().min(1).optional()
+});
+export type TelemetryModelInfo = z.infer<typeof telemetryModelInfoSchema>;
+
+/** Token usage breakdown. cachedTokens is optional for frameworks that don't expose it. */
+export const telemetryUsageSchema = z.object({
+  inputTokens: z.number().int().nonnegative().optional(),
+  outputTokens: z.number().int().nonnegative().optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
+  cachedTokens: z.number().int().nonnegative().optional()
+});
+export type TelemetryUsage = z.infer<typeof telemetryUsageSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const actorKindSchema = z.enum(["agent", "tool", "system"]);
 export type ActorKind = z.infer<typeof actorKindSchema>;
@@ -41,7 +63,10 @@ export const traceLinkSchema = z.object({
 });
 
 const baseEventSchema = z.object({
-  schemaVersion: z.literal(traceEventSchemaVersion),
+  schemaVersion: z.union([
+    z.literal(traceEventSchemaVersion),
+    z.literal(traceEventSchemaVersionLegacy)
+  ]),
   traceId: z.string().min(1),
   spanId: z.string().min(1),
   parentSpanId: z.string().min(1).nullable(),
@@ -49,10 +74,22 @@ const baseEventSchema = z.object({
   actor: actorSchema,
   status: traceEventStatusSchema,
   title: z.string().min(1).optional(),
-  links: z.array(traceLinkSchema).default([])
+  links: z.array(traceLinkSchema).default([]),
+  // ── Canonical Telemetry Fields (v1.1.0, all optional for backward compatibility) ──
+  /** Span execution duration in milliseconds. */
+  durationMs: z.number().int().nonnegative().optional(),
+  /** Project identifier for multi-tenant isolation. */
+  projectId: z.string().min(1).optional(),
+  /** Deployment environment (e.g. development, staging, production). */
+  environment: z.string().min(1).optional(),
+  /** Arbitrary key-value telemetry tags. */
+  tags: z.record(z.string(), z.string()).optional()
 });
 
-export const promptPayloadSchema = z.object({ text: z.string() });
+export const promptPayloadSchema = z.object({ 
+  text: z.string(),
+  model: telemetryModelInfoSchema.optional()
+});
 
 export const promptEventSchema = baseEventSchema.extend({
   kind: z.literal("prompt"),
@@ -69,7 +106,9 @@ export const streamingTelemetrySchema = z.object({
 
 export const responsePayloadSchema = z.object({ 
   text: z.string(),
-  streamingTelemetry: streamingTelemetrySchema.optional()
+  streamingTelemetry: streamingTelemetrySchema.optional(),
+  model: telemetryModelInfoSchema.optional(),
+  usage: telemetryUsageSchema.optional()
 });
 
 export const responseEventSchema = baseEventSchema.extend({

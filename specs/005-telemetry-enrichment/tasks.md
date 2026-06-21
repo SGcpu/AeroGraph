@@ -7,8 +7,8 @@
 
 **Purpose**: Project initialization and basic structure.
 
-- [ ] T001 Create `specs/005-telemetry-enrichment/tasks.md` (completed)
-- [ ] T002 Review project structure and setup local SQLite database for testing in `apps/collector/`
+- [X] T001 Create `specs/005-telemetry-enrichment/tasks.md` (completed)
+- [X] T002 Review project structure and setup local SQLite database for testing in `apps/collector/`
 
 ---
 
@@ -16,14 +16,14 @@
 
 **Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented.
 
-- [ ] T003 [P] Update canonical event schema to v1.1.0 (excluding cost) in `packages/contracts/src/schema/event.json`
-- [ ] T004 [P] Update shared TypeScript contracts for telemetry fields in `packages/contracts/src/types.ts`
-- [ ] T005 [P] Update shared Python contracts for telemetry fields in `python/aerograph-sdk/aerograph_sdk/contracts/types.py`
-- [ ] T006 [P] Create generic canonical telemetry mapper utility (TypeScript) in `packages/sdk/src/telemetry/mapper.ts`
-- [ ] T007 [P] Create generic canonical telemetry mapper utility (Python) in `python/aerograph-sdk/aerograph_sdk/telemetry/mapper.py`
-- [ ] T008 Design SQLite migration strategy (new columns/indexes for durationMs, totalTokens, projectId, environment) in `apps/collector/src/db/migrations/005_telemetry.sql`
-- [ ] T009 [P] Define OTEL semantic mapping foundation (gen_ai attributes) in `packages/otel/src/semantic_mapping.ts`
-- [ ] T010 [P] Create backward compatibility validation suite (1.0.0 event -> 1.1.0 collector, replay, OTEL export, UI rendering) in `apps/collector/tests/backward_compatibility.test.ts`
+- [X] T003 [P] Update canonical event schema to v1.1.0 (excluding cost) in `packages/contracts/src/schema/event.json`
+- [X] T004 [P] Update shared TypeScript contracts for telemetry fields in `packages/contracts/src/types.ts`
+- [X] T005 [P] Update shared Python contracts for telemetry fields in `python/aerograph-sdk/aerograph_sdk/contracts/types.py`
+- [X] T006 [P] Create generic canonical telemetry mapper utility (TypeScript) in `packages/sdk/src/telemetry/mapper.ts`
+- [X] T007 [P] Create generic canonical telemetry mapper utility (Python) in `python/aerograph-sdk/aerograph_sdk/telemetry/mapper.py`
+- [X] T008 Design SQLite migration strategy (new columns/indexes for durationMs, totalTokens, projectId, environment) in `apps/collector/src/db/migrations/005_telemetry.sql`
+- [X] T009 [P] Define OTEL semantic mapping foundation (gen_ai attributes) in `packages/otel/src/semantic_mapping.ts`
+- [X] T010 [P] Create backward compatibility validation suite (1.0.0 event -> 1.1.0 collector, replay, OTEL export, UI rendering) in `apps/collector/tests/backward_compatibility.test.ts`
 
 ---
 

@@ -33,7 +33,7 @@ ARTIFACT_PATH = (
     / "packages"
     / "schema-exporter"
     / "artifacts"
-    / "1.0.0"
+    / "1.1.0"
     / "trace-event.schema.json"
 )
 OUTPUT_PATH = (
@@ -131,6 +131,7 @@ def main() -> None:
     with open(OUTPUT_PATH, "a") as f:
         f.write("\n# Injected by generate_contracts.py\n")
         f.write(f"SCHEMA_VERSION = '{version}'\n")
+        f.write(f"SCHEMA_VERSION_LEGACY = '1.0.0'\n")
         f.write(
             "TraceEvent = PromptEvent | ResponseEvent | ToolCallEvent | ToolResultEvent | HandoffEvent | ErrorEvent | NoteEvent | StateSnapshotEvent | RetrieverEvent | CheckpointEvent\n"
         )

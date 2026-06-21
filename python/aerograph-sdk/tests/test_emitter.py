@@ -64,7 +64,7 @@ def test_emit_prompt_posts_to_collector(httpx_mock) -> None:
     parsed = json.loads(body)
     assert parsed["kind"] == "prompt"
     assert parsed["traceId"] == "t_test_001"
-    assert parsed["schemaVersion"] == "1.0.0"
+    assert parsed["schemaVersion"] == "1.1.0"
 
 
 def test_emit_response_posts_to_collector(httpx_mock) -> None:

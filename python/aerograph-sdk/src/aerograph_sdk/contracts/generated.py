@@ -14,45 +14,57 @@ class Model(RootModel[Any]):
 
 
 class TraceEventKind(Enum):
-    prompt = "prompt"
-    response = "response"
-    tool_call = "tool_call"
-    tool_result = "tool_result"
-    handoff = "handoff"
-    error = "error"
-    note = "note"
-    state_snapshot = "state_snapshot"
-    retriever = "retriever"
-    checkpoint = "checkpoint"
+    prompt = 'prompt'
+    response = 'response'
+    tool_call = 'tool_call'
+    tool_result = 'tool_result'
+    handoff = 'handoff'
+    error = 'error'
+    note = 'note'
+    state_snapshot = 'state_snapshot'
+    retriever = 'retriever'
+    checkpoint = 'checkpoint'
 
 
 class TraceEventStatus(Enum):
-    ok = "ok"
-    error = "error"
+    ok = 'ok'
+    error = 'error'
+
+
+class TelemetryModelInfo(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    name: Annotated[str, Field(min_length=1)]
+    provider: Annotated[str | None, Field(min_length=1)] = None
+    version: Annotated[str | None, Field(min_length=1)] = None
+
+
+class TelemetryUsage(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    inputTokens: Annotated[int | None, Field(ge=0)] = None
+    outputTokens: Annotated[int | None, Field(ge=0)] = None
+    totalTokens: Annotated[int | None, Field(ge=0)] = None
+    cachedTokens: Annotated[int | None, Field(ge=0)] = None
 
 
 class ActorKind(Enum):
-    agent = "agent"
-    tool = "tool"
-    system = "system"
+    agent = 'agent'
+    tool = 'tool'
+    system = 'system'
 
 
 class LinkRel(Enum):
-    follows = "follows"
-    caused_by = "caused_by"
-    handoff_to = "handoff_to"
-
-
-class PromptPayload(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    text: str
+    follows = 'follows'
+    caused_by = 'caused_by'
+    handoff_to = 'handoff_to'
 
 
 class StreamingTelemetry(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     timeToFirstTokenMs: float
     totalDurationMs: float
@@ -62,21 +74,21 @@ class StreamingTelemetry(BaseModel):
 
 class ToolCallPayload(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     input: dict[str, Any]
 
 
 class ToolResultPayload(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     output: dict[str, Any]
 
 
 class HandoffPayload(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     fromAgentId: Annotated[str, Field(min_length=1)]
     toAgentId: Annotated[str, Field(min_length=1)]
@@ -85,7 +97,7 @@ class HandoffPayload(BaseModel):
 
 class ErrorPayload(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     message: Annotated[str, Field(min_length=1)]
     details: dict[str, Any] = {}
@@ -93,7 +105,7 @@ class ErrorPayload(BaseModel):
 
 class StateSnapshotPayload(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     nodeName: str
     stateHash: str
@@ -104,7 +116,7 @@ class StateSnapshotPayload(BaseModel):
 
 class RetrieverDocument(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     pageContent: str
     metadata: dict[str, Any]
@@ -113,11 +125,16 @@ class RetrieverDocument(BaseModel):
 
 class CheckpointPayload(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     checkpointId: str
     reason: str
     state: dict[str, Any]
+
+
+class SchemaVersion(Enum):
+    field_1_1_0 = '1.1.0'
+    field_1_0_0 = '1.0.0'
 
 
 class ParentSpanId(RootModel[str]):
@@ -130,7 +147,7 @@ class RootSpanId(RootModel[str]):
 
 class DerivedFrom(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     baseTraceId: Annotated[str, Field(min_length=1)]
     forkedFromSpanId: Annotated[str, Field(min_length=1)]
@@ -138,7 +155,7 @@ class DerivedFrom(BaseModel):
 
 class TraceMeta(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     traceId: Annotated[str, Field(min_length=1)]
     createdAt: AwareDatetime
@@ -158,11 +175,19 @@ class Name(RootModel[str]):
 
 class AgentActor(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    kind: Literal["agent"]
+    kind: Literal['agent']
     id: Annotated[str, Field(min_length=1)]
     name: Annotated[str | None, Field(min_length=1)] = None
+
+
+class DurationMs(RootModel[int]):
+    root: Annotated[int, Field(ge=0)]
+
+
+class Environment(RootModel[str]):
+    root: Annotated[str, Field(min_length=1)]
 
 
 class OccurredAt(RootModel[AwareDatetime]):
@@ -173,12 +198,16 @@ class ParentSpanIdModel(RootModel[ParentSpanId | None]):
     root: ParentSpanId | None
 
 
-class SchemaVersion(RootModel[Literal["1.0.0"]]):
-    root: Literal["1.0.0"]
+class ProjectId(RootModel[str]):
+    root: Annotated[str, Field(min_length=1)]
 
 
 class SpanId(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
+
+
+class Tags(RootModel[dict[str, str]]):
+    root: dict[str, str]
 
 
 class Title(RootModel[str]):
@@ -191,7 +220,7 @@ class TraceId(RootModel[str]):
 
 class RetrieverPayload(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     query: str
     documents: list[RetrieverDocument]
@@ -199,25 +228,25 @@ class RetrieverPayload(BaseModel):
 
 class SystemActor(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    kind: Literal["system"]
+    kind: Literal['system']
     id: Annotated[str, Field(min_length=1)]
     name: Annotated[str | None, Field(min_length=1)] = None
 
 
 class ToolActor(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    kind: Literal["tool"]
+    kind: Literal['tool']
     id: Annotated[str, Field(min_length=1)]
     name: Annotated[str | None, Field(min_length=1)] = None
 
 
 class TraceLink(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     rel: LinkRel
     spanId: Annotated[str, Field(min_length=1)]
@@ -225,7 +254,7 @@ class TraceLink(BaseModel):
 
 class TraceMetaModel(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     traceId: Annotated[str, Field(min_length=1)]
     createdAt: AwareDatetime
@@ -237,60 +266,36 @@ class TraceMetaModel(BaseModel):
 
 class Actor(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     kind: ActorKind
     id: Annotated[str, Field(min_length=1)]
     name: Annotated[str | None, Field(min_length=1)] = None
 
 
+class PromptPayload(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    text: str
+    model: TelemetryModelInfo | None = None
+
+
 class ResponsePayload(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     text: str
     streamingTelemetry: StreamingTelemetry | None = None
-
-
-class PromptEvent(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    schemaVersion: Literal["1.0.0"]
-    traceId: Annotated[str, Field(min_length=1)]
-    spanId: Annotated[str, Field(min_length=1)]
-    parentSpanId: ParentSpanId | None
-    occurredAt: AwareDatetime
-    actor: AgentActor
-    status: TraceEventStatus
-    title: Annotated[str | None, Field(min_length=1)] = None
-    links: Annotated[list[TraceLink], Field(validate_default=True)] = []
-    kind: Literal["prompt"]
-    payload: PromptPayload
+    model: TelemetryModelInfo | None = None
+    usage: TelemetryUsage | None = None
 
 
 class TraceListResponse(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     traces: list[TraceMetaModel]
-
-
-class PromptEventModel(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    schemaVersion: Literal["1.0.0"]
-    traceId: Annotated[str, Field(min_length=1)]
-    spanId: Annotated[str, Field(min_length=1)]
-    parentSpanId: ParentSpanId | None
-    occurredAt: AwareDatetime
-    actor: AgentActor
-    status: TraceEventStatus
-    title: Annotated[str | None, Field(min_length=1)] = None
-    links: Annotated[list[TraceLink], Field(validate_default=True)] = []
-    kind: Literal["prompt"]
-    payload: PromptPayload
 
 
 class Links(RootModel[list[TraceLink] | None]):
@@ -299,9 +304,9 @@ class Links(RootModel[list[TraceLink] | None]):
 
 class RetrieverEvent(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    schemaVersion: Literal["1.0.0"]
+    schemaVersion: SchemaVersion
     traceId: Annotated[str, Field(min_length=1)]
     spanId: Annotated[str, Field(min_length=1)]
     parentSpanId: ParentSpanId | None
@@ -310,15 +315,19 @@ class RetrieverEvent(BaseModel):
     status: TraceEventStatus
     title: Annotated[str | None, Field(min_length=1)] = None
     links: list[TraceLink] | None = None
-    kind: Literal["retriever"]
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['retriever']
     payload: RetrieverPayload
 
 
 class StateSnapshotEvent(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    schemaVersion: Literal["1.0.0"]
+    schemaVersion: SchemaVersion
     traceId: Annotated[str, Field(min_length=1)]
     spanId: Annotated[str, Field(min_length=1)]
     parentSpanId: ParentSpanId | None
@@ -327,15 +336,19 @@ class StateSnapshotEvent(BaseModel):
     status: TraceEventStatus
     title: Annotated[str | None, Field(min_length=1)] = None
     links: list[TraceLink] | None = None
-    kind: Literal["state_snapshot"]
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['state_snapshot']
     payload: StateSnapshotPayload
 
 
 class ToolCallEvent(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    schemaVersion: Literal["1.0.0"]
+    schemaVersion: SchemaVersion
     traceId: Annotated[str, Field(min_length=1)]
     spanId: Annotated[str, Field(min_length=1)]
     parentSpanId: ParentSpanId | None
@@ -344,15 +357,19 @@ class ToolCallEvent(BaseModel):
     status: TraceEventStatus
     title: Annotated[str | None, Field(min_length=1)] = None
     links: list[TraceLink] | None = None
-    kind: Literal["tool_call"]
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['tool_call']
     payload: ToolCallPayload
 
 
 class ToolResultEvent(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    schemaVersion: Literal["1.0.0"]
+    schemaVersion: SchemaVersion
     traceId: Annotated[str, Field(min_length=1)]
     spanId: Annotated[str, Field(min_length=1)]
     parentSpanId: ParentSpanId | None
@@ -361,15 +378,40 @@ class ToolResultEvent(BaseModel):
     status: TraceEventStatus
     title: Annotated[str | None, Field(min_length=1)] = None
     links: list[TraceLink] | None = None
-    kind: Literal["tool_result"]
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['tool_result']
     payload: ToolResultPayload
+
+
+class PromptEvent(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: SchemaVersion
+    traceId: Annotated[str, Field(min_length=1)]
+    spanId: Annotated[str, Field(min_length=1)]
+    parentSpanId: ParentSpanId | None
+    occurredAt: AwareDatetime
+    actor: AgentActor
+    status: TraceEventStatus
+    title: Annotated[str | None, Field(min_length=1)] = None
+    links: Annotated[list[TraceLink], Field(validate_default=True)] = []
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['prompt']
+    payload: PromptPayload
 
 
 class ResponseEvent(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    schemaVersion: Literal["1.0.0"]
+    schemaVersion: SchemaVersion
     traceId: Annotated[str, Field(min_length=1)]
     spanId: Annotated[str, Field(min_length=1)]
     parentSpanId: ParentSpanId | None
@@ -378,15 +420,19 @@ class ResponseEvent(BaseModel):
     status: TraceEventStatus
     title: Annotated[str | None, Field(min_length=1)] = None
     links: list[TraceLink] | None = None
-    kind: Literal["response"]
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['response']
     payload: ResponsePayload
 
 
 class HandoffEvent(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    schemaVersion: Literal["1.0.0"]
+    schemaVersion: SchemaVersion
     traceId: Annotated[str, Field(min_length=1)]
     spanId: Annotated[str, Field(min_length=1)]
     parentSpanId: ParentSpanId | None
@@ -395,15 +441,19 @@ class HandoffEvent(BaseModel):
     status: TraceEventStatus
     title: Annotated[str | None, Field(min_length=1)] = None
     links: list[TraceLink] | None = None
-    kind: Literal["handoff"]
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['handoff']
     payload: HandoffPayload
 
 
 class ErrorEvent(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    schemaVersion: Literal["1.0.0"]
+    schemaVersion: SchemaVersion
     traceId: Annotated[str, Field(min_length=1)]
     spanId: Annotated[str, Field(min_length=1)]
     parentSpanId: ParentSpanId | None
@@ -412,15 +462,19 @@ class ErrorEvent(BaseModel):
     status: TraceEventStatus
     title: Annotated[str | None, Field(min_length=1)] = None
     links: list[TraceLink] | None = None
-    kind: Literal["error"]
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['error']
     payload: ErrorPayload
 
 
 class NoteEvent(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    schemaVersion: Literal["1.0.0"]
+    schemaVersion: SchemaVersion
     traceId: Annotated[str, Field(min_length=1)]
     spanId: Annotated[str, Field(min_length=1)]
     parentSpanId: ParentSpanId | None
@@ -429,15 +483,19 @@ class NoteEvent(BaseModel):
     status: TraceEventStatus
     title: Annotated[str | None, Field(min_length=1)] = None
     links: list[TraceLink] | None = None
-    kind: Literal["note"]
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['note']
     payload: dict[str, Any]
 
 
 class CheckpointEvent(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    schemaVersion: Literal["1.0.0"]
+    schemaVersion: SchemaVersion
     traceId: Annotated[str, Field(min_length=1)]
     spanId: Annotated[str, Field(min_length=1)]
     parentSpanId: ParentSpanId | None
@@ -446,13 +504,38 @@ class CheckpointEvent(BaseModel):
     status: TraceEventStatus
     title: Annotated[str | None, Field(min_length=1)] = None
     links: list[TraceLink] | None = None
-    kind: Literal["checkpoint"]
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['checkpoint']
     payload: CheckpointPayload
+
+
+class PromptEventModel(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: SchemaVersion
+    traceId: Annotated[str, Field(min_length=1)]
+    spanId: Annotated[str, Field(min_length=1)]
+    parentSpanId: ParentSpanId | None
+    occurredAt: AwareDatetime
+    actor: AgentActor
+    status: TraceEventStatus
+    title: Annotated[str | None, Field(min_length=1)] = None
+    links: Annotated[list[TraceLink], Field(validate_default=True)] = []
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    kind: Literal['prompt']
+    payload: PromptPayload
 
 
 class Trace(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     traceId: Annotated[str, Field(min_length=1)]
     createdAt: AwareDatetime
@@ -473,7 +556,7 @@ class Trace(BaseModel):
 
 class TraceWithMeta(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
     meta: TraceMetaModel
     events: list[
@@ -492,44 +575,48 @@ class TraceWithMeta(BaseModel):
 
 class AeroGraph(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
+        extra='forbid',
     )
-    TraceEventKind_1: Annotated[TraceEventKind, Field(alias="TraceEventKind")]
-    TraceEventStatus_1: Annotated[TraceEventStatus, Field(alias="TraceEventStatus")]
-    ActorKind_1: Annotated[ActorKind, Field(alias="ActorKind")]
-    Actor_1: Annotated[Actor, Field(alias="Actor")]
-    AgentActor_1: Annotated[AgentActor, Field(alias="AgentActor")]
-    ToolActor_1: Annotated[ToolActor, Field(alias="ToolActor")]
-    SystemActor_1: Annotated[SystemActor, Field(alias="SystemActor")]
-    LinkRel_1: Annotated[LinkRel, Field(alias="LinkRel")]
-    TraceLink_1: Annotated[TraceLink, Field(alias="TraceLink")]
-    PromptPayload_1: Annotated[PromptPayload, Field(alias="PromptPayload")]
+    TraceEventKind_1: Annotated[TraceEventKind, Field(alias='TraceEventKind')]
+    TraceEventStatus_1: Annotated[TraceEventStatus, Field(alias='TraceEventStatus')]
+    TelemetryModelInfo_1: Annotated[
+        TelemetryModelInfo, Field(alias='TelemetryModelInfo')
+    ]
+    TelemetryUsage_1: Annotated[TelemetryUsage, Field(alias='TelemetryUsage')]
+    ActorKind_1: Annotated[ActorKind, Field(alias='ActorKind')]
+    Actor_1: Annotated[Actor, Field(alias='Actor')]
+    AgentActor_1: Annotated[AgentActor, Field(alias='AgentActor')]
+    ToolActor_1: Annotated[ToolActor, Field(alias='ToolActor')]
+    SystemActor_1: Annotated[SystemActor, Field(alias='SystemActor')]
+    LinkRel_1: Annotated[LinkRel, Field(alias='LinkRel')]
+    TraceLink_1: Annotated[TraceLink, Field(alias='TraceLink')]
+    PromptPayload_1: Annotated[PromptPayload, Field(alias='PromptPayload')]
     StreamingTelemetry_1: Annotated[
-        StreamingTelemetry, Field(alias="StreamingTelemetry")
+        StreamingTelemetry, Field(alias='StreamingTelemetry')
     ]
-    ResponsePayload_1: Annotated[ResponsePayload, Field(alias="ResponsePayload")]
-    ToolCallPayload_1: Annotated[ToolCallPayload, Field(alias="ToolCallPayload")]
-    ToolResultPayload_1: Annotated[ToolResultPayload, Field(alias="ToolResultPayload")]
-    HandoffPayload_1: Annotated[HandoffPayload, Field(alias="HandoffPayload")]
-    ErrorPayload_1: Annotated[ErrorPayload, Field(alias="ErrorPayload")]
+    ResponsePayload_1: Annotated[ResponsePayload, Field(alias='ResponsePayload')]
+    ToolCallPayload_1: Annotated[ToolCallPayload, Field(alias='ToolCallPayload')]
+    ToolResultPayload_1: Annotated[ToolResultPayload, Field(alias='ToolResultPayload')]
+    HandoffPayload_1: Annotated[HandoffPayload, Field(alias='HandoffPayload')]
+    ErrorPayload_1: Annotated[ErrorPayload, Field(alias='ErrorPayload')]
     StateSnapshotPayload_1: Annotated[
-        StateSnapshotPayload, Field(alias="StateSnapshotPayload")
+        StateSnapshotPayload, Field(alias='StateSnapshotPayload')
     ]
-    RetrieverDocument_1: Annotated[RetrieverDocument, Field(alias="RetrieverDocument")]
-    RetrieverPayload_1: Annotated[RetrieverPayload, Field(alias="RetrieverPayload")]
-    CheckpointPayload_1: Annotated[CheckpointPayload, Field(alias="CheckpointPayload")]
-    PromptEvent_1: Annotated[PromptEvent, Field(alias="PromptEvent")]
-    ResponseEvent_1: Annotated[ResponseEvent, Field(alias="ResponseEvent")]
-    ToolCallEvent_1: Annotated[ToolCallEvent, Field(alias="ToolCallEvent")]
-    ToolResultEvent_1: Annotated[ToolResultEvent, Field(alias="ToolResultEvent")]
-    HandoffEvent_1: Annotated[HandoffEvent, Field(alias="HandoffEvent")]
-    ErrorEvent_1: Annotated[ErrorEvent, Field(alias="ErrorEvent")]
-    NoteEvent_1: Annotated[NoteEvent, Field(alias="NoteEvent")]
+    RetrieverDocument_1: Annotated[RetrieverDocument, Field(alias='RetrieverDocument')]
+    RetrieverPayload_1: Annotated[RetrieverPayload, Field(alias='RetrieverPayload')]
+    CheckpointPayload_1: Annotated[CheckpointPayload, Field(alias='CheckpointPayload')]
+    PromptEvent_1: Annotated[PromptEvent, Field(alias='PromptEvent')]
+    ResponseEvent_1: Annotated[ResponseEvent, Field(alias='ResponseEvent')]
+    ToolCallEvent_1: Annotated[ToolCallEvent, Field(alias='ToolCallEvent')]
+    ToolResultEvent_1: Annotated[ToolResultEvent, Field(alias='ToolResultEvent')]
+    HandoffEvent_1: Annotated[HandoffEvent, Field(alias='HandoffEvent')]
+    ErrorEvent_1: Annotated[ErrorEvent, Field(alias='ErrorEvent')]
+    NoteEvent_1: Annotated[NoteEvent, Field(alias='NoteEvent')]
     StateSnapshotEvent_1: Annotated[
-        StateSnapshotEvent, Field(alias="StateSnapshotEvent")
+        StateSnapshotEvent, Field(alias='StateSnapshotEvent')
     ]
-    RetrieverEvent_1: Annotated[RetrieverEvent, Field(alias="RetrieverEvent")]
-    CheckpointEvent_1: Annotated[CheckpointEvent, Field(alias="CheckpointEvent")]
+    RetrieverEvent_1: Annotated[RetrieverEvent, Field(alias='RetrieverEvent')]
+    CheckpointEvent_1: Annotated[CheckpointEvent, Field(alias='CheckpointEvent')]
     TraceEvent: (
         PromptEventModel
         | ResponseEvent
@@ -542,23 +629,12 @@ class AeroGraph(BaseModel):
         | RetrieverEvent
         | CheckpointEvent
     )
-    Trace_1: Annotated[Trace, Field(alias="Trace")]
-    TraceMeta_1: Annotated[TraceMeta, Field(alias="TraceMeta")]
-    TraceWithMeta_1: Annotated[TraceWithMeta, Field(alias="TraceWithMeta")]
-    TraceListResponse_1: Annotated[TraceListResponse, Field(alias="TraceListResponse")]
-
+    Trace_1: Annotated[Trace, Field(alias='Trace')]
+    TraceMeta_1: Annotated[TraceMeta, Field(alias='TraceMeta')]
+    TraceWithMeta_1: Annotated[TraceWithMeta, Field(alias='TraceWithMeta')]
+    TraceListResponse_1: Annotated[TraceListResponse, Field(alias='TraceListResponse')]
 
 # Injected by generate_contracts.py
-SCHEMA_VERSION = "1.0.0"
-TraceEvent = (
-    PromptEvent
-    | ResponseEvent
-    | ToolCallEvent
-    | ToolResultEvent
-    | HandoffEvent
-    | ErrorEvent
-    | NoteEvent
-    | StateSnapshotEvent
-    | RetrieverEvent
-    | CheckpointEvent
-)
+SCHEMA_VERSION = '1.1.0'
+SCHEMA_VERSION_LEGACY = '1.0.0'
+TraceEvent = PromptEvent | ResponseEvent | ToolCallEvent | ToolResultEvent | HandoffEvent | ErrorEvent | NoteEvent | StateSnapshotEvent | RetrieverEvent | CheckpointEvent

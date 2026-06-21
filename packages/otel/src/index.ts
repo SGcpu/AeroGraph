@@ -37,3 +37,12 @@ export {
   SPAN_KIND,
   STATUS_CODE,
 } from "./mapping.js";
+
+// Semantic Mapping (GenAI Conventions)
+export {
+  GEN_AI_ATTRS,
+  COMMON_ATTRS,
+  mapCanonicalTelemetry,
+  mapModelTelemetry,
+  mapUsageTelemetry,
+} from "./semantic_mapping.js";

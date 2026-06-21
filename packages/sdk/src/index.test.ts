@@ -28,7 +28,7 @@ describe("sdk: FlightRecorder", () => {
 
     expect(calls.length).toBe(1);
     const body = JSON.parse(String(calls[0].init?.body));
-    expect(body.schemaVersion).toBe("1.0.0");
+    expect(body.schemaVersion).toBe("1.1.0");
     expect(body.kind).toBe("prompt");
     expect(body.traceId).toBeTruthy();
   });
