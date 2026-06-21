@@ -6,6 +6,7 @@ import ReactFlow, {
   MarkerType,
   Handle,
   Position,
+  useReactFlow,
   type NodeTypes,
   type Node,
   type Edge,
@@ -276,6 +277,19 @@ function buildPremiumGraph(
 // ─── Main App ─────────────────────────────────────────────────────────────────
 type Selected = { event: TraceEvent };
 
+function FitViewOnUpdate({ nodesCount }: { nodesCount: number }) {
+  const { fitView } = useReactFlow();
+  useEffect(() => {
+    if (nodesCount > 0) {
+      const timeoutId = setTimeout(() => {
+        fitView({ padding: 0.15, maxZoom: 1 });
+      }, 50);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [nodesCount, fitView]);
+  return null;
+}
+
 export default function App() {
   const api = useMemo(() => createApi(), []);
 
@@ -287,6 +301,17 @@ export default function App() {
   const [selected, setSelected] = useState<Selected | null>(null);
   const [error, setError] = useState<string>("");
   const [liveUpdating, setLiveUpdating] = useState(true);
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [rightSidebarOpen, setRightSidebarOpen] = useState(true);
+  const [traceSearch, setTraceSearch] = useState("");
+  const [isDark, setIsDark] = useState(true); 
+  const [lineageOpen, setLineageOpen] = useState(false);
+
+  useEffect(() => {
+    if (isDark) document.documentElement.classList.add("dark");
+    else document.documentElement.classList.remove("dark");
+  }, [isDark]);
+
   const [playbackCursor, setPlaybackCursor] = useState<number>(-1);
   const [diffResult, setDiffResult] = useState<TraceDiffResult | null>(null);
   const [compareTargetId, setCompareTargetId] = useState<string>("");
@@ -444,7 +469,7 @@ export default function App() {
     if (!selected) {
       return (
         <div className="side-empty">
-          <span className="side-empty-icon">🔍</span>
+          <span className="side-empty-icon"></span>
           <div>
             Click a node in the graph
             <br />
@@ -562,31 +587,14 @@ export default function App() {
       {/* Header */}
       <header className="header">
         <div className="header-brand">
-          <div className="header-logo">✈</div>
+          <div className="header-logo" style={{ overflow: "hidden", border: "none", background: "transparent" }}>
+            <img src="https://res.cloudinary.com/decbdlnqg/image/upload/v1781969113/Logo_8_1_axs9mt.png" alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          </div>
           <span className="title">AeroGraph</span>
           <span className="title-badge">Phase 2</span>
         </div>
 
         <div className="controls">
-          {/* Trace selector */}
-          <label>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-              Trace
-            </span>
-            <select
-              className="trace-select"
-              value={traceId}
-              onChange={(e) => setTraceId(e.target.value)}
-            >
-              <option value="">— Select a trace —</option>
-              {traces.map((t) => (
-                <option key={t.traceId} value={t.traceId}>
-                  {t.traceId.slice(0, 22)}… ({t.eventCount} events)
-                </option>
-              ))}
-            </select>
-          </label>
-
           {/* Live toggle */}
           <label className="live-toggle">
             <input
@@ -597,6 +605,15 @@ export default function App() {
             <span className={`live-dot ${liveUpdating ? "active" : ""}`} />
             {liveUpdating ? "Live" : "Paused"}
           </label>
+
+          {/* Dark Mode butoon */}
+          <button
+            className="btn"
+            onClick={() => setIsDark(!isDark)}
+            title="Toggle Dark Mode"
+          >
+            {isDark ? "☀️ Light" : "🌙 Dark"}
+          </button>
 
           {/* Refresh */}
           <button
@@ -615,9 +632,61 @@ export default function App() {
       {error && <div className="error">⚠ {error}</div>}
 
       {/* Body */}
-      <main className="main">
+      <main className="main" style={{ gridTemplateColumns: `${leftSidebarOpen ? '280px' : '0px'} 1fr ${rightSidebarOpen ? '380px' : '0px'}`, transition: 'grid-template-columns 0.3s ease' }}>
+        {/* Left Sidebar: Traces */}
+        <aside className="side side-left">
+          <div className="side-header" style={{ padding: "16px" }}>
+            <span className="side-title">Traces</span>
+          </div>
+          <div style={{ padding: "12px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-surface)" }}>
+            <input 
+              type="text" 
+              placeholder="Search traces..." 
+              value={traceSearch}
+              onChange={(e) => setTraceSearch(e.target.value)}
+              style={{
+                width: "100%", padding: "6px 10px", borderRadius: "4px", 
+                border: "1px solid var(--border-subtle)", background: "var(--bg-base)",
+                color: "var(--text-primary)", fontSize: "12px", fontFamily: "var(--font-sans)",
+                outline: "none"
+              }}
+            />
+          </div>
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            {traces.filter(t => t.traceId.toLowerCase().includes(traceSearch.toLowerCase())).map(t => (
+              <div 
+                key={t.traceId} 
+                className={`trace-list-item ${t.traceId === traceId ? "active" : ""}`}
+                onClick={() => setTraceId(t.traceId)}
+              >
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--text-primary)" }}>
+                  {t.traceId.slice(0, 22)}...
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                  {t.eventCount} events
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
         {/* Graph canvas */}
         <section className="graph">
+          <button 
+            className={`sidebar-toggle-btn sidebar-toggle-left ${!leftSidebarOpen ? 'closed' : ''}`}
+            onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+            title="Toggle Traces Sidebar"
+          >
+            {leftSidebarOpen ? '◀' : '▶'}
+          </button>
+          
+          <button 
+            className={`sidebar-toggle-btn sidebar-toggle-right ${!rightSidebarOpen ? 'closed' : ''}`}
+            onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+            title="Toggle Inspector Sidebar"
+          >
+            {rightSidebarOpen ? '▶' : '◀'}
+          </button>
+
           {/* Playback controls */}
           <div className="playback-controls">
             <button
@@ -667,6 +736,7 @@ export default function App() {
             maxZoom={2}
             proOptions={{ hideAttribution: true }}
           >
+            <FitViewOnUpdate nodesCount={graph.nodes.length} />
             <Background
               variant={BackgroundVariant.Dots}
               gap={28}
@@ -678,25 +748,39 @@ export default function App() {
         </section>
 
         {/* Sidebar */}
-        <aside className="side">
-          <div className="side-header">
-            <span className="side-title">Lineage</span>
+        <aside className="side side-right">
+          <div 
+            className="side-header hover:bg-bg-hover transition-colors" 
+            style={{ cursor: "pointer", userSelect: "none" }} 
+            onClick={() => setLineageOpen(!lineageOpen)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span className="side-title">Lineage</span>
+              <span style={{ fontSize: "10px", color: "var(--text-muted)", transition: "transform 0.3s", transform: lineageOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+            </div>
             {forkPointSpanId && (
-              <button className="btn" onClick={jumpToForkPoint}>
+              <button 
+                className="btn" 
+                onClick={(e) => { e.stopPropagation(); jumpToForkPoint(); }}
+              >
                 Jump to fork
               </button>
             )}
           </div>
           <div
-            style={{
-              padding: "14px 16px",
-              borderBottom: "1px solid var(--border-subtle)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
-            }}
+            className={`accordion-content ${lineageOpen ? "open" : ""}`}
+            style={{ borderBottom: lineageOpen ? "1px solid var(--border-subtle)" : "none" }}
           >
-            <div>
+            <div className="accordion-inner">
+              <div
+                style={{
+                  padding: "14px 16px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 12,
+                }}
+              >
+                <div>
               <div className="detail-section-label">Breadcrumb</div>
               {!lineage || !traceId ? (
                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
@@ -886,6 +970,8 @@ export default function App() {
                 </div>
               )}
             </div>
+          </div>
+          </div>
           </div>
 
           {/* T044: Loop warnings panel */}
