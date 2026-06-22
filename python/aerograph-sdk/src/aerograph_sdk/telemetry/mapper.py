@@ -15,10 +15,41 @@ Design principles (from constitution):
 from __future__ import annotations
 
 import time
+from dataclasses import dataclass, field
 from typing import Optional
 
 from aerograph_sdk.contracts import TelemetryModelInfo, TelemetryUsage
 from aerograph_sdk.contracts.types import CanonicalTelemetry  # noqa: F401 (re-export for convenience)
+
+
+# ─── TelemetryBlock dataclass ─────────────────────────────────────────────────
+
+@dataclass
+class TelemetryBlock:
+    """
+    Canonical telemetry block for Python FlightRecorder methods.
+
+    All fields are optional. Pass to prompt() or response() to attach
+    canonical v1.1.0 telemetry metadata to a span.
+
+    Usage::
+
+        telemetry = TelemetryBlock(
+            model=TelemetryModelInfo(name="gpt-4o", provider="openai"),
+            usage=TelemetryUsage(inputTokens=100, outputTokens=50, totalTokens=150),
+            duration_ms=1234,
+            project_id="my-project",
+            environment="production",
+            tags={"agent_version": "1.0"},
+        )
+        recorder.response(text="Hello", parent_span_id=..., telemetry=telemetry)
+    """
+    model: Optional[TelemetryModelInfo] = None
+    usage: Optional[TelemetryUsage] = None
+    duration_ms: Optional[int] = None
+    project_id: Optional[str] = None
+    environment: Optional[str] = None
+    tags: Optional[dict] = field(default=None)
 
 
 # ─── Public surface types ──────────────────────────────────────────────────

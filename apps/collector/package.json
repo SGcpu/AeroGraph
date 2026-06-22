@@ -1,6 +1,6 @@
 {
   "name": "apps-collector",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,8 +11,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@aerograph/contracts": "0.2.1",
-    "@aerograph/otel": "0.1.1",
+    "@aerograph/contracts": "0.3.0",
+    "@aerograph/otel": "0.2.0",
     "better-sqlite3": "^12.10.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",

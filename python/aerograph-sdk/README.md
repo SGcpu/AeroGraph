@@ -24,15 +24,24 @@ from aerograph_sdk import FlightRecorder
 # 1. Initialize the recorder
 recorder = FlightRecorder(
     endpoint="http://localhost:4317", # AeroGraph Collector URL
-    actor={"id": "my-travel-agent", "name": "Travel Planner"}
+    actor={"id": "my-travel-agent", "name": "Travel Planner"},
+    project_id="travel-app", # Optional (v1.1.0)
+    environment="production" # Optional (v1.1.0)
 )
 
 # 2. Emit events
-prompt_event = recorder.prompt(text="Plan a trip to Tokyo")
+prompt_event = recorder.prompt(
+    text="Plan a trip to Tokyo",
+    model={"name": "gpt-4o", "provider": "openai"},
+    usage={"inputTokens": 10, "totalTokens": 10},
+    duration_ms=50
+)
 
 response_event = recorder.response(
     parent_span_id=prompt_event.spanId,
-    text="Here is your 3-day itinerary..."
+    text="Here is your 3-day itinerary...",
+    usage={"inputTokens": 10, "outputTokens": 50, "totalTokens": 60},
+    duration_ms=2500
 )
 ```
 

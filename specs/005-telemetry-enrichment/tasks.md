@@ -34,14 +34,14 @@
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Implement core telemetry schema support in TypeScript tracer (`durationMs`, `usage`, `model`) in `packages/sdk/src/tracer.ts`
-- [ ] T012 [P] [US1] Implement core telemetry schema support in Python tracer (`durationMs`, `usage`, `model`) in `python/aerograph-sdk/aerograph_sdk/tracer.py`
-- [ ] T013 [US1] Update collector ingestion paths to parse and store token usage and model metadata in `apps/collector/src/api/ingestion.ts`
-- [ ] T014 [P] [US1] Create trace statistics endpoint `GET /v1/traces/:id/stats` (returning totalInputTokens, totalOutputTokens, totalTokens, durationMs, modelBreakdown[]) in `apps/collector/src/api/routes/stats.ts`
-- [ ] T015 [P] [US1] Build collector analytics aggregations (tokens, duration, model usage) in `apps/collector/src/api/analytics.ts`
-- [ ] T015A [US1] Extend TraceAnalysis generation to include totalInputTokens, totalOutputTokens, totalTokens, totalDurationMs, and modelNamesUsed[] in `apps/collector/src/services/analysis.ts`
-- [ ] T016 [P] [US1] Implement UI trace analytics panels (display usage, model, and duration metrics) in `apps/web/src/components/TraceAnalyticsPanel.tsx`
-- [ ] T017 [US1] Implement UI token and model visualization at the span level in `apps/web/src/components/SpanDetails.tsx`
+- [X] T011 [US1] Implement core telemetry schema support in TypeScript tracer (`durationMs`, `usage`, `model`) in `packages/sdk/src/tracer.ts`
+- [X] T012 [P] [US1] Implement core telemetry schema support in Python tracer (`durationMs`, `usage`, `model`) in `python/aerograph-sdk/aerograph_sdk/tracer.py`
+- [X] T013 [US1] Update collector ingestion paths to parse and store token usage and model metadata in `apps/collector/src/api/ingestion.ts`
+- [X] T014 [P] [US1] Create trace statistics endpoint `GET /v1/traces/:id/stats` (returning totalInputTokens, totalOutputTokens, totalTokens, totalDurationMs, rootSpanDurationMs, modelBreakdown[]) in `apps/collector/src/api/routes/stats.ts`
+- [X] T015 [P] [US1] Build collector analytics aggregations (tokens, duration, model usage) in `apps/collector/src/api/analytics.ts`
+- [X] T015A [US1] Extend TraceAnalysis generation to include totalInputTokens, totalOutputTokens, totalTokens, totalDurationMs, and modelNamesUsed[] in `apps/collector/src/services/analysis.ts`
+- [X] T016 [P] [US1] Implement UI trace analytics panels (display usage, model, and duration metrics) in `apps/web/src/components/TraceAnalyticsPanel.tsx`
+- [X] T017 [US1] Implement UI token and model visualization at the span level in `apps/web/src/components/SpanDetails.tsx`
 
 ---
 
@@ -52,12 +52,12 @@
 
 ### Implementation for User Story 2
 
-- [ ] T018 [P] [US2] Add `projectId` and `environment` tag support to TypeScript tracer initialization in `packages/sdk/src/config.ts`
-- [ ] T019 [P] [US2] Add `projectId` and `environment` tag support to Python tracer initialization in `python/aerograph-sdk/aerograph_sdk/config.py`
-- [ ] T020 [US2] Persist `projectId` and `environment` in storage layer in `apps/collector/src/db/repositories/trace_repository.ts`
-- [ ] T021 [US2] Add database indexes for `projectId` and `environment` in `apps/collector/src/db/migrations/005_telemetry.sql`
-- [ ] T022 [US2] Update collector filtering APIs to accept project and environment parameters in `apps/collector/src/api/routes/traces.ts`
-- [ ] T023 [P] [US2] Build UI filtering and search bar components for project and environment selection in `apps/web/src/components/GlobalFilterBar.tsx`
+- [X] T018 [P] [US2] Add `projectId` and `environment` tag support to TypeScript tracer initialization in `packages/sdk/src/config.ts`
+- [X] T019 [P] [US2] Add `projectId` and `environment` tag support to Python tracer initialization in `python/aerograph-sdk/aerograph_sdk/config.py`
+- [X] T020 [US2] Persist `projectId` and `environment` in storage layer in `apps/collector/src/db/repositories/trace_repository.ts`
+- [X] T021 [US2] Add database indexes for `projectId` and `environment` in `apps/collector/src/db/migrations/005_telemetry.sql`
+- [X] T022 [US2] Update collector filtering APIs to accept project and environment parameters in `apps/collector/src/api/routes/traces.ts`
+- [X] T023 [P] [US2] Build UI filtering and search bar components for project and environment selection in `apps/web/src/components/GlobalFilterBar.tsx`
 
 ---
 
@@ -68,10 +68,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T024 [P] [US3] Normalize LangChain TypeScript adapter telemetry using generic mapper in `packages/adapter-langchain/src/index.ts`
-- [ ] T025 [P] [US3] Normalize LangChain Python adapter telemetry using generic mapper in `python/aerograph-langchain/aerograph_langchain/index.py`
-- [ ] T026 [US3] Remove legacy note-event telemetry workarounds across all adapters
-- [ ] T027 [US3] Create adapter parity validation suite in `packages/adapter-langchain/tests/parity.test.ts`
+- [x] T024 [P] [US3] Normalize LangChain TypeScript adapter telemetry using generic mapper in `packages/adapter-langchain/src/index.ts`
+- [x] T025 [P] [US3] Normalize LangChain Python adapter telemetry using generic mapper in `python/aerograph-langchain/aerograph_langchain/index.py`
+- [x] T026 [US3] Remove legacy note-event telemetry workarounds across all adapters
+- [x] T027 [US3] Create adapter parity validation suite in `packages/adapter-langchain/tests/parity.test.ts`
 
 ---
 
@@ -82,12 +82,12 @@
 
 ### Implementation for User Story 4
 
-- [ ] T028 [US4] Map canonical telemetry to GenAI semantic conventions (`gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.*`) for export in `packages/otel/src/exporter.ts`
-- [ ] T029 [US4] Update OTEL import bridge to reconstruct canonical telemetry fields from `gen_ai` semantic attributes in `packages/otel/src/importer.ts`
-- [ ] T030 [P] [US4] Update OTEL bridge configuration and payload formatting in `packages/otel/src/index.ts`
-- [ ] T031 [P] [US4] Write export validation tests for GenAI attributes in `packages/otel/tests/export.test.ts`
-- [ ] T032 [US4] Write import compatibility validation tests for external OTEL collectors in `packages/otel/tests/import.test.ts`
-- [ ] T032A [US4] Validate OTEL round-trip mapping for telemetry metadata (Canonical Event → OTEL Span → Canonical Event) ensuring model, usage, durationMs, projectId, and environment are preserved in `packages/otel/tests/roundtrip.test.ts`
+- [x] T028 [US4] Map canonical telemetry to GenAI semantic conventions (`gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.*`) for export in `packages/otel/src/exporter.ts`
+- [x] T029 [US4] Update OTEL import bridge to reconstruct canonical telemetry fields from `gen_ai` semantic attributes in `packages/otel/src/importer.ts`
+- [x] T030 [P] [US4] Update OTEL bridge configuration and payload formatting in `packages/otel/src/index.ts`
+- [x] T031 [P] [US4] Write export validation tests for GenAI attributes in `packages/otel/tests/export.test.ts`
+- [x] T032 [US4] Write import compatibility validation tests for external OTEL collectors in `packages/otel/tests/import.test.ts`
+- [x] T032A [US4] Validate OTEL round-trip mapping for telemetry metadata (Canonical Event → OTEL Span → Canonical Event) ensuring model, usage, durationMs, projectId, and environment are preserved in `packages/otel/tests/roundtrip.test.ts`
 
 ---
 
@@ -95,12 +95,12 @@
 
 **Purpose**: Final validation, performance benchmarking, and documentation updates.
 
-- [ ] T033 [P] Run and verify cross-language parity tests (`tests/integration/cross_language.test.ts`)
-- [ ] T034 [P] Run and verify replay compatibility tests across updated schemas (`tests/integration/replay.test.ts`)
-- [ ] T035 Run schema migration tests against production-like dataset (`apps/collector/tests/migration.test.ts`)
-- [ ] T036 Execute performance benchmarks for 100k traces focusing on `totalTokens` and `durationMs` indexes (`apps/collector/tests/analytics_benchmark.ts`)
-- [ ] T037 [P] Update user documentation for `telemetry`, `metadata`, `analytics` `projectId`, `environment` (`docs/telemetry.md`)
-- [ ] T038 [P] Update `walkthrough.md` with UI screenshots and configuration examples
+- [x] T033 [P] Run and verify cross-language parity tests (`tests/integration/cross_language.test.ts`)
+- [x] T034 [P] Run and verify replay compatibility tests across updated schemas (`tests/integration/replay.test.ts`)
+- [x] T035 Run schema migration tests against production-like dataset (`apps/collector/tests/migration.test.ts`)
+- [x] T036 Execute performance benchmarks for 100k traces focusing on `totalTokens` and `durationMs` indexes (`apps/collector/tests/analytics_benchmark.ts`)
+- [x] T037 [P] Update user documentation for `telemetry`, `metadata`, `analytics` `projectId`, `environment` (`docs/telemetry.md`)
+- [x] T038 [P] Update `walkthrough.md` with UI screenshots and configuration examples
 
 ---
 

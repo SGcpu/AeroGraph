@@ -131,6 +131,36 @@ describe("exportEventToOtlpSpan", () => {
     const nodeAttr = span.attributes.find((a) => a.key === "aerograph.state_snapshot.node_name");
     expect(nodeAttr?.value).toEqual({ stringValue: "respond" });
   });
+
+  it("exports GenAI attributes for response with model and usage", () => {
+    const fullEvent: any = {
+      schemaVersion: "1.1.0",
+      traceId: "5b8efff798038103d269b633813fc60c",
+      spanId: "aae19b7ec3c1b175",
+      parentSpanId: null,
+      occurredAt: "2026-04-15T10:00:00.000Z",
+      kind: "response",
+      actor: { kind: "agent", id: "assistant" },
+      status: "ok",
+      links: [],
+      projectId: "proj-123",
+      environment: "production",
+      durationMs: 1542,
+      payload: {
+        text: "test",
+        model: { name: "gpt-4", provider: "openai" },
+        usage: { inputTokens: 5, outputTokens: 10, totalTokens: 15 }
+      }
+    };
+    const span = exportEventToOtlpSpan(fullEvent);
+    expect(span.attributes).toContainEqual({ key: "project.id", value: { stringValue: "proj-123" } });
+    expect(span.attributes).toContainEqual({ key: "deployment.environment", value: { stringValue: "production" } });
+    expect(span.attributes).toContainEqual({ key: "gen_ai.response.model", value: { stringValue: "gpt-4" } });
+    expect(span.attributes).toContainEqual({ key: "gen_ai.system", value: { stringValue: "openai" } });
+    expect(span.attributes).toContainEqual({ key: "gen_ai.usage.input_tokens", value: { intValue: 5 } });
+    expect(span.attributes).toContainEqual({ key: "gen_ai.usage.output_tokens", value: { intValue: 10 } });
+    expect(span.attributes).toContainEqual({ key: "gen_ai.usage.total_tokens", value: { intValue: 15 } });
+  });
 });
 
 describe("exportEventsToOtlp", () => {

@@ -73,6 +73,11 @@ An open-source flight recorder for AI agent workflows - local-first, append-only
 - **LCEL Streaming Telemetry**: Telemetry overlays for stream completion times, Time-to-First-Token (TTFT), and tokens-per-second metrics.
 - **RAG Payload Inspection**: Explicit first-class support for viewing retrieval queries, source documents, and metadata scoring.
 - **Human Checkpoints**: First-class handling of `interrupt` states and human-in-the-loop approvals.
+
+**Phase 2.6 - Telemetry & Analytics (v1.1.0)**
+- **Canonical Telemetry**: Explicit GenAI semantic attributes (`model.name`, `usage.inputTokens`, `durationMs`) recorded structurally.
+- **Project & Environment Isolation**: Filter traces and analytics natively by `projectId` and `environment`.
+- **Trace Statistics**: New `/stats` endpoint for retrieving aggregations on duration, actor count, and per-model token usage breakdowns.
 - All outputs validated through shared contracts (`@aerograph/contracts`); no schema bypasses
 
 ## Repository structure
@@ -141,12 +146,13 @@ open http://localhost:5173
 | Endpoint | Method | Description |
 |---|---|---|
 | `POST /v1/events` | POST | Ingest trace events |
-| `GET /v1/traces` | GET | List traces |
+| `GET /v1/traces` | GET | List traces (supports `?projectId=` and `?environment=` filtering) |
 | `GET /v1/traces/:id` | GET | Get trace + meta |
 | `POST /v1/traces/:id/fork` | POST | Fork a trace at a span |
 | `GET /v1/traces/:id/lineage` | GET | Lineage graph |
 | `GET /v1/traces/:aId/diff/:bId` | GET | Lineage-aware deterministic diff |
 | `GET /v1/traces/:id/analysis` | GET | Loop warnings + failure analysis |
+| `GET /v1/traces/:id/stats` | GET | Trace analytics (duration, token usage, model breakdown) |
 
 ## OpenTelemetry Interoperability
 

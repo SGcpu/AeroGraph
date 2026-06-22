@@ -1,6 +1,6 @@
 import express from "express";
 import cors from "cors";
-import { validateTraceEvent, validateTraceForkRequest, validateTraceForkResponse, validateTraceLineageGraph, validateTraceDiffResult, validateTraceAnalysis } from "@aerograph/contracts";
+import { validateTraceEvent, validateTraceForkRequest, validateTraceForkResponse, validateTraceLineageGraph, validateTraceDiffResult, validateTraceAnalysis, validateTraceStats } from "@aerograph/contracts";
 import { getDatabase } from "./sqlite/db";
 import { runMigrations } from "./sqlite/migrate";
 import { SqliteTraceStore } from "./sqliteStore";
@@ -43,8 +43,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
   app.post("/v1/otlp/traces", createOtlpIngestHandler(store));
 
-  app.get("/v1/traces", (_req, res) => {
-    res.json(store.listTraces());
+  app.get("/v1/traces", (req, res) => {
+    const projectId = req.query.projectId as string | undefined;
+    const environment = req.query.environment as string | undefined;
+    res.json(store.listTraces({ projectId, environment }));
   });
 
   app.get("/v1/traces/:traceId", (req, res) => {
@@ -119,6 +121,38 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     try {
       const result = store.analyzeTrace(traceId);
       const body = validateTraceAnalysis(result);
+      res.json(body);
+    } catch (err: any) {
+      const message = err?.message ?? String(err);
+      if (message.includes("not found")) {
+        res.status(404).json({ error: message });
+        return;
+      }
+      res.status(400).json({ error: message });
+    }
+  });
+
+  /**
+   * GET /v1/traces/:traceId/stats
+   *
+   * Stable analytics API contract (T014).
+   *
+   * Returns aggregated telemetry statistics for a trace: total token usage,
+   * execution duration, actor count, per-model breakdown, and trace timing.
+   * Computed from indexed columns — does NOT parse event_data JSON.
+   *
+   * Contract stability guarantee:
+   *   - All fields present in this response are ADDITIVE-ONLY.
+   *   - Null values indicate the field has no data (v1.0.0 legacy traces).
+   *   - modelBreakdown is always an array (may be empty).
+   *   - This endpoint is safe to integrate into: dashboards, evaluation
+   *     pipelines, regression detectors, and future Feature 006/007 analytics.
+   */
+  app.get("/v1/traces/:traceId/stats", (req, res) => {
+    const traceId = req.params.traceId;
+    try {
+      const result = store.getTraceStats(traceId);
+      const body = validateTraceStats(result);
       res.json(body);
     } catch (err: any) {
       const message = err?.message ?? String(err);

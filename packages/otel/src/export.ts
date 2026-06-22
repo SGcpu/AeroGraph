@@ -21,6 +21,7 @@ import type { TraceEvent } from "@aerograph/contracts";
 import { sortTraceEventsDeterministic } from "@aerograph/contracts";
 import { isoToUnixNano } from "./timestamp.js";
 import { buildAttributesFromEvent, exportLinksToOtlp, getSpanKindInt, getSpanNameForKind, STATUS_CODE } from "./mapping.js";
+import { mapCanonicalTelemetry, mapModelTelemetry, mapUsageTelemetry } from "./semantic_mapping.js";
 import type { OtlpExportRequest, OtlpSpan } from "./otlp-schema.js";
 import { createHash } from "crypto";
 
@@ -66,7 +67,10 @@ export interface ExportOptions {
  */
 export function exportEventToOtlpSpan(event: TraceEvent): OtlpSpan {
   const startNano = isoToUnixNano(event.occurredAt);
-  const endNano = (BigInt(startNano) + ONE_MS_IN_NS).toString();
+  const durationNano = event.durationMs !== undefined 
+    ? BigInt(Math.floor(event.durationMs * 1_000_000)) 
+    : ONE_MS_IN_NS;
+  const endNano = (BigInt(startNano) + durationNano).toString();
 
   const span: OtlpSpan = {
     traceId: toOtlpHex(event.traceId, 16),
@@ -81,7 +85,12 @@ export function exportEventToOtlpSpan(event: TraceEvent): OtlpSpan {
         ? { message: (event.payload as { message: string }).message }
         : {}),
     },
-    attributes: buildAttributesFromEvent(event),
+    attributes: [
+      ...buildAttributesFromEvent(event),
+      ...mapCanonicalTelemetry(event),
+      ...mapModelTelemetry(event),
+      ...mapUsageTelemetry(event),
+    ],
     links: exportLinksToOtlp(event.links, event.traceId),
   };
 

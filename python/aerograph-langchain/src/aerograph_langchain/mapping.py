@@ -20,6 +20,7 @@ from aerograph_sdk.contracts.generated import (
     NoteEvent,
     TraceEvent,
 )
+from aerograph_sdk.telemetry.mapper import TelemetryBlock, map_model_info, map_usage
 from aerograph_langchain.span_ids import derive_span_id
 
 
@@ -89,6 +90,14 @@ def map_llm_end(
                 text += gen.text + "\n"
     text = text.strip()
 
+    llm_output = response.llm_output or {}
+    model_name = llm_output.get("model_name") or llm_output.get("modelName")
+    token_usage = llm_output.get("token_usage") or llm_output.get("tokenUsage")
+
+    model_info = map_model_info({"name": model_name}) if model_name else None
+    usage_info = map_usage(token_usage) if token_usage else None
+    telemetry = TelemetryBlock(model=model_info, usage=usage_info) if (model_info or usage_info) else None
+
     return build_response_event(
         trace_id=trace_id,
         span_id=span_id,
@@ -97,6 +106,7 @@ def map_llm_end(
         actor_name=actor_name,
         title=actor_name,
         text=text,
+        telemetry=telemetry,
     )
 
 
@@ -206,4 +216,26 @@ def map_chain_start(
         actor_name="LangChain",
         title=chain_name,
         payload={"chain": chain_name},
+    )
+
+
+def map_chain_end(
+    outputs: Dict[str, Any],
+    run_id: uuid.UUID,
+    trace_id: str,
+    parent_run_id: Optional[uuid.UUID] = None,
+) -> NoteEvent:
+    span_id = derive_span_id(run_id) + "_end"
+    parent_span_id = derive_span_id(run_id)
+    
+    output_keys = list(outputs.keys()) if isinstance(outputs, dict) else []
+    
+    return build_note_event(
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_span_id,
+        actor_id="langchain",
+        actor_name="LangChain",
+        title="chain_end",
+        payload={"event": "chain_end", "outputKeys": output_keys},
     )

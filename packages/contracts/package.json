@@ -1,6 +1,6 @@
 {
   "name": "@aerograph/contracts",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": false,
   "description": "Shared Zod contracts for AeroGraph trace events and APIs.",
   "type": "module",

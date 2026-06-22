@@ -38,6 +38,9 @@ import { StreamingMetrics } from "./StreamingMetrics";
 import { RetrieverInspector } from "./RetrieverInspector";
 import { CheckpointView } from "./CheckpointView";
 import { JsonView } from "./JsonView";
+import { TraceAnalyticsPanel } from "./TraceAnalyticsPanel";
+import { GlobalFilterBar } from "./GlobalFilterBar";
+import type { TraceStats } from "@aerograph/contracts";
 
 // ─── Kind icons + colors ───────────────────────────────────────────────────────
 const KIND_META: Record<string, { icon: string; label: string }> = {
@@ -306,6 +309,9 @@ export default function App() {
   const [traceSearch, setTraceSearch] = useState("");
   const [isDark, setIsDark] = useState(true); 
   const [lineageOpen, setLineageOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(true);
+  const [filterProjectId, setFilterProjectId] = useState("");
+  const [filterEnvironment, setFilterEnvironment] = useState("");
 
   useEffect(() => {
     if (isDark) document.documentElement.classList.add("dark");
@@ -316,6 +322,8 @@ export default function App() {
   const [diffResult, setDiffResult] = useState<TraceDiffResult | null>(null);
   const [compareTargetId, setCompareTargetId] = useState<string>("");
   const [analysis, setAnalysis] = useState<TraceAnalysis | null>(null);
+  const [traceStats, setTraceStats] = useState<TraceStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
   const [forkInProgress, setForkInProgress] = useState(false);
 
   const diffSpanIds = useMemo(
@@ -346,7 +354,10 @@ export default function App() {
   const refreshTraces = useCallback(async () => {
     try {
       setError("");
-      const res = await api.listTraces();
+      const res = await api.listTraces({
+        projectId: filterProjectId || undefined,
+        environment: filterEnvironment || undefined
+      });
       setTraces(res.traces);
       if (!traceId && res.traces[0]) {
         setTraceId(res.traces[0].traceId);
@@ -354,7 +365,7 @@ export default function App() {
     } catch (e: any) {
       setError(e?.message ?? String(e));
     }
-  }, [api, traceId]);
+  }, [api, traceId, filterProjectId, filterEnvironment]);
 
   const loadTrace = useCallback(
     async (id: string) => {
@@ -363,6 +374,7 @@ export default function App() {
         setError("");
         setDiffResult(null);
         setCompareTargetId("");
+        setTraceStats(null);
         const [trace, lineageGraph, analysisResult] = await Promise.all([
           api.getTrace(id),
           api.getLineage(id).catch(() => null),
@@ -378,6 +390,12 @@ export default function App() {
           if (maxIndex < 0) return -1;
           return Math.min(prev, maxIndex);
         });
+        // Fetch stats separately (non-blocking; available in v1.1.0 traces)
+        setStatsLoading(true);
+        api.getStats(id)
+          .then(setTraceStats)
+          .catch(() => setTraceStats(null))
+          .finally(() => setStatsLoading(false));
       } catch (e: any) {
         setError(e?.message ?? String(e));
       }
@@ -503,6 +521,8 @@ export default function App() {
               {[
                 ["trace", e.traceId],
                 ["parent", e.parentSpanId ?? "— root"],
+                ["project", (e as any).projectId || "—"],
+                ["env", (e as any).environment || "—"],
                 [
                   "actor",
                   `${(e as any).actor?.kind} · ${(e as any).actor?.name ?? (e as any).actor?.id}`,
@@ -556,6 +576,55 @@ export default function App() {
               {forkInProgress ? "Forking…" : "⑂ Fork from here"}
             </button>
           </div>
+
+          <div className="divider" />
+
+          {/* T017: span-level model + usage display */}
+          {(p?.model || p?.usage || (e as any).durationMs != null) && (
+            <div className="detail-section">
+              <div className="detail-section-label">Trace Timing & Tokens</div>
+              <div className="kv-grid">
+                {p?.model?.name && (
+                  <div className="kv-row">
+                    <span className="kv-key">model</span>
+                    <span className="kv-val" style={{ fontFamily: "var(--font-mono)", color: "var(--accent)" }}>
+                      {p.model.name}{p.model.provider ? ` · ${p.model.provider}` : ""}
+                    </span>
+                  </div>
+                )}
+                {p?.model?.version && (
+                  <div className="kv-row">
+                    <span className="kv-key">version</span>
+                    <span className="kv-val">{p.model.version}</span>
+                  </div>
+                )}
+                {p?.usage?.totalTokens != null && (
+                  <div className="kv-row">
+                    <span className="kv-key">tokens total</span>
+                    <span className="kv-val">{p.usage.totalTokens.toLocaleString()}</span>
+                  </div>
+                )}
+                {p?.usage?.inputTokens != null && (
+                  <div className="kv-row">
+                    <span className="kv-key">tokens in</span>
+                    <span className="kv-val">{p.usage.inputTokens.toLocaleString()}</span>
+                  </div>
+                )}
+                {p?.usage?.outputTokens != null && (
+                  <div className="kv-row">
+                    <span className="kv-key">tokens out</span>
+                    <span className="kv-val">{p.usage.outputTokens.toLocaleString()}</span>
+                  </div>
+                )}
+                {(e as any).durationMs != null && (
+                  <div className="kv-row">
+                    <span className="kv-key">duration</span>
+                    <span className="kv-val">{(e as any).durationMs} ms</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           <div className="divider" />
 
@@ -638,6 +707,14 @@ export default function App() {
           <div className="side-header" style={{ padding: "16px" }}>
             <span className="side-title">Traces</span>
           </div>
+          <GlobalFilterBar
+            projectId={filterProjectId}
+            environment={filterEnvironment}
+            onFilterChange={(filters) => {
+              setFilterProjectId(filters.projectId);
+              setFilterEnvironment(filters.environment);
+            }}
+          />
           <div style={{ padding: "12px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-surface)" }}>
             <input 
               type="text" 
@@ -663,7 +740,7 @@ export default function App() {
                   {t.traceId.slice(0, 22)}...
                 </div>
                 <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                  {t.eventCount} events
+                  {t.eventCount} events {t.projectId ? ` · ${t.projectId}` : ""} {t.environment ? ` · ${t.environment}` : ""}
                 </div>
               </div>
             ))}
@@ -972,6 +1049,26 @@ export default function App() {
             </div>
           </div>
           </div>
+          </div>
+
+          {/* T016: Analytics panel */}
+          <div 
+            className="side-header hover:bg-bg-hover transition-colors" 
+            style={{ cursor: "pointer", userSelect: "none", borderTop: "1px solid var(--border-subtle)" }} 
+            onClick={() => setAnalyticsOpen(!analyticsOpen)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span className="side-title">Analytics</span>
+              <span style={{ fontSize: "10px", color: "var(--text-muted)", transition: "transform 0.3s", transform: analyticsOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+            </div>
+          </div>
+          <div
+            className={`accordion-content ${analyticsOpen ? "open" : ""}`}
+            style={{ borderBottom: analyticsOpen ? "1px solid var(--border-subtle)" : "none" }}
+          >
+            <div className="accordion-inner">
+              <TraceAnalyticsPanel stats={traceStats} loading={statsLoading} />
+            </div>
           </div>
 
           {/* T044: Loop warnings panel */}

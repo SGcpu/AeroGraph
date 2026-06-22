@@ -8,12 +8,12 @@ LangChain's complex callback hierarchy is deterministically mapped to the minima
 
 | LangChain Callback | AFR Event Kind | Metadata Mapped |
 |---|---|---|
-| `handleLLMStart` | `prompt` | messages/prompts, parentSpanId, runId -> spanId |
-| `handleLLMEnd` | `response` | generations, runId -> spanId |
-| `handleLLMError` | `error` | error message, runId -> spanId |
+| `handleLLMStart` | `prompt` | messages/prompts, `model.name`, parentSpanId, runId -> spanId |
+| `handleLLMEnd` | `response` | generations, streaming metrics, `usage` tokens, `durationMs`, runId -> spanId |
+| `handleLLMError` | `error` | error message, `durationMs`, runId -> spanId |
 | `handleToolStart` | `tool_call` | input string/JSON, runId -> spanId |
-| `handleToolEnd` | `tool_result` | output, runId -> spanId |
-| `handleToolError` | `error` | error message, runId -> spanId |
+| `handleToolEnd` | `tool_result` | output, `durationMs`, runId -> spanId |
+| `handleToolError` | `error` | error message, `durationMs`, runId -> spanId |
 | `handleChainEnd` | `note` | emits `payload.event = "chain_end"` and includes output key summary |
 
 ## Installation

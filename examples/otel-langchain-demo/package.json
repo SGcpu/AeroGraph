@@ -9,10 +9,10 @@
     "test": "echo \"No test specified\""
   },
   "dependencies": {
-    "@aerograph/contracts": "^0.2.0",
-    "@aerograph/otel": "^0.1.1",
-    "@aerograph/sdk": "^0.2.0",
-    "@aerograph/adapter-langchain": "^0.1.0",
+    "@aerograph/contracts": "0.3.0",
+    "@aerograph/otel": "0.2.0",
+    "@aerograph/sdk": "0.3.0",
+    "@aerograph/adapter-langchain": "0.3.0",
     "@langchain/core": "^0.2.28",
     "langchain": "^0.2.14"
   },
