@@ -40,7 +40,13 @@ import { CheckpointView } from "./CheckpointView";
 import { JsonView } from "./JsonView";
 import { TraceAnalyticsPanel } from "./TraceAnalyticsPanel";
 import { GlobalFilterBar } from "./GlobalFilterBar";
+import { ProjectLineageView } from "./ProjectLineageView";
 import type { TraceStats } from "@aerograph/contracts";
+
+export function generateAlias(id: string, prefix = "ID") {
+  if (!id) return `${prefix}-Unknown`;
+  return `${prefix}-${id.replace(/[-_]/g, "").slice(-5).toUpperCase()}`;
+}
 
 // ─── Kind icons + colors ───────────────────────────────────────────────────────
 const KIND_META: Record<string, { icon: string; label: string }> = {
@@ -312,6 +318,18 @@ export default function App() {
   const [analyticsOpen, setAnalyticsOpen] = useState(true);
   const [filterProjectId, setFilterProjectId] = useState("");
   const [filterEnvironment, setFilterEnvironment] = useState("");
+  const [viewMode, setViewMode] = useState<"projects" | "trace" | "lineage">("projects");
+
+  useEffect(() => {
+    if (filterProjectId) setViewMode("trace");
+    else setViewMode("projects");
+  }, [filterProjectId]);
+
+  const uniqueProjects = useMemo(() => {
+    const projs = new Set<string>();
+    traces.forEach(t => { if (t.projectId) projs.add(t.projectId); });
+    return Array.from(projs);
+  }, [traces]);
 
   useEffect(() => {
     if (isDark) document.documentElement.classList.add("dark");
@@ -413,7 +431,7 @@ export default function App() {
 
   useEffect(() => {
     refreshTraces();
-  }, []);
+  }, [refreshTraces]);
   useEffect(() => {
     loadTrace(traceId);
     setSelected(null);
@@ -482,6 +500,7 @@ export default function App() {
         // Refresh trace list then switch to new child trace
         await refreshTraces();
         setTraceId(res.traceId);
+        alert(`Fork ID Generated!\n\nCopy this ID:\n${res.traceId}\n\nPaste it into your FlightRecorder initialization in your code to resume your agent from this point.`);
       } catch (e: any) {
         setError(`Fork failed: ${e?.message ?? String(e)}`);
       } finally {
@@ -519,7 +538,7 @@ export default function App() {
               {e.status}
             </span>
           </div>
-          <div className="trace-meta-id">{e.spanId}</div>
+          <div className="trace-meta-id">{generateAlias(e.spanId, "Span")}</div>
         </div>
 
         <div className="detail-body">
@@ -528,8 +547,6 @@ export default function App() {
             <div className="detail-section-label">Span Info</div>
             <div className="kv-grid">
               {[
-                ["trace", e.traceId],
-                ["parent", e.parentSpanId ?? "— root"],
                 ["project", (e as any).projectId || "—"],
                 ["env", (e as any).environment || "—"],
                 [
@@ -553,6 +570,14 @@ export default function App() {
                 </div>
               ))}
             </div>
+            <details style={{ marginTop: 12, cursor: "pointer" }}>
+              <summary style={{ fontSize: 11, color: "var(--text-muted)" }}>Advanced Details (Raw IDs)</summary>
+              <div className="kv-grid" style={{ marginTop: 8, padding: "8px", background: "rgba(0,0,0,0.2)", borderRadius: 4 }}>
+                <div className="kv-row"><span className="kv-key">trace id</span><span className="kv-val">{e.traceId}</span></div>
+                <div className="kv-row"><span className="kv-key">span id</span><span className="kv-val">{e.spanId}</span></div>
+                <div className="kv-row"><span className="kv-key">parent id</span><span className="kv-val">{e.parentSpanId ?? "— root"}</span></div>
+              </div>
+            </details>
           </div>
 
           {/* Text content if present */}
@@ -582,7 +607,7 @@ export default function App() {
               onClick={() => doForkFromSpan(e.spanId)}
               title={`Fork trace from span ${e.spanId}`}
             >
-              {forkInProgress ? "Forking…" : "⑂ Fork from here"}
+              {forkInProgress ? "Forking…" : "⑂ Generate Fork ID"}
             </button>
           </div>
 
@@ -682,13 +707,30 @@ export default function App() {
             {liveUpdating ? "Live" : "Paused"}
           </label>
 
-          {/* Dark Mode butoon */}
+          {viewMode !== "projects" && (
+            <div style={{ display: "flex", gap: "8px", marginRight: "16px" }}>
+              <button
+                className={`btn ${viewMode === "trace" ? "btn-primary" : ""}`}
+                onClick={() => setViewMode("trace")}
+              >
+                Trace Graph
+              </button>
+              <button
+                className={`btn ${viewMode === "lineage" ? "btn-primary" : ""}`}
+                onClick={() => setViewMode("lineage")}
+              >
+                Project Lineage
+              </button>
+            </div>
+          )}
+
+          {/* Theme toggle */}
           <button
-            className="btn"
+            className="theme-toggle btn"
             onClick={() => setIsDark(!isDark)}
-            title="Toggle Dark Mode"
+            title="Toggle theme"
           >
-            {isDark ? "☀️ Light" : "🌙 Dark"}
+            {isDark ? "☀️" : "🌙"}
           </button>
 
           {/* Refresh */}
@@ -703,11 +745,33 @@ export default function App() {
           </button>
         </div>
       </header>
-
       {/* Error bar */}
       {error && <div className="error">⚠ {error}</div>}
 
       {/* Body */}
+      {viewMode === "projects" ? (
+        <main className="main" style={{ display: "flex", flexDirection: "column", padding: 40, alignItems: "center", overflowY: "auto", background: "var(--bg-base)" }}>
+          <h2 style={{ color: "var(--text-primary)", marginBottom: 24, fontSize: 24 }}>Select a Project Workspace</h2>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "center", maxWidth: 800 }}>
+            {uniqueProjects.length === 0 && <div style={{ color: "var(--text-muted)" }}>No projects found in database.</div>}
+            {uniqueProjects.map(proj => (
+              <div 
+                key={proj}
+                onClick={() => { setFilterProjectId(proj); setViewMode("trace"); }}
+                style={{ 
+                  background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", 
+                  padding: "24px 32px", borderRadius: 8, cursor: "pointer", minWidth: 200,
+                  textAlign: "center", transition: "all 0.2s"
+                }}
+                onMouseOver={(e) => e.currentTarget.style.borderColor = "var(--accent)"}
+                onMouseOut={(e) => e.currentTarget.style.borderColor = "var(--border-subtle)"}
+              >
+                <div style={{ fontSize: 18, color: "var(--text-primary)", fontWeight: "bold" }}>{proj}</div>
+              </div>
+            ))}
+          </div>
+        </main>
+      ) : (
       <main className="main" style={{ gridTemplateColumns: `${leftSidebarOpen ? '280px' : '0px'} 1fr ${rightSidebarOpen ? '380px' : '0px'}`, transition: 'grid-template-columns 0.3s ease' }}>
         {/* Left Sidebar: Traces */}
         <aside className="side side-left">
@@ -721,6 +785,7 @@ export default function App() {
               setFilterProjectId(filters.projectId);
               setFilterEnvironment(filters.environment);
             }}
+            onClearProject={() => setFilterProjectId("")}
           />
           <div style={{ padding: "12px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-surface)" }}>
             <input 
@@ -737,98 +802,129 @@ export default function App() {
             />
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
-            {traces.filter(t => t.traceId.toLowerCase().includes(traceSearch.toLowerCase())).map(t => (
-              <div 
-                key={t.traceId} 
-                className={`trace-list-item ${t.traceId === traceId ? "active" : ""}`}
-                onClick={() => setTraceId(t.traceId)}
-              >
-                <div style={{ fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--text-primary)" }}>
-                  {t.traceId.slice(0, 22)}...
-                </div>
-                <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-                  {t.eventCount} events {t.projectId ? ` · ${t.projectId}` : ""} {t.environment ? ` · ${t.environment}` : ""}
-                </div>
-              </div>
-            ))}
+            {(() => {
+              const traceMap = new Set(traces.map(t => t.traceId));
+              const rootTraces = traces.filter(t => !t.derivedFrom?.baseTraceId || !traceMap.has(t.derivedFrom.baseTraceId));
+              const childrenByParent: Record<string, TraceMeta[]> = {};
+              traces.forEach(t => {
+                if (t.derivedFrom?.baseTraceId && traceMap.has(t.derivedFrom.baseTraceId)) {
+                  childrenByParent[t.derivedFrom.baseTraceId] = childrenByParent[t.derivedFrom.baseTraceId] || [];
+                  childrenByParent[t.derivedFrom.baseTraceId].push(t);
+                }
+              });
+
+              const renderTrace = (t: TraceMeta, depth = 0) => {
+                const alias = generateAlias(t.traceId, "Trace");
+                const searchTerms = traceSearch.toLowerCase();
+                const matchesSearch = t.traceId.toLowerCase().includes(searchTerms) || alias.toLowerCase().includes(searchTerms);
+                const children = childrenByParent[t.traceId] || [];
+
+                return (
+                  <div key={t.traceId}>
+                    <div 
+                      className={`trace-list-item ${t.traceId === traceId ? "active" : ""}`}
+                      onClick={() => setTraceId(t.traceId)}
+                      style={{ paddingLeft: `${12 + depth * 16}px`, display: matchesSearch || searchTerms === "" ? "flex" : "none", flexDirection: "column", alignItems: "flex-start" }}
+                    >
+                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "13px", color: "var(--text-primary)", fontWeight: depth === 0 ? "bold" : "normal" }}>
+                        {depth > 0 ? "↳ " : ""}{alias}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+                        {t.eventCount} events {t.environment ? ` · ${t.environment}` : ""}
+                      </div>
+                    </div>
+                    {children.map(child => renderTrace(child, depth + 1))}
+                  </div>
+                );
+              };
+              return rootTraces.map(t => renderTrace(t, 0));
+            })()}
           </div>
         </aside>
         {/* Graph canvas */}
         <section className="graph">
-          <button 
-            className={`sidebar-toggle-btn sidebar-toggle-left ${!leftSidebarOpen ? 'closed' : ''}`}
-            onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
-            title="Toggle Traces Sidebar"
-          >
-            {leftSidebarOpen ? '◀' : '▶'}
-          </button>
-          
-          <button 
-            className={`sidebar-toggle-btn sidebar-toggle-right ${!rightSidebarOpen ? 'closed' : ''}`}
-            onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
-            title="Toggle Inspector Sidebar"
-          >
-            {rightSidebarOpen ? '▶' : '◀'}
-          </button>
-
-          {/* Playback controls */}
-          <div className="playback-controls">
-            <button
-              className="playback-btn"
-              disabled={currentStep <= 1}
-              onClick={() =>
-                setPlaybackCursor((p) => (p === -1 ? events.length - 2 : p - 1))
-              }
-              title="Step backward"
-            >
-              ‹
-            </button>
-            <div className="playback-counter">
-              <span>{currentStep}</span> / {totalSteps}
-            </div>
-            <button
-              className="playback-btn"
-              disabled={
-                playbackCursor === -1 || playbackCursor >= events.length - 1
-              }
-              onClick={() =>
-                setPlaybackCursor((p) => (p >= events.length - 1 ? -1 : p + 1))
-              }
-              title="Step forward"
-            >
-              ›
-            </button>
-            <button
-              className="playback-live"
-              onClick={() => setPlaybackCursor(-1)}
-            >
-              LIVE
-            </button>
-          </div>
-
-          <ReactFlow
-            nodes={graph.nodes}
-            edges={graph.edges}
-            nodeTypes={nodeTypes}
-            onNodeClick={(_, node) => {
-              const event = events.find((e) => e.spanId === node.id);
-              if (event) setSelected({ event });
-            }}
-            fitView
-            fitViewOptions={{ padding: 0.15 }}
-            minZoom={0.2}
-            maxZoom={2}
-            proOptions={{ hideAttribution: true }}
-          >
-            <FitViewOnUpdate traceId={traceId} />
-            <Background
-              variant={BackgroundVariant.Dots}
-              gap={28}
-              size={1}
-              color="rgba(99,130,255,0.06)"
+          {viewMode === "lineage" ? (
+            <ProjectLineageView 
+              traces={traces} 
+              onSelectTrace={(id) => {
+                setTraceId(id);
+                setViewMode("trace");
+              }} 
             />
-            <Controls showInteractive={false} />
-          </ReactFlow>
+          ) : (
+            <>
+              <button 
+                className={`sidebar-toggle-btn sidebar-toggle-left ${!leftSidebarOpen ? 'closed' : ''}`}
+                onClick={() => setLeftSidebarOpen(!leftSidebarOpen)}
+                title="Toggle Traces Sidebar"
+              >
+                {leftSidebarOpen ? '◀' : '▶'}
+              </button>
+              
+              <button 
+                className={`sidebar-toggle-btn sidebar-toggle-right ${!rightSidebarOpen ? 'closed' : ''}`}
+                onClick={() => setRightSidebarOpen(!rightSidebarOpen)}
+                title="Toggle Inspector Sidebar"
+              >
+                {rightSidebarOpen ? '▶' : '◀'}
+              </button>
+
+              {/* Playback controls */}
+              <div className="playback-controls">
+                <button
+                  className="playback-btn"
+                  disabled={currentStep <= 1}
+                  onClick={() =>
+                    setPlaybackCursor((p) => (p === -1 ? events.length - 2 : p - 1))
+                  }
+                  title="Step backward"
+                >
+                  ‹
+                </button>
+                <div className="playback-counter">
+                  <span>{currentStep}</span> / {totalSteps}
+                </div>
+                <button
+                  className="playback-btn"
+                  disabled={
+                    playbackCursor === -1 || playbackCursor >= events.length - 1
+                  }
+                  onClick={() =>
+                    setPlaybackCursor((p) => (p >= events.length - 1 ? -1 : p + 1))
+                  }
+                  title="Step forward"
+                >
+                  ›
+                </button>
+                <button
+                  className="playback-live"
+                  onClick={() => setPlaybackCursor(-1)}
+                >
+                  LIVE
+                </button>
+              </div>
+
+              <ReactFlow
+                nodes={graph.nodes}
+                edges={graph.edges}
+                nodeTypes={nodeTypes}
+                onNodeClick={(_, node) => {
+                  const event = events.find((e) => e.spanId === node.id);
+                  if (event) setSelected({ event });
+                }}
+                fitView
+                fitViewOptions={{ padding: 0.15 }}
+                minZoom={0.2}
+                maxZoom={2}
+                proOptions={{ hideAttribution: true }}
+              >
+                <FitViewOnUpdate traceId={traceId} />
+                <Background color={isDark ? "#334155" : "#e2e8f0"} variant={BackgroundVariant.Dots} gap={24} size={1} />
+                <Controls showInteractive={false} />
+              </ReactFlow>
+            </>
+          )}
+
         </section>
 
         {/* Sidebar */}
@@ -1191,6 +1287,7 @@ export default function App() {
           {renderDetail()}
         </aside>
       </main>
+      )}
     </div>
   );
 }

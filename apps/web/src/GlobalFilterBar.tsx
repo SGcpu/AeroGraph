@@ -4,14 +4,16 @@ export type GlobalFilterBarProps = {
   projectId: string;
   environment: string;
   onFilterChange: (filters: { projectId: string; environment: string }) => void;
+  onClearProject?: () => void;
 };
 
-export function GlobalFilterBar({ projectId, environment, onFilterChange }: GlobalFilterBarProps) {
+export function GlobalFilterBar({ projectId, environment, onFilterChange, onClearProject }: GlobalFilterBarProps) {
   return (
     <div style={{
       display: "flex",
+      flexDirection: "column",
       gap: "8px",
-      alignItems: "center",
+      alignItems: "stretch",
       padding: "8px 12px",
       background: "var(--bg-surface)",
       borderBottom: "1px solid var(--border-subtle)"
@@ -54,6 +56,23 @@ export function GlobalFilterBar({ projectId, environment, onFilterChange }: Glob
           }}
         />
       </div>
+      {onClearProject && (
+        <button 
+          onClick={onClearProject}
+          style={{
+            marginTop: "4px",
+            padding: "4px 8px",
+            background: "rgba(255,255,255,0.05)",
+            border: "1px solid var(--border-subtle)",
+            borderRadius: "4px",
+            color: "var(--text-primary)",
+            fontSize: "11px",
+            cursor: "pointer"
+          }}
+        >
+          ← Back to Projects
+        </button>
+      )}
     </div>
   );
 }
