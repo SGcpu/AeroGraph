@@ -280,16 +280,16 @@ function buildPremiumGraph(
 // ─── Main App ─────────────────────────────────────────────────────────────────
 type Selected = { event: TraceEvent };
 
-function FitViewOnUpdate({ nodesCount }: { nodesCount: number }) {
+function FitViewOnUpdate({ traceId }: { traceId: string }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
-    if (nodesCount > 0) {
+    if (traceId) {
       const timeoutId = setTimeout(() => {
         fitView({ padding: 0.15, maxZoom: 1 });
       }, 50);
       return () => clearTimeout(timeoutId);
     }
-  }, [nodesCount, fitView]);
+  }, [traceId, fitView]);
   return null;
 }
 
@@ -368,18 +368,23 @@ export default function App() {
   }, [api, traceId, filterProjectId, filterEnvironment]);
 
   const loadTrace = useCallback(
-    async (id: string) => {
+    async (id: string, isBackgroundRefresh = false) => {
       if (!id) return;
       try {
-        setError("");
-        setDiffResult(null);
-        setCompareTargetId("");
-        setTraceStats(null);
+        if (!isBackgroundRefresh) {
+          setError("");
+          setDiffResult(null);
+          setCompareTargetId("");
+          setTraceStats(null);
+          setStatsLoading(true);
+        }
+        
         const [trace, lineageGraph, analysisResult] = await Promise.all([
           api.getTrace(id),
           api.getLineage(id).catch(() => null),
           api.getAnalysis(id).catch(() => null),
         ]);
+        
         setActiveMeta(trace.meta);
         setLineage(lineageGraph);
         setEvents(trace.events);
@@ -390,12 +395,15 @@ export default function App() {
           if (maxIndex < 0) return -1;
           return Math.min(prev, maxIndex);
         });
-        // Fetch stats separately (non-blocking; available in v1.1.0 traces)
-        setStatsLoading(true);
+
+        if (!isBackgroundRefresh) {
+          setStatsLoading(true);
+        }
+        
         api.getStats(id)
           .then(setTraceStats)
-          .catch(() => setTraceStats(null))
-          .finally(() => setStatsLoading(false));
+          .catch(() => { if (!isBackgroundRefresh) setTraceStats(null); })
+          .finally(() => { if (!isBackgroundRefresh) setStatsLoading(false); });
       } catch (e: any) {
         setError(e?.message ?? String(e));
       }
@@ -416,7 +424,8 @@ export default function App() {
     if (!liveUpdating) return;
     const id = setInterval(() => {
       refreshTraces();
-      if (traceId) loadTrace(traceId);
+      // Pass `true` so the function knows it's a stealth background update
+      if (traceId) loadTrace(traceId, true);
     }, 2000);
     return () => clearInterval(id);
   }, [liveUpdating, traceId, refreshTraces, loadTrace]);
@@ -580,7 +589,7 @@ export default function App() {
           <div className="divider" />
 
           {/* T017: span-level model + usage display */}
-          {(p?.model || p?.usage || (e as any).durationMs != null) && (
+          {(p?.model?.name || p?.usage?.totalTokens != null || (e as any).durationMs != null) && (
             <div className="detail-section">
               <div className="detail-section-label">Trace Timing & Tokens</div>
               <div className="kv-grid">
@@ -592,7 +601,7 @@ export default function App() {
                     </span>
                   </div>
                 )}
-                {p?.model?.version && (
+                {p?.model?.version != null && (
                   <div className="kv-row">
                     <span className="kv-key">version</span>
                     <span className="kv-val">{p.model.version}</span>
@@ -656,13 +665,11 @@ export default function App() {
       {/* Header */}
       <header className="header">
         <div className="header-brand">
-          <div className="header-logo" style={{ overflow: "hidden", border: "none", background: "transparent" }}>
-            <img src="https://res.cloudinary.com/decbdlnqg/image/upload/v1781969113/Logo_8_1_axs9mt.png" alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          <div className="header-logo" style={{ width: "50px", height: "50px", overflow: "hidden", border: "none", background: "transparent" }}>
+            <img src="https://res.cloudinary.com/decbdlnqg/image/upload/v1782286461/aerograph-logo_2_uwysko.png" alt="Logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
           </div>
           <span className="title">AeroGraph</span>
-          <span className="title-badge">Phase 2</span>
         </div>
-
         <div className="controls">
           {/* Live toggle */}
           <label className="live-toggle">
@@ -813,7 +820,7 @@ export default function App() {
             maxZoom={2}
             proOptions={{ hideAttribution: true }}
           >
-            <FitViewOnUpdate nodesCount={graph.nodes.length} />
+            <FitViewOnUpdate traceId={traceId} />
             <Background
               variant={BackgroundVariant.Dots}
               gap={28}

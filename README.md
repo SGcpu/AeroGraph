@@ -1,6 +1,42 @@
-# AeroGraph
+<div align="center">
+  <a href="https://github.com/SGcpu/AeroGraph">
+    <img src="./apps/web/src/public/assets/images/aerograph-logo.png" alt="AeroGraph Logo" width="260" />
+  </a>
 
-An open-source flight recorder for AI agent workflows - local-first, append-only, and replay-safe.
+  <h1 style="margin-top: 20px;">AeroGraph</h1>
+  
+  <p>
+    <b>Cognitive observability and debugging layer for autonomous AI workflows.</b><br>
+    <i>Local-first. Append-only. Replay-safe.</i>
+  </p>
+
+  <p>
+    <a href="https://github.com/SGcpu/AeroGraph/stargazers">
+      <img src="https://img.shields.io/github/stars/SGcpu/AeroGraph?style=for-the-badge&color=00E5FF&labelColor=0B132B" alt="Stars" />
+    </a>
+    <a href="https://github.com/SGcpu/AeroGraph/network/members">
+      <img src="https://img.shields.io/github/forks/SGcpu/AeroGraph?style=for-the-badge&color=00E5FF&labelColor=0B132B" alt="Forks" />
+    </a>
+    <a href="https://github.com/SGcpu/AeroGraph/blob/main/LICENSE">
+      <img src="https://img.shields.io/github/license/SGcpu/AeroGraph?style=for-the-badge&color=00E5FF&labelColor=0B132B" alt="License" />
+    </a>
+  </p>
+
+  <p>
+    <img src="https://img.shields.io/badge/TypeScript-SDK-0B132B?style=for-the-badge&logo=typescript&logoColor=00E5FF&color=0B132B&labelColor=0B132B" alt="TypeScript SDK" />
+    <img src="https://img.shields.io/badge/Python-SDK-0B132B?style=for-the-badge&logo=python&logoColor=00E5FF&color=0B132B&labelColor=0B132B" alt="Python SDK" />
+    <img src="https://img.shields.io/badge/SQLite-Local_First-0B132B?style=for-the-badge&logo=sqlite&logoColor=00E5FF&color=0B132B&labelColor=0B132B" alt="SQLite" />
+  </p>
+
+  <br>
+
+  <p>
+    <a href="#what-it-does"><b>What it does</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
+    <a href="#phase-2-quick-start"><b>Quick Start</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
+    <a href="#architecture"><b>Architecture</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
+    <a href="#contributing"><b>Contributing</b></a>
+  </p>
+</div>
 
 ---
 
