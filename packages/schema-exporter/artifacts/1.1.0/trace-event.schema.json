@@ -3,7 +3,7 @@
   "title": "AeroGraph TraceEvent Schema",
   "description": "Language-neutral JSON Schema artifact exported from @aerograph/contracts. Used to generate and validate non-TypeScript runtime bindings.",
   "schemaVersion": "1.1.0",
-  "generatedAt": "2026-06-21T19:37:11.120Z",
+  "generatedAt": "2026-06-30T09:40:13.228Z",
   "traceEventSchema": {
     "$ref": "#/definitions/TraceEvent",
     "definitions": {
@@ -3224,6 +3224,17 @@
               "forkedFromSpanId"
             ],
             "additionalProperties": false
+          },
+          "projectId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "environment": {
+            "type": "string",
+            "minLength": 1
+          },
+          "isDeleted": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -3291,6 +3302,17 @@
                   "forkedFromSpanId"
                 ],
                 "additionalProperties": false
+              },
+              "projectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "environment": {
+                "type": "string",
+                "minLength": 1
+              },
+              "isDeleted": {
+                "type": "boolean"
               }
             },
             "required": [
@@ -4932,6 +4954,17 @@
                     "forkedFromSpanId"
                   ],
                   "additionalProperties": false
+                },
+                "projectId": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "environment": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "isDeleted": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -6130,6 +6163,17 @@
                   "forkedFromSpanId"
                 ],
                 "additionalProperties": false
+              },
+              "projectId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "environment": {
+                "type": "string",
+                "minLength": 1
+              },
+              "isDeleted": {
+                "type": "boolean"
               }
             },
             "required": [
