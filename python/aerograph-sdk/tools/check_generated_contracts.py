@@ -32,7 +32,7 @@ ARTIFACT_PATH = (
     / "packages"
     / "schema-exporter"
     / "artifacts"
-    / "1.0.0"
+    / "1.1.0"
     / "trace-event.schema.json"
 )
 GENERATED_PATH = (
