@@ -36,3 +36,5 @@ docs/architecture
 AGENTS.md
 uv.lock
 bump.js
+fix-deps.js
+fix.js
