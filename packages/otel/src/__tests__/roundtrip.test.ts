@@ -36,4 +36,41 @@ describe("Roundtrip TS: TraceEvent -> OtlpSpan -> TraceEvent", () => {
       expect(importedEvent.links).toEqual(originalEvent.links || []);
     });
   }
+
+  it("preserves canonical metadata (model, usage, durationMs, projectId, environment)", () => {
+    const fullEvent: TraceEvent = {
+      schemaVersion: "1.1.0",
+      traceId: "5b8efff798038103d269b633813fc60c",
+      spanId: "aae19b7ec3c1b175",
+      parentSpanId: "eee19b7ec3c1b174",
+      occurredAt: "2026-04-15T10:00:00.000Z",
+      kind: "response",
+      actor: { kind: "agent", id: "assistant" },
+      status: "ok",
+      links: [],
+      projectId: "proj-123",
+      environment: "production",
+      durationMs: 1542,
+      payload: {
+        text: "Here is the answer.",
+        model: {
+          name: "gpt-4-turbo",
+          provider: "openai"
+        },
+        usage: {
+          inputTokens: 10,
+          outputTokens: 20,
+          totalTokens: 30
+        }
+      }
+    };
+
+    const span = exportEventToOtlpSpan(fullEvent);
+    const imported = importOtlpSpanToEvent(span, ctx);
+
+    expect(imported.projectId).toBe("proj-123");
+    expect(imported.environment).toBe("production");
+    expect(imported.durationMs).toBe(1542);
+    expect(imported.payload).toEqual(fullEvent.payload);
+  });
 });

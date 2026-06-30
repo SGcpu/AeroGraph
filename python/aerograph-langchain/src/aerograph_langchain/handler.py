@@ -1,3 +1,4 @@
+import time
 import uuid
 from typing import Any, Dict, List, Optional
 from langchain_core.callbacks import BaseCallbackHandler
@@ -8,7 +9,7 @@ from langchain_core.documents import Document
 from aerograph_sdk.recorder import FlightRecorder
 from aerograph_sdk.ids import new_trace_id
 
-from .mapping import map_llm_start, map_llm_end, map_tool_start, map_tool_end, map_error, map_chain_start
+from .mapping import map_llm_start, map_llm_end, map_tool_start, map_tool_end, map_error, map_chain_start, map_chain_end
 from .streaming import StreamingTracker
 from .retriever import RetrieverTracker
 from .langgraph import map_state_snapshot, map_checkpoint
@@ -27,6 +28,13 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
         self.retriever_tracker = RetrieverTracker()
         # Track emitted chain run_ids so we don't double-emit for nested chains
         self._emitted_chain_runs: set[uuid.UUID] = set()
+        self._start_times: dict[uuid.UUID, float] = {}
+
+    def _pop_duration_ms(self, run_id: uuid.UUID) -> Optional[int]:
+        start = self._start_times.pop(run_id, None)
+        if start is not None:
+            return int((time.time() - start) * 1000)
+        return None
 
     def on_chain_start(
         self,
@@ -49,6 +57,7 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
         if run_id in self._emitted_chain_runs:
             return  # avoid duplicate nodes for re-entrant chains
         self._emitted_chain_runs.add(run_id)
+        self._start_times[run_id] = time.time()
         event = map_chain_start(
             serialized=serialized,
             run_id=run_id,
@@ -56,6 +65,25 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             trace_id=self.trace_id,
             name=name,
         )
+        self.recorder.emit(event)
+
+    def on_chain_end(
+        self,
+        outputs: Dict[str, Any],
+        *,
+        run_id: uuid.UUID,
+        parent_run_id: Optional[uuid.UUID] = None,
+        **kwargs: Any,
+    ) -> Any:
+        duration_ms = self._pop_duration_ms(run_id)
+        event = map_chain_end(
+            outputs=outputs,
+            run_id=run_id,
+            parent_run_id=parent_run_id,
+            trace_id=self.trace_id,
+        )
+        if duration_ms is not None:
+            event = event.model_copy(update={"durationMs": duration_ms})
         self.recorder.emit(event)
 
     def on_llm_start(
@@ -76,6 +104,7 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             parent_run_id=parent_run_id,
             trace_id=self.trace_id,
         )
+        self._start_times[run_id] = time.time()
         self.recorder.emit(event)
         self.streaming_tracker.on_llm_start(run_id)
 
@@ -98,6 +127,7 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             parent_run_id=parent_run_id,
             trace_id=self.trace_id,
         )
+        self._start_times[run_id] = time.time()
         self.recorder.emit(event)
         self.streaming_tracker.on_llm_start(run_id)
 
@@ -129,10 +159,13 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             parent_run_id=parent_run_id,
             trace_id=self.trace_id,
         )
+        duration_ms = self._pop_duration_ms(run_id)
         telemetry = self.streaming_tracker.on_llm_end(run_id)
         if telemetry:
             # We recreate the payload with telemetry
             event.payload.streamingTelemetry = telemetry
+        if duration_ms is not None:
+            event = event.model_copy(update={"durationMs": duration_ms})
         self.recorder.emit(event)
 
     def on_tool_start(
@@ -155,6 +188,7 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             trace_id=self.trace_id,
             inputs=inputs,
         )
+        self._start_times[run_id] = time.time()
         self.recorder.emit(event)
 
     def on_tool_end(
@@ -172,6 +206,9 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             parent_run_id=parent_run_id,
             trace_id=self.trace_id,
         )
+        duration_ms = self._pop_duration_ms(run_id)
+        if duration_ms is not None:
+            event = event.model_copy(update={"durationMs": duration_ms})
         self.recorder.emit(event)
 
     def on_retriever_start(
@@ -185,6 +222,7 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
         metadata: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ) -> Any:
+        self._start_times[run_id] = time.time()
         self.retriever_tracker.on_retriever_start(run_id, query, serialized)
 
     def on_retriever_end(
@@ -201,7 +239,10 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             trace_id=self.trace_id,
             parent_run_id=parent_run_id,
         )
+        duration_ms = self._pop_duration_ms(run_id)
         if event:
+            if duration_ms is not None:
+                event = event.model_copy(update={"durationMs": duration_ms})
             self.recorder.emit(event)
 
     def on_custom_event(
@@ -250,6 +291,9 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             trace_id=self.trace_id,
             parent_run_id=parent_run_id
         )
+        duration_ms = self._pop_duration_ms(run_id)
+        if duration_ms is not None:
+            event = event.model_copy(update={"durationMs": duration_ms})
         self.recorder.emit(event)
 
     def on_tool_error(
@@ -266,6 +310,9 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             trace_id=self.trace_id,
             parent_run_id=parent_run_id
         )
+        duration_ms = self._pop_duration_ms(run_id)
+        if duration_ms is not None:
+            event = event.model_copy(update={"durationMs": duration_ms})
         self.recorder.emit(event)
 
     def on_chain_error(
@@ -282,4 +329,7 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
             trace_id=self.trace_id,
             parent_run_id=parent_run_id
         )
+        duration_ms = self._pop_duration_ms(run_id)
+        if duration_ms is not None:
+            event = event.model_copy(update={"durationMs": duration_ms})
         self.recorder.emit(event)

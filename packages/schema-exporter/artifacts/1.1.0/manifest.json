@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.1.0",
+  "exporterPackageVersion": "0.2.0",
+  "contractsPackageVersion": "0.2.0",
+  "generatedAt": "2026-06-21T19:37:11.120Z",
+  "artifacts": [
+    "trace-event.schema.json"
+  ]
+}

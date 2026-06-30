@@ -11,6 +11,8 @@ import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import {
   traceEventKindSchema,
   traceEventStatusSchema,
+  telemetryModelInfoSchema,
+  telemetryUsageSchema,
   actorKindSchema,
   actorSchema,
   agentActorSchema,
@@ -119,6 +121,8 @@ export function exportSchemas(options?: { dryRun?: boolean }): ExportResult {
   const rawSchema = zodToJsonSchema(z.object({
     TraceEventKind: traceEventKindSchema,
     TraceEventStatus: traceEventStatusSchema,
+    TelemetryModelInfo: telemetryModelInfoSchema,
+    TelemetryUsage: telemetryUsageSchema,
     ActorKind: actorKindSchema,
     Actor: actorSchema,
     AgentActor: agentActorSchema,
@@ -236,6 +240,8 @@ export function generateArtifactInMemory(): SchemaArtifact {
   const rawSchema = zodToJsonSchema(z.object({
     TraceEventKind: traceEventKindSchema,
     TraceEventStatus: traceEventStatusSchema,
+    TelemetryModelInfo: telemetryModelInfoSchema,
+    TelemetryUsage: telemetryUsageSchema,
     ActorKind: actorKindSchema,
     Actor: actorSchema,
     AgentActor: agentActorSchema,

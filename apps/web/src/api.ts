@@ -6,32 +6,40 @@ import {
   traceWithMetaSchema,
   traceDiffResultSchema,
   traceAnalysisSchema,
+  traceStatsSchema,
   type TraceForkRequest,
   type TraceForkResponse,
   type TraceListResponse,
   type TraceLineageGraph,
   type TraceWithMeta,
   type TraceDiffResult,
-  type TraceAnalysis
+  type TraceAnalysis,
+  type TraceStats
 } from "@aerograph/contracts";
 
 const DEFAULT_COLLECTOR = "http://localhost:4317";
 
 export type Api = {
-  listTraces(): Promise<TraceListResponse>;
+  listTraces(filters?: { projectId?: string; environment?: string }): Promise<TraceListResponse>;
   getTrace(traceId: string): Promise<TraceWithMeta>;
   forkTrace(traceId: string, body: TraceForkRequest): Promise<TraceForkResponse>;
   getLineage(traceId: string): Promise<TraceLineageGraph>;
   getDiff(aId: string, bId: string): Promise<TraceDiffResult>;
   getAnalysis(traceId: string): Promise<TraceAnalysis>;
+  getStats(traceId: string): Promise<TraceStats>;
+  deleteTrace(traceId: string): Promise<void>;
 };
 
 export function createApi(baseUrl = DEFAULT_COLLECTOR): Api {
   const base = baseUrl.replace(/\/$/, "");
 
   return {
-    async listTraces() {
-      const res = await fetch(`${base}/v1/traces`);
+    async listTraces(filters) {
+      const params = new URLSearchParams();
+      if (filters?.projectId) params.set("projectId", filters.projectId);
+      if (filters?.environment) params.set("environment", filters.environment);
+      const queryString = params.toString() ? `?${params.toString()}` : "";
+      const res = await fetch(`${base}/v1/traces${queryString}`);
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
       return traceListResponseSchema.parse(json) as TraceListResponse;
@@ -77,6 +85,20 @@ export function createApi(baseUrl = DEFAULT_COLLECTOR): Api {
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
       return traceAnalysisSchema.parse(json) as TraceAnalysis;
+    },
+
+    async getStats(traceId) {
+      const res = await fetch(`${base}/v1/traces/${encodeURIComponent(traceId)}/stats`);
+      if (!res.ok) throw new Error(await res.text());
+      const json = await res.json();
+      return traceStatsSchema.parse(json) as TraceStats;
+    },
+
+    async deleteTrace(traceId) {
+      const res = await fetch(`${base}/v1/traces/${encodeURIComponent(traceId)}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) throw new Error(await res.text());
     }
   };
 }

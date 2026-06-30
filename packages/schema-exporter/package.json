@@ -1,6 +1,6 @@
 {
   "name": "@aerograph/schema-exporter",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "description": "Build/CI tooling: export versioned JSON Schema artifacts from Zod contracts.",
   "type": "module",
@@ -15,7 +15,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aerograph/contracts": "*",
+    "@aerograph/contracts": "0.3.0",
     "zod-to-json-schema": "^3.24.5"
   },
   "devDependencies": {

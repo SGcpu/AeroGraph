@@ -19,6 +19,10 @@ export const KNOWN_VERSIONS: readonly VersionConfig[] = [
   {
     schemaVersion: "1.0.0",
     label: "AeroGraph TraceEvent Schema v1.0.0"
+  },
+  {
+    schemaVersion: "1.1.0",
+    label: "AeroGraph TraceEvent Schema v1.1.0 — Canonical Telemetry Model Enrichment"
   }
 ] as const;
 

@@ -1,12 +1,49 @@
-# AeroGraph
+<div align="center">
+  <a href="https://github.com/SGcpu/AeroGraph">
+    <img src="./apps/web/src/public/assets/images/aerograph-logo.png" alt="AeroGraph Logo" width="260" />
+  </a>
 
-An open-source flight recorder for AI agent workflows - local-first, append-only, and replay-safe.
+  <h1 style="margin-top: 20px;">AeroGraph</h1>
+  
+  <p>
+    <b>Cognitive observability and debugging layer for autonomous AI workflows.</b><br>
+    <i>Local-first. Append-only. Replay-safe.</i>
+  </p>
+
+  <p>
+    <a href="https://github.com/SGcpu/AeroGraph/stargazers">
+      <img src="https://img.shields.io/github/stars/SGcpu/AeroGraph?style=for-the-badge&color=00E5FF&labelColor=0B132B" alt="Stars" />
+    </a>
+    <a href="https://github.com/SGcpu/AeroGraph/network/members">
+      <img src="https://img.shields.io/github/forks/SGcpu/AeroGraph?style=for-the-badge&color=00E5FF&labelColor=0B132B" alt="Forks" />
+    </a>
+    <a href="https://github.com/SGcpu/AeroGraph/blob/main/LICENSE">
+      <img src="https://img.shields.io/github/license/SGcpu/AeroGraph?style=for-the-badge&color=00E5FF&labelColor=0B132B" alt="License" />
+    </a>
+  </p>
+
+  <p>
+    <img src="https://img.shields.io/badge/TypeScript-SDK-0B132B?style=for-the-badge&logo=typescript&logoColor=00E5FF&color=0B132B&labelColor=0B132B" alt="TypeScript SDK" />
+    <img src="https://img.shields.io/badge/Python-SDK-0B132B?style=for-the-badge&logo=python&logoColor=00E5FF&color=0B132B&labelColor=0B132B" alt="Python SDK" />
+    <img src="https://img.shields.io/badge/SQLite-Local_First-0B132B?style=for-the-badge&logo=sqlite&logoColor=00E5FF&color=0B132B&labelColor=0B132B" alt="SQLite" />
+  </p>
+
+  <br>
+
+  <p>
+    <a href="#what-it-does"><b>What it does</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
+    <a href="#phase-2-quick-start"><b>Quick Start</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
+    <a href="#architecture"><b>Architecture</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
+    <a href="#contributing"><b>Contributing</b></a>
+  </p>
+</div>
 
 ---
 
 ## Table of Contents
 
 - [What it does](#what-it-does)
+- [Terminology & Concepts](#terminology--concepts)
 - [Repository structure](#repository-structure)
 - [Development](#development)
   - [Updating Cross-Language Artifacts](#updating-cross-language-artifacts)
@@ -73,7 +110,38 @@ An open-source flight recorder for AI agent workflows - local-first, append-only
 - **LCEL Streaming Telemetry**: Telemetry overlays for stream completion times, Time-to-First-Token (TTFT), and tokens-per-second metrics.
 - **RAG Payload Inspection**: Explicit first-class support for viewing retrieval queries, source documents, and metadata scoring.
 - **Human Checkpoints**: First-class handling of `interrupt` states and human-in-the-loop approvals.
+
+**Phase 2.6 - Telemetry & Analytics (v1.1.0)**
+- **Canonical Telemetry**: Explicit GenAI semantic attributes (`model.name`, `usage.inputTokens`, `durationMs`) recorded structurally.
+- **Project & Environment Isolation**: Filter traces and analytics natively by `projectId` and `environment`.
+- **Trace Statistics**: New `/stats` endpoint for retrieving aggregations on duration, actor count, and per-model token usage breakdowns.
 - All outputs validated through shared contracts (`@aerograph/contracts`); no schema bypasses
+
+## Terminology & Concepts
+
+To help you navigate and understand the trace graph and AeroGraph's capabilities, here are some key concepts explained using non-code examples:
+
+### Forking ("Fork from here")
+- **What it is**: Imagine reading a "Choose Your Own Adventure" book. You read up to page 50, and then you have to make a choice. If you want to explore both choices, you'd place a bookmark at page 50 and read the first path. Later, you come back to the bookmark to read the second path. Forking in AeroGraph is exactly this. It creates a new, derived trace starting from a specific point (a span) in an existing trace.
+- **When is it used**: When you want to see what would happen if an agent made a different decision, received a different prompt, or used a different tool, without altering the original execution history.
+- **How does it actually work?**: AeroGraph is not an execution engine (like a Jupyter notebook); it is an observability tool (like the Network tab in Chrome DevTools). There is no way to move forward with that trace directly inside the UI. Here is exactly how a developer uses "Fork from here":
+  1. **In the UI:** The developer clicks "Fork from here" on a specific node.
+  2. **Behind the scenes:** The AeroGraph database copies all the events up to that point and generates a brand new Trace ID for this alternate timeline.
+  3. **The Manual Step:** The UI displays this new Trace ID. The developer has to copy that ID, go back to their code editor (VS Code, etc.), and paste it into their script:
+     ```python
+     # Developer pastes the ID they got from the UI
+     recorder = FlightRecorder(trace_id="new_forked_trace_id_here")
+     ```
+  4. **Resuming:** They then run their script from their terminal with a new prompt or modified logic. Because the script uses the forked Trace ID, the new events are appended to the fork in the UI. It is a disconnected, manual workflow meant for hardcore debugging, not a seamless real-time "play" button.
+
+### Lineage & Navigation
+Because you can fork traces multiple times, AeroGraph tracks how traces relate to each other (their lineage):
+- **Derived from**: Think of this as the "parent" timeline. If you forked Trace B from Trace A, then Trace B is *derived from* Trace A. It tells you the origin story of the current trace.
+- **Siblings**: If you return to the same bookmark in the story and make three different choices, you get three new timelines. These three traces are *siblings* because they were all forked from the exact same point in the same parent trace.
+- **Breadcrumb**: This is your trail back home. When navigating a complex set of forks (e.g., Trace A → Trace B → Trace C), the breadcrumb trail shows you exactly how you got to the current trace, allowing you to easily jump back up the family tree.
+
+### Identifiers in Error Messages
+- **Random strings (e.g., `s_AZ70SfRdcNGomaW3-cNdFA_error`)**: These are unique IDs (Span IDs or Trace IDs) generated by the system to precisely pinpoint where an event happened. Think of it like a tracking number for a package. If a package (event) gets lost or damaged (error), the tracking number (`s_AZ70Sf...`) tells you exactly which step in the delivery process failed. You can search for this ID in the system to go directly to the exact point of failure in the trace graph.
 
 ## Repository structure
 
@@ -141,12 +209,13 @@ open http://localhost:5173
 | Endpoint | Method | Description |
 |---|---|---|
 | `POST /v1/events` | POST | Ingest trace events |
-| `GET /v1/traces` | GET | List traces |
+| `GET /v1/traces` | GET | List traces (supports `?projectId=` and `?environment=` filtering) |
 | `GET /v1/traces/:id` | GET | Get trace + meta |
 | `POST /v1/traces/:id/fork` | POST | Fork a trace at a span |
 | `GET /v1/traces/:id/lineage` | GET | Lineage graph |
 | `GET /v1/traces/:aId/diff/:bId` | GET | Lineage-aware deterministic diff |
 | `GET /v1/traces/:id/analysis` | GET | Loop warnings + failure analysis |
+| `GET /v1/traces/:id/stats` | GET | Trace analytics (duration, token usage, model breakdown) |
 
 ## OpenTelemetry Interoperability
 

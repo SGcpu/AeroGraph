@@ -1,5 +1,5 @@
 import { BaseCallbackHandler } from "@langchain/core/callbacks/base";
-import type { FlightRecorder } from "@aerograph/sdk";
+import { type FlightRecorder, buildCanonicalTelemetry } from "@aerograph/sdk";
 
 export interface LangChainHandlerOptions {
   recorder: FlightRecorder;
@@ -54,21 +54,17 @@ export class AFRCallbackHandler extends BaseCallbackHandler {
     const tokenUsage = llmOutput.tokenUsage || llmOutput.usage || null;
     const modelName = llmOutput.model_name || llmOutput.modelName || null;
 
-    await this.recorder.response({
-      parentSpanId: runId,
-      text
+    // Use generic mapper for standard canonical telemetry
+    const telemetry = buildCanonicalTelemetry({
+      model: modelName ? { name: modelName } : undefined,
+      usage: tokenUsage || undefined,
     });
 
-    // Emit token metadata as a separate note if available (schema-compliant)
-    if (tokenUsage || modelName) {
-      await this.recorder.note({
-        parentSpanId: runId,
-        payload: {
-          ...(modelName ? { modelName } : {}),
-          ...(tokenUsage ? { tokenUsage } : {})
-        }
-      });
-    }
+    await this.recorder.response({
+      parentSpanId: runId,
+      text,
+      telemetry
+    });
   }
 
   async handleLLMError(err: any, runId: string) {

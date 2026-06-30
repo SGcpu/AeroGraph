@@ -50,6 +50,9 @@ from aerograph_sdk.contracts.generated import (
 from aerograph_sdk.ids import new_span_id
 
 
+TelemetryBlockType = Any  # forward-ref to avoid circular import; validated in mapper
+
+
 def _now_iso() -> str:
     """Return the current UTC time as an ISO 8601 string (RFC 3339 compatible)."""
     return (
@@ -77,9 +80,15 @@ def build_prompt_event(
     occurred_at: Optional[str] = None,
     links: Optional[list[TraceLink]] = None,
     status: TraceEventStatus = TraceEventStatus.ok,
+    telemetry: Optional[TelemetryBlockType] = None,
 ) -> PromptEvent:
     """Build a validated prompt event."""
-    return PromptEvent(
+    # Build payload — model metadata lives in the payload for prompt events
+    payload_kwargs: dict[str, Any] = {"text": text}
+    if telemetry and getattr(telemetry, "model", None):
+        payload_kwargs["model"] = telemetry.model
+
+    event = PromptEvent(
         schemaVersion=SCHEMA_VERSION,
         traceId=trace_id,
         spanId=span_id or new_span_id(),
@@ -89,9 +98,23 @@ def build_prompt_event(
         kind="prompt",
         status=status,
         title=title,
-        payload=PromptPayload(text=text),
+        payload=PromptPayload(**payload_kwargs),
         links=links or [],
     )
+    # Inject event-level canonical telemetry fields (durationMs, projectId, etc.)
+    if telemetry:
+        extras: dict[str, Any] = {}
+        if getattr(telemetry, "duration_ms", None) is not None:
+            extras["durationMs"] = telemetry.duration_ms
+        if getattr(telemetry, "project_id", None):
+            extras["projectId"] = telemetry.project_id
+        if getattr(telemetry, "environment", None):
+            extras["environment"] = telemetry.environment
+        if getattr(telemetry, "tags", None):
+            extras["tags"] = telemetry.tags
+        if extras:
+            event = event.model_copy(update=extras)
+    return event
 
 
 def build_response_event(
@@ -107,13 +130,21 @@ def build_response_event(
     links: Optional[list[TraceLink]] = None,
     status: TraceEventStatus = TraceEventStatus.ok,
     streaming_telemetry: Optional[dict[str, Any]] = None,
+    telemetry: Optional[TelemetryBlockType] = None,
 ) -> ResponseEvent:
     """Build a validated response event."""
-    telemetry: Optional[StreamingTelemetry] = None
+    stream_telem: Optional[StreamingTelemetry] = None
     if streaming_telemetry:
-        telemetry = StreamingTelemetry(**streaming_telemetry)
+        stream_telem = StreamingTelemetry(**streaming_telemetry)
 
-    return ResponseEvent(
+    # Build payload — model and usage live in the payload for response events
+    payload_kwargs: dict[str, Any] = {"text": text, "streamingTelemetry": stream_telem}
+    if telemetry and getattr(telemetry, "model", None):
+        payload_kwargs["model"] = telemetry.model
+    if telemetry and getattr(telemetry, "usage", None):
+        payload_kwargs["usage"] = telemetry.usage
+
+    event = ResponseEvent(
         schemaVersion=SCHEMA_VERSION,
         traceId=trace_id,
         spanId=span_id or new_span_id(),
@@ -123,9 +154,22 @@ def build_response_event(
         kind="response",
         status=status,
         title=title,
-        payload=ResponsePayload(text=text, streamingTelemetry=telemetry),
+        payload=ResponsePayload(**payload_kwargs),
         links=links or [],
     )
+    if telemetry:
+        extras: dict[str, Any] = {}
+        if getattr(telemetry, "duration_ms", None) is not None:
+            extras["durationMs"] = telemetry.duration_ms
+        if getattr(telemetry, "project_id", None):
+            extras["projectId"] = telemetry.project_id
+        if getattr(telemetry, "environment", None):
+            extras["environment"] = telemetry.environment
+        if getattr(telemetry, "tags", None):
+            extras["tags"] = telemetry.tags
+        if extras:
+            event = event.model_copy(update=extras)
+    return event
 
 
 def build_tool_call_event(

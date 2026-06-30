@@ -17,7 +17,29 @@ export type TraceEventKind = z.infer<typeof traceEventKindSchema>;
 export const traceEventStatusSchema = z.enum(["ok", "error"]);
 export type TraceEventStatus = z.infer<typeof traceEventStatusSchema>;
 
-export const traceEventSchemaVersion = "1.0.0" as const;
+export const traceEventSchemaVersion = "1.1.0" as const;
+export const traceEventSchemaVersionLegacy = "1.0.0" as const;
+
+// ─── Canonical Telemetry Model (v1.1.0) ──────────────────────────────────────
+
+/** Model identity metadata (name, provider, version). Cost is NOT stored — derived at analytics time. */
+export const telemetryModelInfoSchema = z.object({
+  name: z.string().min(1),
+  provider: z.string().min(1).optional(),
+  version: z.string().min(1).optional()
+});
+export type TelemetryModelInfo = z.infer<typeof telemetryModelInfoSchema>;
+
+/** Token usage breakdown. cachedTokens is optional for frameworks that don't expose it. */
+export const telemetryUsageSchema = z.object({
+  inputTokens: z.number().int().nonnegative().optional(),
+  outputTokens: z.number().int().nonnegative().optional(),
+  totalTokens: z.number().int().nonnegative().optional(),
+  cachedTokens: z.number().int().nonnegative().optional()
+});
+export type TelemetryUsage = z.infer<typeof telemetryUsageSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const actorKindSchema = z.enum(["agent", "tool", "system"]);
 export type ActorKind = z.infer<typeof actorKindSchema>;
@@ -41,7 +63,10 @@ export const traceLinkSchema = z.object({
 });
 
 const baseEventSchema = z.object({
-  schemaVersion: z.literal(traceEventSchemaVersion),
+  schemaVersion: z.union([
+    z.literal(traceEventSchemaVersion),
+    z.literal(traceEventSchemaVersionLegacy)
+  ]),
   traceId: z.string().min(1),
   spanId: z.string().min(1),
   parentSpanId: z.string().min(1).nullable(),
@@ -49,10 +74,22 @@ const baseEventSchema = z.object({
   actor: actorSchema,
   status: traceEventStatusSchema,
   title: z.string().min(1).optional(),
-  links: z.array(traceLinkSchema).default([])
+  links: z.array(traceLinkSchema).default([]),
+  // ── Canonical Telemetry Fields (v1.1.0, all optional for backward compatibility) ──
+  /** Span execution duration in milliseconds. */
+  durationMs: z.number().int().nonnegative().optional(),
+  /** Project identifier for multi-tenant isolation. */
+  projectId: z.string().min(1).optional(),
+  /** Deployment environment (e.g. development, staging, production). */
+  environment: z.string().min(1).optional(),
+  /** Arbitrary key-value telemetry tags. */
+  tags: z.record(z.string(), z.string()).optional()
 });
 
-export const promptPayloadSchema = z.object({ text: z.string() });
+export const promptPayloadSchema = z.object({ 
+  text: z.string(),
+  model: telemetryModelInfoSchema.optional()
+});
 
 export const promptEventSchema = baseEventSchema.extend({
   kind: z.literal("prompt"),
@@ -69,7 +106,9 @@ export const streamingTelemetrySchema = z.object({
 
 export const responsePayloadSchema = z.object({ 
   text: z.string(),
-  streamingTelemetry: streamingTelemetrySchema.optional()
+  streamingTelemetry: streamingTelemetrySchema.optional(),
+  model: telemetryModelInfoSchema.optional(),
+  usage: telemetryUsageSchema.optional()
 });
 
 export const responseEventSchema = baseEventSchema.extend({
@@ -199,7 +238,10 @@ export const traceMetaSchema = z.object({
       baseTraceId: z.string().min(1),
       forkedFromSpanId: z.string().min(1)
     })
-    .optional()
+    .optional(),
+  projectId: z.string().min(1).optional(),
+  environment: z.string().min(1).optional(),
+  isDeleted: z.boolean().optional()
 });
 export type TraceMeta = z.infer<typeof traceMetaSchema>;
 
@@ -231,10 +273,67 @@ export const traceAnalysisSchema = z.object({
   ),
   stats: z.object({
     eventCount: z.number().int().nonnegative(),
-    actorCount: z.number().int().nonnegative()
+    actorCount: z.number().int().nonnegative(),
+    // v1.1.0 telemetry fields — null when no telemetry data present
+    totalInputTokens: z.number().int().nonnegative().nullable().optional(),
+    totalOutputTokens: z.number().int().nonnegative().nullable().optional(),
+    totalTokens: z.number().int().nonnegative().nullable().optional(),
+    totalDurationMs: z.number().int().nonnegative().nullable().optional(),
+    modelNamesUsed: z.array(z.string()).optional()
   })
 });
 export type TraceAnalysis = z.infer<typeof traceAnalysisSchema>;
+
+/**
+ * TraceStats — stable contract for GET /v1/traces/:id/stats
+ *
+ * Designed as a durable, version-safe API contract. Fields are intentionally
+ * additive; no field will be removed without a major version bump. Consumers
+ * (dashboards, evaluation pipelines, regression detectors) MUST treat all
+ * optional fields as potentially absent for v1.0.0 legacy traces.
+ *
+ * modelBreakdown groups by model name across all spans so downstream
+ * analytics can compute per-model cost, latency, and token budgets without
+ * fetching full event payloads.
+ */
+export const modelBreakdownEntrySchema = z.object({
+  modelName: z.string().min(1),
+  provider: z.string().min(1).optional(),
+  spanCount: z.number().int().nonnegative(),
+  inputTokens: z.number().int().nonnegative().optional(),
+  outputTokens: z.number().int().nonnegative().optional(),
+  totalTokens: z.number().int().nonnegative().optional()
+});
+export type ModelBreakdownEntry = z.infer<typeof modelBreakdownEntrySchema>;
+
+export const traceStatsSchema = z.object({
+  /** The trace this stats payload is for. */
+  traceId: z.string().min(1),
+  /** ISO-8601 datetime of the first event in the trace. */
+  traceStartedAt: z.string().datetime().nullable(),
+  /** ISO-8601 datetime of the last event in the trace. */
+  traceEndedAt: z.string().datetime().nullable(),
+  /** Total number of events in this trace. */
+  eventCount: z.number().int().nonnegative(),
+  /** Distinct actor IDs that appear in the trace. */
+  actorCount: z.number().int().nonnegative(),
+  // ── Token usage ─────────────────────────────────────────────────────────
+  /** Sum of inputTokens across all response spans with usage data. */
+  totalInputTokens: z.number().int().nonnegative().nullable(),
+  /** Sum of outputTokens across all response spans with usage data. */
+  totalOutputTokens: z.number().int().nonnegative().nullable(),
+  /** Sum of totalTokens across all response spans with usage data. */
+  totalTokens: z.number().int().nonnegative().nullable(),
+  // ── Duration ────────────────────────────────────────────────────────────
+  /** Sum of durationMs across all spans that carry that field. */
+  totalDurationMs: z.number().int().nonnegative().nullable(),
+  /** durationMs of the first event in the trace (wall-clock entry cost). */
+  rootSpanDurationMs: z.number().int().nonnegative().nullable(),
+  // ── Model breakdown ──────────────────────────────────────────────────────
+  /** Per-model token and span breakdown. Empty array when no model data exists. */
+  modelBreakdown: z.array(modelBreakdownEntrySchema)
+});
+export type TraceStats = z.infer<typeof traceStatsSchema>;
 
 export const traceForkRequestSchema = z.object({
   forkFromSpanId: z.string().min(1),
@@ -340,6 +439,10 @@ export function validateTraceDiffResult(input: unknown): TraceDiffResult {
 
 export function validateTraceAnalysis(input: unknown): TraceAnalysis {
   return traceAnalysisSchema.parse(input);
+}
+
+export function validateTraceStats(input: unknown): TraceStats {
+  return traceStatsSchema.parse(input);
 }
 
 export * from "./utils/hash.js";

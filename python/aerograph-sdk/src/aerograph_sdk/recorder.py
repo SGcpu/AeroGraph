@@ -52,6 +52,7 @@ from aerograph_sdk.events import (
 )
 from aerograph_sdk.ids import new_span_id, new_trace_id
 from aerograph_sdk.state_hash import get_deterministic_state_hash
+from aerograph_sdk.telemetry.mapper import TelemetryBlock  # noqa: F401 (re-exported)
 
 
 # Type alias for any emittable event model
@@ -99,6 +100,8 @@ class FlightRecorder:
         endpoint: str,
         actor: dict[str, Optional[str]],
         trace_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+        environment: Optional[str] = None,
         http_client: Optional[httpx.Client] = None,
         async_http_client: Optional[httpx.AsyncClient] = None,
     ) -> None:
@@ -106,6 +109,8 @@ class FlightRecorder:
         self.actor_id: str = actor["id"]  # type: ignore[assignment]
         self.actor_name: Optional[str] = actor.get("name")
         self.trace_id: str = trace_id or new_trace_id()
+        self.project_id: Optional[str] = project_id
+        self.environment: Optional[str] = environment
         self._http_client = http_client
         self._async_http_client = async_http_client
 
@@ -149,6 +154,12 @@ class FlightRecorder:
         data = _json.loads(event.model_dump_json(exclude_none=True))
         if event.parentSpanId is None and "parentSpanId" not in data:
             data["parentSpanId"] = None
+        
+        if self.project_id is not None and "projectId" not in data:
+            data["projectId"] = self.project_id
+        if self.environment is not None and "environment" not in data:
+            data["environment"] = self.environment
+            
         return data
 
     def _get_client(self) -> httpx.Client:
@@ -292,8 +303,15 @@ class FlightRecorder:
         title: Optional[str] = None,
         occurred_at: Optional[str] = None,
         links: Optional[list[TraceLink]] = None,
+        telemetry: Optional["TelemetryBlock"] = None,
     ) -> PromptEvent:
-        """Emit a prompt event synchronously."""
+        """Emit a prompt event synchronously.
+
+        Args:
+            telemetry: Optional canonical telemetry block (v1.1.0). Adds
+                model metadata and event-level fields (durationMs, projectId,
+                environment, tags) to the emitted event.
+        """
         event = build_prompt_event(
             trace_id=self.trace_id,
             actor_id=self.actor_id,
@@ -304,6 +322,7 @@ class FlightRecorder:
             title=title,
             occurred_at=occurred_at,
             links=links,
+            telemetry=telemetry,
         )
         self.emit(event)
         return event
@@ -319,8 +338,14 @@ class FlightRecorder:
         links: Optional[list[TraceLink]] = None,
         status: TraceEventStatus = TraceEventStatus.ok,
         streaming_telemetry: Optional[dict[str, Any]] = None,
+        telemetry: Optional["TelemetryBlock"] = None,
     ) -> ResponseEvent:
-        """Emit a response event synchronously."""
+        """Emit a response event synchronously.
+
+        Args:
+            telemetry: Optional canonical telemetry block (v1.1.0). Adds
+                model metadata, token usage, and event-level fields.
+        """
         event = build_response_event(
             trace_id=self.trace_id,
             actor_id=self.actor_id,
@@ -333,6 +358,7 @@ class FlightRecorder:
             links=links,
             status=status,
             streaming_telemetry=streaming_telemetry,
+            telemetry=telemetry,
         )
         self.emit(event)
         return event
@@ -578,6 +604,7 @@ class FlightRecorder:
         title: Optional[str] = None,
         occurred_at: Optional[str] = None,
         links: Optional[list[TraceLink]] = None,
+        telemetry: Optional["TelemetryBlock"] = None,
     ) -> PromptEvent:
         """Emit a prompt event asynchronously."""
         event = build_prompt_event(
@@ -590,6 +617,7 @@ class FlightRecorder:
             title=title,
             occurred_at=occurred_at,
             links=links,
+            telemetry=telemetry,
         )
         await self.emit_async(event)
         return event
@@ -605,6 +633,7 @@ class FlightRecorder:
         links: Optional[list[TraceLink]] = None,
         status: TraceEventStatus = TraceEventStatus.ok,
         streaming_telemetry: Optional[dict[str, Any]] = None,
+        telemetry: Optional["TelemetryBlock"] = None,
     ) -> ResponseEvent:
         """Emit a response event asynchronously."""
         event = build_response_event(
@@ -619,6 +648,7 @@ class FlightRecorder:
             links=links,
             status=status,
             streaming_telemetry=streaming_telemetry,
+            telemetry=telemetry,
         )
         await self.emit_async(event)
         return event

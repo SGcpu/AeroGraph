@@ -46,5 +46,15 @@ const traceEvents = importOtlpToEvents(payload, {
 });
 ```
 
+## GenAI Semantic Conventions (v1.1.0)
+
+When exporting AeroGraph canonical telemetry (introduced in schema v1.1.0) to OTLP, the bridge automatically translates the standard metrics to [OpenTelemetry GenAI Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/gen-ai/):
+- `model.name` $\rightarrow$ `gen_ai.request.model`
+- `model.provider` $\rightarrow$ `gen_ai.system`
+- `usage.inputTokens` $\rightarrow$ `gen_ai.usage.input_tokens`
+- `usage.outputTokens` $\rightarrow$ `gen_ai.usage.output_tokens`
+
+This guarantees deterministic, lossless mapping between canonical events and OTLP spans.
+
 ## License
 Apache-2.0

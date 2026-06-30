@@ -87,7 +87,8 @@ def test_parity_fixture_is_valid(fixture: dict) -> None:
     # Should not raise
     event = model_cls(**event_data)
     assert event.kind == kind
-    assert event.schemaVersion == SCHEMA_VERSION
+    # Fixtures contain 1.0.0 events; schema 1.1.0 accepts both (backward compat)
+    assert event.schemaVersion.value in ("1.0.0", "1.1.0")
 
 
 # ---------------------------------------------------------------------------
@@ -96,8 +97,8 @@ def test_parity_fixture_is_valid(fixture: dict) -> None:
 
 
 def test_schema_version_is_correct() -> None:
-    """SCHEMA_VERSION must match the canonical version."""
-    assert SCHEMA_VERSION == "1.0.0"
+    """SCHEMA_VERSION must match the canonical version (1.1.0 as of telemetry enrichment)."""
+    assert SCHEMA_VERSION == "1.1.0"
 
 
 # ---------------------------------------------------------------------------

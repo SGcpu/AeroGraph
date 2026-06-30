@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "./server";
 import type { Database } from "better-sqlite3";
-import { validateTraceForkResponse, validateTraceLineageGraph, validateTraceDiffResult, validateTraceAnalysis } from "@aerograph/contracts";
+import { validateTraceForkResponse, validateTraceLineageGraph, validateTraceDiffResult, validateTraceAnalysis, validateTraceStats } from "@aerograph/contracts";
 import { loadPhase2FixtureTrace } from "./testUtils";
 
 describe("collector: API", () => {
@@ -229,5 +229,81 @@ describe("collector: API", () => {
 
     expect(res.status).toBe(400);
     db.close();
+  });
+
+  // T014: /stats endpoint contract tests
+  describe("GET /v1/traces/:traceId/stats", () => {
+    it("returns stable TraceStats shape for a trace with legacy v1.0.0 events", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      const baseEvents = loadPhase2FixtureTrace("base");
+      await request(app).post("/v1/events").send(baseEvents).expect(201);
+
+      const res = await request(app).get("/v1/traces/t_base/stats").expect(200);
+      const stats = validateTraceStats(res.body);
+
+      expect(stats.traceId).toBe("t_base");
+      expect(stats.eventCount).toBeGreaterThan(0);
+      expect(stats.actorCount).toBeGreaterThan(0);
+      // v1.0.0 traces have no telemetry columns → nulls are valid
+      expect(stats.totalTokens === null || typeof stats.totalTokens === "number").toBe(true);
+      expect(Array.isArray(stats.modelBreakdown)).toBe(true);
+      // Determinism: identical response on repeated calls
+      const res2 = await request(app).get("/v1/traces/t_base/stats").expect(200);
+      expect(res2.body).toEqual(res.body);
+
+      db.close();
+    });
+
+    it("returns 404 for missing trace", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      const res = await request(app).get("/v1/traces/nonexistent/stats");
+      expect(res.status).toBe(404);
+      db.close();
+    });
+
+    it("returns token and model data for v1.1.0 telemetry-enriched events", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      // Ingest a v1.1.0 event with model + usage in payload
+      const event = {
+        schemaVersion: "1.1.0",
+        traceId: "t_v11",
+        spanId: "s1",
+        parentSpanId: null,
+        occurredAt: new Date().toISOString(),
+        actor: { kind: "agent", id: "agent-1" },
+        kind: "response",
+        status: "ok",
+        payload: {
+          text: "Hello",
+          model: { name: "gpt-4o", provider: "openai" },
+          usage: { inputTokens: 100, outputTokens: 50, totalTokens: 150 }
+        },
+        durationMs: 1200,
+        links: []
+      };
+
+      await request(app).post("/v1/events").send(event).expect(201);
+
+      const res = await request(app).get("/v1/traces/t_v11/stats").expect(200);
+      const stats = validateTraceStats(res.body);
+
+      expect(stats.traceId).toBe("t_v11");
+      expect(stats.totalInputTokens).toBe(100);
+      expect(stats.totalOutputTokens).toBe(50);
+      expect(stats.totalTokens).toBe(150);
+      expect(stats.totalDurationMs).toBe(1200);
+      expect(stats.modelBreakdown).toHaveLength(1);
+      expect(stats.modelBreakdown[0].modelName).toBe("gpt-4o");
+      expect(stats.modelBreakdown[0].provider).toBe("openai");
+      expect(stats.modelBreakdown[0].totalTokens).toBe(150);
+
+      db.close();
+    });
   });
 });

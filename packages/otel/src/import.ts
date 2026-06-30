@@ -2,6 +2,7 @@ import type { TraceEvent, TraceEventKind } from "@aerograph/contracts";
 import type { OtlpSpan, OtlpExportRequest, OtlpAttribute, OtlpLink } from "./otlp-schema.js";
 import { AEROGRAPH_ATTRS } from "./constants.js";
 import { extractAttributeValue, resolveAeroGraphKindFromSpan, STATUS_CODE } from "./mapping.js";
+import { GEN_AI_ATTRS, COMMON_ATTRS } from "./semantic_mapping.js";
 import { unixNanoToIso } from "./timestamp.js";
 
 export interface MappingContext {
@@ -29,8 +30,27 @@ export function importOtlpSpanToEvent(span: OtlpSpan, ctx: MappingContext): Trac
     };
   });
 
+  const projectId = extractAttributeValue(span.attributes, COMMON_ATTRS.PROJECT_ID);
+  const environment = extractAttributeValue(span.attributes, COMMON_ATTRS.ENVIRONMENT);
+
+  let tags: Record<string, string> | undefined = undefined;
+  if (span.attributes) {
+    for (const attr of span.attributes) {
+      if (attr.key.startsWith("aerograph.tag.")) {
+        if (!tags) tags = {};
+        const key = attr.key.slice("aerograph.tag.".length);
+        const val = extractAttributeValue(span.attributes, attr.key);
+        if (val !== undefined) tags[key] = val;
+      }
+    }
+  }
+
+  const durationMs = span.endTimeUnixNano && span.startTimeUnixNano 
+    ? Number(BigInt(span.endTimeUnixNano) - BigInt(span.startTimeUnixNano)) / 1_000_000
+    : undefined;
+
   const baseEvent = {
-    schemaVersion: "1.0.0",
+    schemaVersion: "1.1.0",
     traceId: span.traceId,
     spanId: span.spanId,
     parentSpanId: span.parentSpanId || null,
@@ -42,22 +62,56 @@ export function importOtlpSpanToEvent(span: OtlpSpan, ctx: MappingContext): Trac
     },
     status,
     ...(title ? { title } : {}),
-    links
+    links,
+    ...(projectId ? { projectId } : {}),
+    ...(environment ? { environment } : {}),
+    ...(tags ? { tags } : {}),
+    ...(durationMs !== undefined && durationMs !== 1 ? { durationMs } : {}) // 1ms is default for older spans
   };
 
   // Build payload based on kind
   let payload: Record<string, any> = {};
 
   switch (kind) {
-    case "prompt":
+    case "prompt": {
       payload = {
         text: extractAttributeValue(span.attributes, AEROGRAPH_ATTRS.PROMPT_TEXT) || ""
       };
+      const reqModel = extractAttributeValue(span.attributes, GEN_AI_ATTRS.REQUEST_MODEL);
+      const reqProvider = extractAttributeValue(span.attributes, GEN_AI_ATTRS.SYSTEM);
+      if (reqModel) {
+        payload.model = {
+          name: reqModel,
+          ...(reqProvider ? { provider: reqProvider } : {})
+        };
+      }
       break;
-    case "response":
+    }
+    case "response": {
       payload = {
         text: extractAttributeValue(span.attributes, AEROGRAPH_ATTRS.RESPONSE_TEXT) || ""
       };
+      
+      const resModel = extractAttributeValue(span.attributes, GEN_AI_ATTRS.RESPONSE_MODEL);
+      const resProvider = extractAttributeValue(span.attributes, GEN_AI_ATTRS.SYSTEM);
+      if (resModel) {
+        payload.model = {
+          name: resModel,
+          ...(resProvider ? { provider: resProvider } : {})
+        };
+      }
+
+      const inputTokens = extractAttributeValue(span.attributes, GEN_AI_ATTRS.USAGE_INPUT_TOKENS);
+      const outputTokens = extractAttributeValue(span.attributes, GEN_AI_ATTRS.USAGE_OUTPUT_TOKENS);
+      const totalTokens = extractAttributeValue(span.attributes, GEN_AI_ATTRS.USAGE_TOTAL_TOKENS);
+      
+      if (inputTokens !== undefined || outputTokens !== undefined || totalTokens !== undefined) {
+        payload.usage = {};
+        if (inputTokens !== undefined) payload.usage.inputTokens = Number(inputTokens);
+        if (outputTokens !== undefined) payload.usage.outputTokens = Number(outputTokens);
+        if (totalTokens !== undefined) payload.usage.totalTokens = Number(totalTokens);
+      }
+
       const ttf = extractAttributeValue(span.attributes, AEROGRAPH_ATTRS.RESPONSE_TIME_TO_FIRST_TOKEN_MS);
       const tdm = extractAttributeValue(span.attributes, AEROGRAPH_ATTRS.RESPONSE_TOTAL_DURATION_MS);
       const tps = extractAttributeValue(span.attributes, AEROGRAPH_ATTRS.RESPONSE_TOKENS_PER_SECOND);
@@ -71,6 +125,7 @@ export function importOtlpSpanToEvent(span: OtlpSpan, ctx: MappingContext): Trac
         };
       }
       break;
+    }
     case "tool_call":
       const inputStr = extractAttributeValue(span.attributes, AEROGRAPH_ATTRS.TOOL_CALL_INPUT);
       payload = {

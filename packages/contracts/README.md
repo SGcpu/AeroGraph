@@ -40,11 +40,12 @@ const event: TraceEvent = validateTraceEvent(rawEvent);
 
 ## Available Schemas
 
-- `traceEventSchema`
+- `traceEventSchema` (Supports v1.1.0 with canonical `model`, `usage`, `projectId`, and `environment`)
 - `traceLineageGraphSchema`
 - `traceForkRequestSchema`
 - `traceAnalysisSchema`
 - `traceDiffResultSchema`
+- `traceStatsSchema`
 
 ## License
 Apache-2.0

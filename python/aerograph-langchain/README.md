@@ -75,10 +75,10 @@ result = rag_chain.invoke(
 
 The callback adapter automatically intercepts LangChain execution signals and translates them to canonical AeroGraph `TraceEvent` types:
 
-- **LLM/Chat Starts** (`on_llm_start`, `on_chat_model_start`) $\rightarrow$ `PromptEvent`
-- **LLM Ends** (`on_llm_end`) $\rightarrow$ `ResponseEvent` (includes streaming telemetry completion metrics: TTFT and tokens/sec when tokens are streamed)
+- **LLM/Chat Starts** (`on_llm_start`, `on_chat_model_start`) $\rightarrow$ `PromptEvent` (captures prompt text, `model.name`, `model.provider`)
+- **LLM Ends** (`on_llm_end`) $\rightarrow$ `ResponseEvent` (captures completion text, streaming telemetry, `usage` token counts, and `duration_ms`)
 - **Tool Starts** (`on_tool_start`) $\rightarrow$ `ToolCallEvent`
-- **Tool Ends** (`on_tool_end`) $\rightarrow$ `ToolResultEvent`
+- **Tool Ends** (`on_tool_end`) $\rightarrow$ `ToolResultEvent` (captures output and `duration_ms`)
 - **Retriever Runs** (`on_retriever_start`, `on_retriever_end`) $\rightarrow$ `RetrieverEvent` (captures source documents, queries, and metadata)
 - **Errors** (`on_llm_error`, `on_tool_error`, `on_chain_error`) $\rightarrow$ `ErrorEvent`
 - **Custom Events** (`on_custom_event`) $\rightarrow$ `StateSnapshotEvent` and `CheckpointEvent` for LangGraph nodes

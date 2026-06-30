@@ -28,16 +28,24 @@ const recorder = new FlightRecorder({
     id: "my-travel-agent",
     name: "Travel Planner",
   },
+  projectId: "travel-app", // Optional (v1.1.0)
+  environment: "production" // Optional (v1.1.0)
 });
 
 // 2. Emit events
 const promptEvent = await recorder.prompt({
   text: "Plan a trip to Tokyo",
+  // Optional v1.1.0 canonical telemetry
+  model: { name: "gpt-4o", provider: "openai" },
+  usage: { inputTokens: 10, totalTokens: 10 },
+  durationMs: 50
 });
 
 const responseEvent = await recorder.response({
   parentSpanId: promptEvent.spanId,
   text: "Here is your 3-day itinerary...",
+  usage: { inputTokens: 10, outputTokens: 50, totalTokens: 60 },
+  durationMs: 2500
 });
 ```
 

@@ -99,4 +99,32 @@ describe("importOtlpSpanToEvent", () => {
       "my.attr": "val"
     });
   });
+
+  it("reconstructs canonical telemetry from GenAI attributes", () => {
+    const span: OtlpSpan = {
+      traceId: "5b8efff798038103d269b633813fc60c",
+      spanId: "eee19b7ec3c1b174",
+      name: "gen_ai.chat",
+      startTimeUnixNano: "1000000000",
+      endTimeUnixNano: "2000000000", // 1ms
+      kind: SPAN_KIND.CLIENT,
+      attributes: [
+        { key: "project.id", value: { stringValue: "proj-abc" } },
+        { key: "deployment.environment", value: { stringValue: "dev" } },
+        { key: "gen_ai.response.model", value: { stringValue: "claude-3" } },
+        { key: "gen_ai.system", value: { stringValue: "anthropic" } },
+        { key: "gen_ai.usage.input_tokens", value: { intValue: 100 } },
+        { key: "gen_ai.usage.output_tokens", value: { intValue: 50 } },
+        { key: "gen_ai.usage.total_tokens", value: { intValue: 150 } }
+      ]
+    };
+
+    const event = importOtlpSpanToEvent(span, ctx);
+    expect(event.kind).toBe("response");
+    expect(event.projectId).toBe("proj-abc");
+    expect(event.environment).toBe("dev");
+    expect(event.durationMs).toBe(1000); // 2000000000 - 1000000000 = 1000000000 ns = 1000ms
+    expect(event.payload.model).toEqual({ name: "claude-3", provider: "anthropic" });
+    expect(event.payload.usage).toEqual({ inputTokens: 100, outputTokens: 50, totalTokens: 150 });
+  });
 });

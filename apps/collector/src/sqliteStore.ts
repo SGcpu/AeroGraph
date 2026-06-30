@@ -3,6 +3,7 @@ import {
   sortTraceEventsDeterministic,
   validateTraceDiffResult,
   validateTraceAnalysis,
+  validateTraceStats,
   type TraceEvent,
   type TraceLineageGraph,
   type TraceLineageEdge,
@@ -10,7 +11,9 @@ import {
   type TraceMeta,
   type TraceWithMeta,
   type TraceDiffResult,
-  type TraceAnalysis
+  type TraceAnalysis,
+  type TraceStats,
+  type ModelBreakdownEntry
 } from "@aerograph/contracts";
 import { nanoid } from "nanoid";
 import { diffTraceEvents } from "./diff/index";
@@ -37,43 +40,98 @@ export class SqliteTraceStore {
   constructor(private db: Database) {}
 
   appendEvent(event: TraceEvent): void {
+    // Extract telemetry columns from the event for indexed storage.
+    // These are projected from the payload for efficient analytics queries.
+    // All columns default NULL for v1.0.0 legacy events.
+    const e = event as any;
+    const modelName: string | null = e.payload?.model?.name ?? null;
+    const modelProvider: string | null = e.payload?.model?.provider ?? null;
+    const modelVersion: string | null = e.payload?.model?.version ?? null;
+    const usageInputTokens: number | null = e.payload?.usage?.inputTokens ?? null;
+    const usageOutputTokens: number | null = e.payload?.usage?.outputTokens ?? null;
+    const usageTotalTokens: number | null = e.payload?.usage?.totalTokens ?? null;
+    const usageCachedTokens: number | null = e.payload?.usage?.cachedTokens ?? null;
+    const durationMs: number | null = e.durationMs ?? null;
+    const projectId: string | null = e.projectId ?? null;
+    const environment: string | null = e.environment ?? null;
+    const tagsJson: string | null = e.tags ? JSON.stringify(e.tags) : null;
+
     const stmt = this.db.prepare(`
-      INSERT INTO events (trace_id, span_id, parent_span_id, occurred_at, kind, event_data)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO events (
+        trace_id, span_id, parent_span_id, occurred_at, kind, event_data,
+        model_name, model_provider, model_version,
+        usage_input_tokens, usage_output_tokens, usage_total_tokens, usage_cached_tokens,
+        duration_ms, project_id, environment, tags_json
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    
-    // Will throw better-sqlite3 constraint error if trace_id/span_id already exists
+
     stmt.run(
       event.traceId,
       event.spanId,
       event.parentSpanId,
       event.occurredAt,
       event.kind,
-      JSON.stringify(event)
+      JSON.stringify(event),
+      modelName,
+      modelProvider,
+      modelVersion,
+      usageInputTokens,
+      usageOutputTokens,
+      usageTotalTokens,
+      usageCachedTokens,
+      durationMs,
+      projectId,
+      environment,
+      tagsJson
     );
   }
 
-  listTraces(): TraceListResponse {
-    // Get unique traces and their min occurred_at (createdAt) and max occurred_at (updatedAt)
-    const rows = this.db.prepare(`
+  listTraces(filters?: { projectId?: string; environment?: string }): TraceListResponse {
+    let query = `
       SELECT 
         trace_id, 
         MIN(occurred_at) as created_at, 
         MAX(occurred_at) as updated_at, 
-        COUNT(*) as event_count
+        COUNT(*) as event_count,
+        MAX(project_id) as project_id,
+        MAX(environment) as environment
       FROM events
+    `;
+
+    const conditions: string[] = [];
+    const params: any[] = [];
+    if (filters?.projectId) {
+      conditions.push("project_id = ?");
+      params.push(filters.projectId);
+    }
+    if (filters?.environment) {
+      conditions.push("environment = ?");
+      params.push(filters.environment);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(" AND ")} `;
+    }
+
+    query += `
       GROUP BY trace_id
       ORDER BY updated_at DESC
-    `).all() as any[];
+    `;
+
+    const rows = this.db.prepare(query).all(...params) as any[];
 
     const traces: TraceMeta[] = rows.map((r) => {
-      // Try to find the root span (where parent_span_id IS NULL)
+      // Find the root span or check if it's a tombstone
       const rootRow = this.db.prepare(`
         SELECT span_id FROM events
-        WHERE trace_id = ? AND parent_span_id IS NULL
+        WHERE trace_id = ? AND (parent_span_id IS NULL OR span_id = 'tombstone')
         ORDER BY occurred_at ASC, id ASC
         LIMIT 1
       `).get(r.trace_id) as any;
+
+      // Assign the root span ID to r.span_id to check if it's a tombstone later
+      if (rootRow) r.span_id = rootRow.span_id;
 
       const derivation = this.db
         .prepare(
@@ -94,7 +152,10 @@ export class SqliteTraceStore {
                 forkedFromSpanId: derivation.forked_from_span_id
               }
             }
-          : {})
+          : {}),
+        ...(r.project_id ? { projectId: r.project_id } : {}),
+        ...(r.environment ? { environment: r.environment } : {}),
+        ...(r.span_id === 'tombstone' ? { isDeleted: true } : {})
       };
     });
 
@@ -115,10 +176,14 @@ export class SqliteTraceStore {
     let createdAt = events[0].occurredAt;
     let updatedAt = events[0].occurredAt;
     let rootSpanId = null;
+    let projectId = null;
+    let environment = null;
 
     for (const e of events) {
       if (e.occurredAt < createdAt) createdAt = e.occurredAt;
       if (e.occurredAt > updatedAt) updatedAt = e.occurredAt;
+      if (e.projectId) projectId = e.projectId;
+      if (e.environment) environment = e.environment;
     }
 
     const roots = events
@@ -151,10 +216,52 @@ export class SqliteTraceStore {
                 forkedFromSpanId: derivation.forked_from_span_id
               }
             }
-          : {})
+          : {}),
+        ...(projectId ? { projectId } : {}),
+        ...(environment ? { environment } : {}),
+        ...(rootSpanId === 'tombstone' ? { isDeleted: true } : {})
       },
       events
     };
+  }
+
+  deleteTrace(traceId: string): void {
+    const rootRow = this.db.prepare("SELECT * FROM events WHERE trace_id = ? ORDER BY occurred_at ASC LIMIT 1").get(traceId) as any;
+    if (!rootRow) return;
+
+    // Delete all real events
+    this.db.prepare("DELETE FROM events WHERE trace_id = ?").run(traceId);
+    
+    // Insert a tombstone event to preserve lineage graph and metadata
+    const tombstoneEvent = {
+      schemaVersion: "1.1.0",
+      traceId,
+      spanId: "tombstone",
+      parentSpanId: null,
+      occurredAt: rootRow.occurred_at,
+      actor: { kind: "system", id: "collector" },
+      kind: "note",
+      status: "ok",
+      title: "deleted",
+      payload: { isDeleted: true },
+      links: []
+    };
+
+    this.db.prepare(`
+      INSERT INTO events (
+        trace_id, span_id, parent_span_id, occurred_at, kind, event_data,
+        project_id, environment
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      traceId,
+      "tombstone",
+      null,
+      rootRow.occurred_at,
+      "note",
+      JSON.stringify(tombstoneEvent),
+      rootRow.project_id,
+      rootRow.environment
+    );
   }
 
   appendDerivation(input: AppendDerivationInput): void {
@@ -381,6 +488,117 @@ export class SqliteTraceStore {
     const trace = this.getTrace(traceId);
     if (!trace) throw new Error(`Trace not found: ${traceId}`);
     const result = analyzeTraceEvents(trace.events);
-    return validateTraceAnalysis(result);
+
+    // T015A: enrich stats with token/duration aggregates from indexed columns
+    const telemetry = this.db.prepare(`
+      SELECT
+        SUM(usage_input_tokens)  AS totalInputTokens,
+        SUM(usage_output_tokens) AS totalOutputTokens,
+        SUM(usage_total_tokens)  AS totalTokens,
+        SUM(duration_ms)         AS totalDurationMs,
+        GROUP_CONCAT(DISTINCT model_name) AS modelNames
+      FROM events
+      WHERE trace_id = ?
+    `).get(traceId) as any;
+
+    const enriched = {
+      ...result,
+      stats: {
+        ...result.stats,
+        totalInputTokens: telemetry?.totalInputTokens ?? null,
+        totalOutputTokens: telemetry?.totalOutputTokens ?? null,
+        totalTokens: telemetry?.totalTokens ?? null,
+        totalDurationMs: telemetry?.totalDurationMs ?? null,
+        modelNamesUsed: telemetry?.modelNames
+          ? telemetry.modelNames.split(",").filter(Boolean)
+          : []
+      }
+    };
+
+    return validateTraceAnalysis(enriched);
+  }
+
+  /**
+   * T014: Compute stable trace-level statistics from indexed telemetry columns.
+   *
+   * This is the foundation for GET /v1/traces/:id/stats. It is intentionally
+   * a separate method from analyzeTrace to keep the API contract stable and
+   * to allow future caching / materialized-view strategies.
+   */
+  getTraceStats(traceId: string): TraceStats {
+    const exists = this.db
+      .prepare("SELECT 1 FROM events WHERE trace_id = ? LIMIT 1")
+      .get(traceId);
+    if (!exists) throw new Error(`Trace not found: ${traceId}`);
+
+    // Aggregate summary from indexed columns (fast, no JSON parsing)
+    const summary = this.db.prepare(`
+      SELECT
+        COUNT(*)                 AS eventCount,
+        COUNT(DISTINCT COALESCE(event_data, '')) AS actorCount_placeholder,
+        MIN(occurred_at)         AS traceStartedAt,
+        MAX(occurred_at)         AS traceEndedAt,
+        SUM(usage_input_tokens)  AS totalInputTokens,
+        SUM(usage_output_tokens) AS totalOutputTokens,
+        SUM(usage_total_tokens)  AS totalTokens,
+        SUM(duration_ms)         AS totalDurationMs
+      FROM events
+      WHERE trace_id = ?
+    `).get(traceId) as any;
+
+    // Actor count requires reading event_data.actor.id — do it efficiently
+    const actorRows = this.db.prepare(`
+      SELECT DISTINCT json_extract(event_data, '$.actor.id') AS actor_id
+      FROM events
+      WHERE trace_id = ?
+    `).all(traceId) as any[];
+    const actorCount = actorRows.filter((r) => r.actor_id).length;
+
+    // Root span duration
+    const rootSpanRow = this.db.prepare(`
+      SELECT duration_ms
+      FROM events
+      WHERE trace_id = ? AND parent_span_id IS NULL AND duration_ms IS NOT NULL
+      ORDER BY occurred_at DESC, id DESC
+      LIMIT 1
+    `).get(traceId) as any;
+
+    // Per-model breakdown from indexed columns
+    const modelRows = this.db.prepare(`
+      SELECT
+        model_name    AS modelName,
+        model_provider AS provider,
+        COUNT(*)      AS spanCount,
+        SUM(usage_input_tokens)  AS inputTokens,
+        SUM(usage_output_tokens) AS outputTokens,
+        SUM(usage_total_tokens)  AS totalTokens
+      FROM events
+      WHERE trace_id = ? AND model_name IS NOT NULL
+      GROUP BY model_name, model_provider
+      ORDER BY totalTokens DESC NULLS LAST
+    `).all(traceId) as any[];
+
+    const modelBreakdown: ModelBreakdownEntry[] = modelRows.map((r) => ({
+      modelName: r.modelName,
+      ...(r.provider ? { provider: r.provider } : {}),
+      spanCount: r.spanCount,
+      ...(r.inputTokens != null ? { inputTokens: r.inputTokens } : {}),
+      ...(r.outputTokens != null ? { outputTokens: r.outputTokens } : {}),
+      ...(r.totalTokens != null ? { totalTokens: r.totalTokens } : {})
+    }));
+
+    return validateTraceStats({
+      traceId,
+      traceStartedAt: summary.traceStartedAt ?? null,
+      traceEndedAt: summary.traceEndedAt ?? null,
+      eventCount: summary.eventCount,
+      actorCount,
+      totalInputTokens: summary.totalInputTokens ?? null,
+      totalOutputTokens: summary.totalOutputTokens ?? null,
+      totalTokens: summary.totalTokens ?? null,
+      totalDurationMs: summary.totalDurationMs ?? null,
+      rootSpanDurationMs: rootSpanRow?.duration_ms ?? null,
+      modelBreakdown
+    });
   }
 }

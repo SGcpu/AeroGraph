@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aerograph-sdk"
-version = "0.2.1"
+version = "0.3.0"
 description = "Python SDK for AeroGraph — emit trace events from Python agent workflows."
 readme = "README.md"
 license = { text = "Apache-2.0" }

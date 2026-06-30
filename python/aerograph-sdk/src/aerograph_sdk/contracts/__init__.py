@@ -6,7 +6,11 @@ Public exports from the contracts subpackage.
 
 from aerograph_sdk.contracts.generated import (
     SCHEMA_VERSION,
+    SCHEMA_VERSION_LEGACY,
+    TelemetryModelInfo,
+    TelemetryUsage,
     TraceEventKind,
+
     TraceEventStatus,
     ActorKind,
     LinkRel,
@@ -42,9 +46,16 @@ from aerograph_sdk.contracts.generated import (
     TraceWithMeta,
     TraceListResponse,
 )
+from aerograph_sdk.contracts.types import (
+    TelemetryMetadata,
+)
 
 __all__ = [
     "SCHEMA_VERSION",
+    "SCHEMA_VERSION_LEGACY",
+    "TelemetryModelInfo",
+    "TelemetryUsage",
+    "TelemetryMetadata",
     "TraceEventKind",
     "TraceEventStatus",
     "ActorKind",
