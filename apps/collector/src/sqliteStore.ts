@@ -122,13 +122,16 @@ export class SqliteTraceStore {
     const rows = this.db.prepare(query).all(...params) as any[];
 
     const traces: TraceMeta[] = rows.map((r) => {
-      // Try to find the root span (where parent_span_id IS NULL)
+      // Find the root span or check if it's a tombstone
       const rootRow = this.db.prepare(`
         SELECT span_id FROM events
-        WHERE trace_id = ? AND parent_span_id IS NULL
+        WHERE trace_id = ? AND (parent_span_id IS NULL OR span_id = 'tombstone')
         ORDER BY occurred_at ASC, id ASC
         LIMIT 1
       `).get(r.trace_id) as any;
+
+      // Assign the root span ID to r.span_id to check if it's a tombstone later
+      if (rootRow) r.span_id = rootRow.span_id;
 
       const derivation = this.db
         .prepare(
@@ -151,7 +154,8 @@ export class SqliteTraceStore {
             }
           : {}),
         ...(r.project_id ? { projectId: r.project_id } : {}),
-        ...(r.environment ? { environment: r.environment } : {})
+        ...(r.environment ? { environment: r.environment } : {}),
+        ...(r.span_id === 'tombstone' ? { isDeleted: true } : {})
       };
     });
 
@@ -214,10 +218,50 @@ export class SqliteTraceStore {
             }
           : {}),
         ...(projectId ? { projectId } : {}),
-        ...(environment ? { environment } : {})
+        ...(environment ? { environment } : {}),
+        ...(rootSpanId === 'tombstone' ? { isDeleted: true } : {})
       },
       events
     };
+  }
+
+  deleteTrace(traceId: string): void {
+    const rootRow = this.db.prepare("SELECT * FROM events WHERE trace_id = ? ORDER BY occurred_at ASC LIMIT 1").get(traceId) as any;
+    if (!rootRow) return;
+
+    // Delete all real events
+    this.db.prepare("DELETE FROM events WHERE trace_id = ?").run(traceId);
+    
+    // Insert a tombstone event to preserve lineage graph and metadata
+    const tombstoneEvent = {
+      schemaVersion: "1.1.0",
+      traceId,
+      spanId: "tombstone",
+      parentSpanId: null,
+      occurredAt: rootRow.occurred_at,
+      actor: { kind: "system", id: "collector" },
+      kind: "note",
+      status: "ok",
+      title: "deleted",
+      payload: { isDeleted: true },
+      links: []
+    };
+
+    this.db.prepare(`
+      INSERT INTO events (
+        trace_id, span_id, parent_span_id, occurred_at, kind, event_data,
+        project_id, environment
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      traceId,
+      "tombstone",
+      null,
+      rootRow.occurred_at,
+      "note",
+      JSON.stringify(tombstoneEvent),
+      rootRow.project_id,
+      rootRow.environment
+    );
   }
 
   appendDerivation(input: AppendDerivationInput): void {

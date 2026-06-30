@@ -316,8 +316,13 @@ export default function App() {
   const [isDark, setIsDark] = useState(true); 
   const [lineageOpen, setLineageOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(true);
-  const [filterProjectId, setFilterProjectId] = useState("");
+  const [filterProjectId, setFilterProjectId] = useState(() => localStorage.getItem("aero_filterProjectId") || "");
   const [filterEnvironment, setFilterEnvironment] = useState("");
+
+  useEffect(() => {
+    if (filterProjectId) localStorage.setItem("aero_filterProjectId", filterProjectId);
+    else localStorage.removeItem("aero_filterProjectId");
+  }, [filterProjectId]);
   const [viewMode, setViewMode] = useState<"projects" | "trace" | "lineage">("projects");
 
   useEffect(() => {
@@ -733,6 +738,28 @@ export default function App() {
             {isDark ? "☀️" : "🌙"}
           </button>
 
+          {/* Delete Trace */}
+          {traceId && viewMode === "trace" && (
+            <button
+              className="btn btn-danger"
+              style={{ background: "var(--bg-error, #ef4444)", color: "#fff", borderColor: "var(--border-error, #dc2626)" }}
+              onClick={async () => {
+                if (window.confirm("Are you sure you want to delete this trace? This action cannot be undone.")) {
+                  try {
+                    await api.deleteTrace(traceId);
+                    setTraceId("");
+                    refreshTraces();
+                  } catch (err: any) {
+                    setError(err.message ?? "Failed to delete trace");
+                  }
+                }
+              }}
+              title="Delete Trace"
+            >
+              🗑️ Delete Trace
+            </button>
+          )}
+
           {/* Refresh */}
           <button
             className="btn btn-accent"
@@ -803,10 +830,11 @@ export default function App() {
           </div>
           <div style={{ flex: 1, overflowY: "auto" }}>
             {(() => {
-              const traceMap = new Set(traces.map(t => t.traceId));
-              const rootTraces = traces.filter(t => !t.derivedFrom?.baseTraceId || !traceMap.has(t.derivedFrom.baseTraceId));
+              const activeTraces = traces.filter(t => !t.isDeleted);
+              const traceMap = new Set(activeTraces.map(t => t.traceId));
+              const rootTraces = activeTraces.filter(t => !t.derivedFrom?.baseTraceId || !traceMap.has(t.derivedFrom.baseTraceId));
               const childrenByParent: Record<string, TraceMeta[]> = {};
-              traces.forEach(t => {
+              activeTraces.forEach(t => {
                 if (t.derivedFrom?.baseTraceId && traceMap.has(t.derivedFrom.baseTraceId)) {
                   childrenByParent[t.derivedFrom.baseTraceId] = childrenByParent[t.derivedFrom.baseTraceId] || [];
                   childrenByParent[t.derivedFrom.baseTraceId].push(t);

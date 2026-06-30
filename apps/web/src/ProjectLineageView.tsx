@@ -37,18 +37,19 @@ export function ProjectLineageView({ traces, onSelectTrace }: ProjectLineageView
       nodes.push({
         id: t.traceId,
         position: { x, y },
-        data: { label: generateAlias(t.traceId, "Trace") },
+        data: { label: t.isDeleted ? "Deleted Trace" : generateAlias(t.traceId, "Trace") },
         style: {
-          border: "2px solid rgba(99,102,241,0.5)",
-          background: "var(--bg-surface)",
-          color: "var(--text-primary)",
+          border: t.isDeleted ? "2px dashed rgba(255,255,255,0.2)" : "2px solid rgba(99,102,241,0.5)",
+          background: t.isDeleted ? "rgba(0,0,0,0.2)" : "var(--bg-surface)",
+          color: t.isDeleted ? "rgba(255,255,255,0.4)" : "var(--text-primary)",
           padding: "10px",
           borderRadius: "8px",
           width: 150,
           textAlign: "center",
           fontFamily: "var(--font-mono)",
           fontSize: "12px",
-          cursor: "pointer",
+          cursor: t.isDeleted ? "not-allowed" : "pointer",
+          opacity: t.isDeleted ? 0.6 : 1,
         }
       });
       
@@ -93,7 +94,12 @@ export function ProjectLineageView({ traces, onSelectTrace }: ProjectLineageView
         <ReactFlow
           nodes={nodes}
           edges={edges}
-          onNodeClick={(_, node) => onSelectTrace(node.id)}
+          onNodeClick={(_, node) => {
+            const t = traces.find(tr => tr.traceId === node.id);
+            if (t && !t.isDeleted) {
+              onSelectTrace(node.id);
+            }
+          }}
           fitView
         >
           <Background color="rgba(255,255,255,0.05)" />

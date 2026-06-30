@@ -59,6 +59,16 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     res.json(trace);
   });
 
+  app.delete("/v1/traces/:traceId", (req, res) => {
+    const traceId = req.params.traceId;
+    try {
+      store.deleteTrace(traceId);
+      res.status(200).json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message ?? String(err) });
+    }
+  });
+
   app.post("/v1/traces/:traceId/fork", (req, res) => {
     const baseTraceId = req.params.traceId;
 

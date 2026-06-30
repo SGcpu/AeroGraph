@@ -240,7 +240,8 @@ export const traceMetaSchema = z.object({
     })
     .optional(),
   projectId: z.string().min(1).optional(),
-  environment: z.string().min(1).optional()
+  environment: z.string().min(1).optional(),
+  isDeleted: z.boolean().optional()
 });
 export type TraceMeta = z.infer<typeof traceMetaSchema>;
 

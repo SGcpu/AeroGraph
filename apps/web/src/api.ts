@@ -27,6 +27,7 @@ export type Api = {
   getDiff(aId: string, bId: string): Promise<TraceDiffResult>;
   getAnalysis(traceId: string): Promise<TraceAnalysis>;
   getStats(traceId: string): Promise<TraceStats>;
+  deleteTrace(traceId: string): Promise<void>;
 };
 
 export function createApi(baseUrl = DEFAULT_COLLECTOR): Api {
@@ -91,6 +92,13 @@ export function createApi(baseUrl = DEFAULT_COLLECTOR): Api {
       if (!res.ok) throw new Error(await res.text());
       const json = await res.json();
       return traceStatsSchema.parse(json) as TraceStats;
+    },
+
+    async deleteTrace(traceId) {
+      const res = await fetch(`${base}/v1/traces/${encodeURIComponent(traceId)}`, {
+        method: "DELETE"
+      });
+      if (!res.ok) throw new Error(await res.text());
     }
   };
 }
