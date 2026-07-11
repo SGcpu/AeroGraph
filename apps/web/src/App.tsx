@@ -62,6 +62,36 @@ const KIND_META: Record<string, { icon: string; label: string }> = {
   checkpoint: { icon: "⏸️", label: "Checkpoint" },
 };
 
+// ─── LangGraph node kind classifiers ──────────────────────────────────────────
+function getLangGraphKind(event: TraceEvent): string | null {
+  if (event.kind !== "note") return null;
+  return (event as any).payload?.kind ?? null;
+}
+
+const LG_KIND_META: Record<string, { icon: string; label: string; color: string; border: string; glow: string }> = {
+  langgraph_node: {
+    icon: "◈",
+    label: "Graph Node",
+    color: "rgba(20,184,166,0.08)",
+    border: "rgba(20,184,166,0.5)",
+    glow: "0 0 14px rgba(20,184,166,0.18)",
+  },
+  langgraph_internal: {
+    icon: "⬡",
+    label: "Internal",
+    color: "rgba(100,116,139,0.06)",
+    border: "rgba(100,116,139,0.25)",
+    glow: "none",
+  },
+  langchain_chain: {
+    icon: "⛓",
+    label: "Chain",
+    color: "rgba(99,130,255,0.05)",
+    border: "rgba(99,130,255,0.18)",
+    glow: "none",
+  },
+};
+
 // ─── Custom Node Component ─────────────────────────────────────────────────────
 function TraceNode({
   data,
@@ -71,6 +101,8 @@ function TraceNode({
   const { event } = data;
   const meta = KIND_META[event.kind] ?? { icon: "◉", label: event.kind };
   const isError = event.status === "error";
+  const lgKind = getLangGraphKind(event);
+  const lgMeta = lgKind ? LG_KIND_META[lgKind] : null;
 
   // Pull a short preview text from the payload
   let preview = "";
@@ -79,27 +111,48 @@ function TraceNode({
   else if (p?.message) preview = String(p.message).slice(0, 60);
   else if (p?.event) preview = String(p.event).slice(0, 60);
 
+  // For LangGraph nodes use the node name as the primary label
+  const nodeTitle = lgKind === "langgraph_node" ? (p?.node ?? event.title) : event.title;
+  const step = lgKind === "langgraph_node" ? p?.step : null;
+  const triggers: string[] = lgKind === "langgraph_node" && Array.isArray(p?.triggers) ? p.triggers : [];
+
+  const bg = isError
+    ? "rgba(239,68,68,0.06)"
+    : lgMeta
+    ? lgMeta.color
+    : "rgba(17,24,53,0.95)";
+
+  const borderColor = isError
+    ? "rgba(239,68,68,0.5)"
+    : lgMeta
+    ? lgMeta.border
+    : "rgba(99,130,255,0.18)";
+
+  const shadow = isError
+    ? "0 0 12px rgba(239,68,68,0.15)"
+    : lgMeta
+    ? lgMeta.glow
+    : "0 4px 16px rgba(0,0,0,0.35)";
+
   return (
     <div
       style={{
-        background: isError ? "rgba(239,68,68,0.06)" : "rgba(17,24,53,0.95)",
-        border: `1px solid ${isError ? "rgba(239,68,68,0.5)" : "rgba(99,130,255,0.18)"}`,
+        background: bg,
+        border: `1.5px solid ${borderColor}`,
         borderRadius: 10,
         padding: "10px 14px",
         minWidth: 190,
         maxWidth: 240,
         cursor: "pointer",
         fontFamily: "'Inter', sans-serif",
-        boxShadow: isError
-          ? "0 0 12px rgba(239,68,68,0.15)"
-          : "0 4px 16px rgba(0,0,0,0.35)",
+        boxShadow: shadow,
       }}
     >
       <Handle
         type="target"
         position={Position.Top}
         style={{
-          background: "rgba(129,140,248,0.85)",
+          background: lgKind === "langgraph_node" ? "rgba(20,184,166,0.85)" : "rgba(129,140,248,0.85)",
           border: "none",
           width: 6,
           height: 6,
@@ -109,7 +162,7 @@ function TraceNode({
         type="source"
         position={Position.Bottom}
         style={{
-          background: "rgba(129,140,248,0.85)",
+          background: lgKind === "langgraph_node" ? "rgba(20,184,166,0.85)" : "rgba(129,140,248,0.85)",
           border: "none",
           width: 6,
           height: 6,
@@ -122,41 +175,109 @@ function TraceNode({
           display: "flex",
           alignItems: "center",
           gap: 6,
-          marginBottom: 6,
+          marginBottom: lgKind === "langgraph_node" ? 4 : 6,
         }}
       >
-        <span style={{ fontSize: 13 }}>{meta.icon}</span>
+        <span style={{ fontSize: lgKind === "langgraph_node" ? 15 : 13 }}>
+          {lgMeta ? lgMeta.icon : meta.icon}
+        </span>
         <span
           className={`kind-badge kind-${event.kind}`}
-          style={{ fontSize: 9 }}
+          style={{
+            fontSize: 9,
+            ...(lgKind === "langgraph_node"
+              ? { background: "rgba(20,184,166,0.15)", color: "rgb(20,184,166)", borderColor: "rgba(20,184,166,0.3)" }
+              : lgKind === "langgraph_internal"
+              ? { background: "rgba(100,116,139,0.15)", color: "rgb(148,163,184)", borderColor: "rgba(100,116,139,0.3)" }
+              : {}),
+          }}
         >
-          {meta.label}
+          {lgMeta ? lgMeta.label : meta.label}
         </span>
-        <span
-          className={`status-badge status-${event.status}`}
-          style={{ fontSize: 9, marginLeft: "auto" }}
-        >
-          {event.status === "ok" ? "●" : "✕"} {event.status}
-        </span>
+        {step != null && (
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: 8,
+              color: "rgba(20,184,166,0.7)",
+              fontFamily: "'JetBrains Mono', monospace",
+              background: "rgba(20,184,166,0.08)",
+              padding: "1px 5px",
+              borderRadius: 3,
+            }}
+          >
+            step {step}
+          </span>
+        )}
+        {step == null && (
+          <span
+            className={`status-badge status-${event.status}`}
+            style={{ fontSize: 9, marginLeft: "auto" }}
+          >
+            {event.status === "ok" ? "●" : "✕"} {event.status}
+          </span>
+        )}
       </div>
 
-      {/* Actor */}
-      <div
-        style={{
-          fontSize: 10,
-          color: "rgba(148,163,184,0.7)",
-          fontFamily: "'JetBrains Mono', monospace",
-          marginBottom: 4,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {(event as any).actor?.name ?? (event as any).actor?.id ?? ""}
-      </div>
+      {/* Node name (for langgraph_node) or actor */}
+      {lgKind === "langgraph_node" ? (
+        <div
+          style={{
+            fontSize: 12,
+            fontWeight: 600,
+            color: "rgba(20,184,166,0.9)",
+            fontFamily: "'JetBrains Mono', monospace",
+            marginBottom: 4,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {nodeTitle}
+        </div>
+      ) : (
+        <div
+          style={{
+            fontSize: 10,
+            color: "rgba(148,163,184,0.7)",
+            fontFamily: "'JetBrains Mono', monospace",
+            marginBottom: 4,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {(event as any).actor?.name ?? (event as any).actor?.id ?? ""}
+        </div>
+      )}
 
-      {/* Preview text */}
-      {preview && (
+      {/* Triggers chips for langgraph_node */}
+      {triggers.length > 0 && (
+        <div style={{ display: "flex", gap: 3, flexWrap: "wrap", marginBottom: 4 }}>
+          {triggers.slice(0, 2).map((t: string) => (
+            <span
+              key={t}
+              style={{
+                fontSize: 8,
+                color: "rgba(148,163,184,0.7)",
+                background: "rgba(148,163,184,0.08)",
+                borderRadius: 3,
+                padding: "1px 4px",
+                fontFamily: "'JetBrains Mono', monospace",
+                maxWidth: 90,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              ← {t}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Preview text for non-langgraph nodes */}
+      {!lgMeta && preview && (
         <div
           style={{
             fontSize: 11,
@@ -179,7 +300,7 @@ function TraceNode({
         style={{
           marginTop: 7,
           fontSize: 9,
-          color: "rgba(99,130,255,0.5)",
+          color: lgKind === "langgraph_node" ? "rgba(20,184,166,0.4)" : "rgba(99,130,255,0.5)",
           fontFamily: "'JetBrains Mono', monospace",
         }}
       >
@@ -198,64 +319,19 @@ function buildPremiumGraph(
   diffSpanIds?: Set<string>,
   loopSpanIds?: Set<string>,
 ): { nodes: Node[]; edges: Edge[] } {
+  // Use the advanced dagre-based graph builder from graph.ts
   const base = buildGraph(events);
-  const spacing = { x: 270, y: 140 };
 
-  // Layout: place nodes in a top-down tree using BFS from roots
-  const childrenOf: Record<string, string[]> = {};
-  const parentOf: Record<string, string | null> = {};
-  events.forEach((e) => {
-    parentOf[e.spanId] = e.parentSpanId ?? null;
-    if (e.parentSpanId) {
-      childrenOf[e.parentSpanId] = childrenOf[e.parentSpanId] ?? [];
-      childrenOf[e.parentSpanId].push(e.spanId);
-    }
-  });
-
-  const roots = events.filter((e) => !e.parentSpanId).map((e) => e.spanId);
-  const positions: Record<string, { x: number; y: number }> = {};
-  let col = 0;
-
-  function placeSubtree(
-    spanId: string,
-    depth: number,
-    colOffset: number,
-  ): number {
-    const children = childrenOf[spanId] ?? [];
-    if (children.length === 0) {
-      positions[spanId] = { x: colOffset * spacing.x, y: depth * spacing.y };
-      return colOffset + 1;
-    }
-    let nextCol = colOffset;
-    children.forEach((child) => {
-      nextCol = placeSubtree(child, depth + 1, nextCol);
-    });
-    const firstChildX = positions[children[0]].x;
-    const lastChildX = positions[children[children.length - 1]].x;
-    positions[spanId] = {
-      x: (firstChildX + lastChildX) / 2,
-      y: depth * spacing.y,
+  // Map the base nodes (which already have correct dagre positions and filtering)
+  let finalNodes: Node[] = base.nodes.map((node) => {
+    // The base node data contains the event
+    const event = node.data.event as TraceEvent;
+    return {
+      ...node,
+      type: "afrNode",
+      data: { event, selected: event.spanId === selectedSpanId },
     };
-    return nextCol;
-  }
-
-  roots.forEach((r) => {
-    col = placeSubtree(r, 0, col);
   });
-
-  // Fall back to linear for any event not placed (e.g., orphan spans)
-  events.forEach((e, i) => {
-    if (!positions[e.spanId]) {
-      positions[e.spanId] = { x: 0, y: i * spacing.y };
-    }
-  });
-
-  let finalNodes: Node[] = events.map((event) => ({
-    id: event.spanId,
-    position: positions[event.spanId] ?? { x: 0, y: 0 },
-    type: "afrNode",
-    data: { event, selected: event.spanId === selectedSpanId },
-  }));
 
   // Apply diff and loop highlighting (deterministic: based on set membership)
   if (diffSpanIds && diffSpanIds.size > 0) {
@@ -265,20 +341,8 @@ function buildPremiumGraph(
     finalNodes = applyLoopHighlighting(finalNodes, loopSpanIds);
   }
 
-  const edges: Edge[] = base.edges.map((e) => ({
-    ...e,
-    animated: true,
-    style: {
-      stroke: "rgba(129,140,248,0.85)",
-      strokeWidth: 2.5,
-    },
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      color: "rgba(129,140,248,0.9)",
-      width: 16,
-      height: 16,
-    },
-  }));
+  // Preserve the edges exactly as returned by buildGraph to keep Dual-Edge layout styles
+  const edges = base.edges;
 
   return { nodes: finalNodes, edges };
 }
@@ -299,6 +363,102 @@ function FitViewOnUpdate({ traceId }: { traceId: string }) {
   return null;
 }
 
+function HumanReadableState({ data }: { data: any }) {
+  if (!data || typeof data !== "object") return <JsonView data={data} />;
+  
+  const entries = Object.entries(data);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginTop: "8px" }}>
+      {entries.map(([key, val]) => {
+        // Special case for LangGraph/LangChain messages
+        if ((key === "messages" || key === "history") && Array.isArray(val)) {
+          return (
+            <div key={key}>
+              <div style={{ fontWeight: 600, fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px", textTransform: "uppercase" }}>{key}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {val.map((msg: any, i: number) => {
+                  let role = "Unknown";
+                  let content = "";
+                  if (typeof msg === "object" && msg !== null) {
+                    if (msg.type === "constructor" && msg.id && Array.isArray(msg.id)) {
+                      role = msg.id[msg.id.length - 1].replace("Message", "");
+                      content = typeof msg.kwargs?.content === "string" ? msg.kwargs.content : JSON.stringify(msg.kwargs?.content || msg.kwargs, null, 2);
+                    } else if (msg.type === "human" || msg.type === "ai" || msg.type === "system" || msg.type === "tool") {
+                      role = msg.type.charAt(0).toUpperCase() + msg.type.slice(1);
+                      content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content || msg, null, 2);
+                    } else {
+                      role = msg.role || msg.type || "Message";
+                      content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content || msg, null, 2);
+                    }
+                  } else {
+                    content = String(msg);
+                  }
+                  
+                  const isHuman = role.toLowerCase() === "human" || role.toLowerCase() === "user";
+                  const isAI = role.toLowerCase() === "ai" || role.toLowerCase() === "assistant";
+                  
+                  return (
+                    <div key={i} style={{
+                      padding: "8px 12px",
+                      borderRadius: "6px",
+                      background: isHuman ? "rgba(59,130,246,0.1)" : isAI ? "rgba(20,184,166,0.1)" : "rgba(100,116,139,0.1)",
+                      border: `1px solid ${isHuman ? "rgba(59,130,246,0.2)" : isAI ? "rgba(20,184,166,0.2)" : "rgba(100,116,139,0.2)"}`,
+                      fontSize: "12px",
+                      lineHeight: "1.5"
+                    }}>
+                      <div style={{ fontWeight: 700, marginBottom: "4px", fontSize: "10px", color: isHuman ? "rgb(59,130,246)" : isAI ? "rgb(20,184,166)" : "rgb(148,163,184)", textTransform: "uppercase" }}>{role}</div>
+                      <div style={{ whiteSpace: "pre-wrap", fontFamily: "var(--font-sans)", wordBreak: "break-word" }}>{content}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        
+        // Default rendering for other keys
+        return (
+          <div key={key}>
+            <div style={{ fontWeight: 600, fontSize: "11px", color: "var(--text-muted)", marginBottom: "4px", textTransform: "uppercase" }}>{key}</div>
+            <div style={{ 
+              padding: "8px 12px", 
+              background: "rgba(0,0,0,0.2)", 
+              border: "1px solid rgba(255,255,255,0.05)",
+              borderRadius: "6px",
+              fontSize: "11px",
+              fontFamily: "var(--font-mono)",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all"
+            }}>
+              {typeof val === "string" ? val : JSON.stringify(val, null, 2)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function CollapsibleSection({ title, defaultOpen = true, children, titleColor = "var(--text-primary)" }: any) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div className="detail-section" style={{ border: "1px solid rgba(255,255,255,0.05)", borderRadius: "6px", overflow: "hidden", marginBottom: "8px" }}>
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 12px", background: "rgba(255,255,255,0.02)", cursor: "pointer", userSelect: "none" }}
+      >
+        <div style={{ fontSize: "10px", color: "var(--text-muted)", transition: "transform 0.2s", transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</div>
+        <div className="detail-section-label" style={{ margin: 0, color: titleColor }}>{title}</div>
+      </div>
+      {isOpen && (
+        <div style={{ padding: "12px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const api = useMemo(() => createApi(), []);
 
@@ -316,8 +476,10 @@ export default function App() {
   const [isDark, setIsDark] = useState(true); 
   const [lineageOpen, setLineageOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(true);
+  const [loopWarningsOpen, setLoopWarningsOpen] = useState(true);
   const [filterProjectId, setFilterProjectId] = useState(() => localStorage.getItem("aero_filterProjectId") || "");
   const [filterEnvironment, setFilterEnvironment] = useState("");
+  const [stateViewMode, setStateViewMode] = useState<"human" | "raw">("human");
 
   useEffect(() => {
     if (filterProjectId) localStorage.setItem("aero_filterProjectId", filterProjectId);
@@ -548,8 +710,7 @@ export default function App() {
 
         <div className="detail-body">
           {/* Metadata */}
-          <div className="detail-section">
-            <div className="detail-section-label">Span Info</div>
+          <CollapsibleSection title="Span Info">
             <div className="kv-grid">
               {[
                 ["project", (e as any).projectId || "—"],
@@ -583,22 +744,20 @@ export default function App() {
                 <div className="kv-row"><span className="kv-key">parent id</span><span className="kv-val">{e.parentSpanId ?? "— root"}</span></div>
               </div>
             </details>
-          </div>
+          </CollapsibleSection>
 
           {/* Text content if present */}
           {p.text && (
-            <div className="detail-section">
-              <div className="detail-section-label">Content</div>
+            <CollapsibleSection title="Content">
               <div className="kv-val-text">{p.text}</div>
-            </div>
+            </CollapsibleSection>
           )}
           {p.message && (
-            <div className="detail-section">
-              <div className="detail-section-label">Message</div>
+            <CollapsibleSection title="Message" titleColor="var(--red)">
               <div className="kv-val-text" style={{ color: "var(--red)" }}>
                 {p.message}
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
           <div className="divider" />
@@ -620,8 +779,7 @@ export default function App() {
 
           {/* T017: span-level model + usage display */}
           {(p?.model?.name || p?.usage?.totalTokens != null || (e as any).durationMs != null) && (
-            <div className="detail-section">
-              <div className="detail-section-label">Trace Timing & Tokens</div>
+            <CollapsibleSection title="Trace Timing & Tokens">
               <div className="kv-grid">
                 {p?.model?.name && (
                   <div className="kv-row">
@@ -662,7 +820,7 @@ export default function App() {
                   </div>
                 )}
               </div>
-            </div>
+            </CollapsibleSection>
           )}
 
           <div className="divider" />
@@ -673,15 +831,120 @@ export default function App() {
             <RetrieverInspector event={e} />
           ) : e.kind === "checkpoint" ? (
             <CheckpointView event={e} />
+          ) : e.kind === "note" && p?.kind === "langgraph_node" ? (
+            // ── LangGraph Node Inspector ──────────────────────────────────────
+            <>
+              <div className="detail-section">
+                <div className="detail-section-label" style={{ color: "rgb(20,184,166)" }}>
+                  ◈ LangGraph Node {p.event === "chain_end" ? "(End)" : ""}
+                </div>
+                <div className="kv-grid">
+                  <div className="kv-row">
+                    <span className="kv-key">node</span>
+                    <span className="kv-val" style={{ fontFamily: "var(--font-mono)", color: "rgb(20,184,166)", fontWeight: 600 }}>
+                      {p.node}
+                    </span>
+                  </div>
+                  {p.step != null && (
+                    <div className="kv-row">
+                      <span className="kv-key">step</span>
+                      <span className="kv-val">{p.step}</span>
+                    </div>
+                  )}
+                  {Array.isArray(p.triggers) && p.triggers.length > 0 && (
+                    <div className="kv-row">
+                      <span className="kv-key">triggered by</span>
+                      <span className="kv-val" style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>
+                        {(p.triggers as string[]).join(" → ")}
+                      </span>
+                    </div>
+                  )}
+                  {Array.isArray(p.path) && p.path.length > 0 && (
+                    <div className="kv-row">
+                      <span className="kv-key">path</span>
+                      <span className="kv-val" style={{ fontFamily: "var(--font-mono)", fontSize: 10 }}>
+                        {(p.path as string[]).join(" / ")}
+                      </span>
+                    </div>
+                  )}
+                  {p.checkpointNs && (
+                    <div className="kv-row">
+                      <span className="kv-key">checkpoint ns</span>
+                      <span className="kv-val" style={{ fontFamily: "var(--font-mono)", fontSize: 10 }}>{p.checkpointNs}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {(p.state_before || p.state_update) && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "16px", marginBottom: "8px" }}>
+                  <div className="detail-section-label" style={{ margin: 0 }}>State Views</div>
+                  <div style={{ display: "flex", gap: "4px", background: "rgba(0,0,0,0.2)", padding: "2px", borderRadius: "4px" }}>
+                    <button 
+                      onClick={() => setStateViewMode("human")}
+                      style={{ 
+                        border: "none", 
+                        background: stateViewMode === "human" ? "rgba(255,255,255,0.1)" : "transparent",
+                        color: stateViewMode === "human" ? "#fff" : "rgba(255,255,255,0.5)",
+                        padding: "4px 8px",
+                        fontSize: "10px",
+                        borderRadius: "3px",
+                        cursor: "pointer",
+                        fontWeight: stateViewMode === "human" ? 600 : 400
+                      }}
+                    >
+                      Human Readable
+                    </button>
+                    <button 
+                      onClick={() => setStateViewMode("raw")}
+                      style={{ 
+                        border: "none", 
+                        background: stateViewMode === "raw" ? "rgba(255,255,255,0.1)" : "transparent",
+                        color: stateViewMode === "raw" ? "#fff" : "rgba(255,255,255,0.5)",
+                        padding: "4px 8px",
+                        fontSize: "10px",
+                        borderRadius: "3px",
+                        cursor: "pointer",
+                        fontWeight: stateViewMode === "raw" ? 600 : 400
+                      }}
+                    >
+                      Raw JSON
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {p.state_before && (
+                <>
+                  <div className="divider" />
+                  <CollapsibleSection title="State Before (Inputs)" titleColor="rgb(20,184,166)">
+                    {stateViewMode === "human" ? <HumanReadableState data={p.state_before} /> : <JsonView data={p.state_before} />}
+                  </CollapsibleSection>
+                </>
+              )}
+              
+              {p.state_update && (
+                <>
+                  <div className="divider" />
+                  <CollapsibleSection title="State Update (Outputs)" titleColor="rgb(20,184,166)">
+                    {stateViewMode === "human" ? <HumanReadableState data={p.state_update} /> : <JsonView data={p.state_update} />}
+                  </CollapsibleSection>
+                </>
+              )}
+
+              <div className="divider" />
+              <CollapsibleSection title="Raw Payload" defaultOpen={false}>
+                <JsonView data={p} />
+              </CollapsibleSection>
+            </>
           ) : (
             <>
               {e.kind === "response" && p?.streamingTelemetry && (
                 <StreamingMetrics event={e} />
               )}
-              <div className="detail-section">
-                <div className="detail-section-label">Raw Payload</div>
+              <CollapsibleSection title="Raw Payload">
                 <JsonView data={p} />
-              </div>
+              </CollapsibleSection>
             </>
           )}
         </div>
@@ -1203,30 +1466,36 @@ export default function App() {
           </div>
 
           {/* T044: Loop warnings panel */}
-          <div className="side-header">
-            <span className="side-title">Loop Warnings</span>
-            {analysis && analysis.loops.length > 0 && (
-              <button
-                className="btn"
-                onClick={jumpToFirstLoop}
-                style={{ fontSize: 11 }}
-              >
-                Jump to first
-              </button>
-            )}
+          <div 
+            className="side-header hover:bg-bg-hover transition-colors" 
+            style={{ cursor: "pointer", userSelect: "none", borderTop: "1px solid var(--border-subtle)" }} 
+            onClick={() => setLoopWarningsOpen(!loopWarningsOpen)}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%" }}>
+              <span className="side-title">Loop Warnings</span>
+              {analysis && analysis.loops.length > 0 && (
+                <button
+                  className="btn"
+                  onClick={(e) => { e.stopPropagation(); jumpToFirstLoop(); }}
+                  style={{ fontSize: 11, marginLeft: "auto", marginRight: 8 }}
+                >
+                  Jump to first
+                </button>
+              )}
+              <span style={{ fontSize: "10px", color: "var(--text-muted)", transition: "transform 0.3s", transform: loopWarningsOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+            </div>
           </div>
           <div
-            style={{
-              padding: "14px 16px",
-              borderBottom: "1px solid var(--border-subtle)",
-            }}
+            className={`accordion-content ${loopWarningsOpen ? "open" : ""}`}
+            style={{ borderBottom: loopWarningsOpen ? "1px solid var(--border-subtle)" : "none" }}
           >
+            <div className="accordion-inner">
             {!analysis || analysis.loops.length === 0 ? (
-              <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", padding: "14px 16px" }}>
                 No loop warnings detected
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "14px 16px" }}>
                 {analysis.loops.map((w, i) => (
                   <div
                     key={i}
@@ -1297,6 +1566,7 @@ export default function App() {
                 ))}
               </div>
             )}
+            </div>
           </div>
 
           <div className="side-header">

@@ -190,23 +190,97 @@ def map_error(
     )
 
 
+# LangGraph tags in v0.2+ follow this pattern: 'graph:step:N'
+# The reliable node signal is the presence of 'langgraph_node' in metadata
+_LANGSMITH_HIDDEN_TAG = "langsmith:hidden"
+_LG_STEP_TAG_PREFIX = "graph:step:"  # e.g. 'graph:step:1', 'graph:step:2'
+
+
+def is_hidden_chain(tags: Optional[List[str]]) -> bool:
+    """Return True if this chain is internal LangGraph bookkeeping and should be suppressed."""
+    if not tags:
+        return False
+    return _LANGSMITH_HIDDEN_TAG in tags
+
+
+def _is_lg_step_tag(tag: str) -> bool:
+    return tag.startswith(_LG_STEP_TAG_PREFIX)
+
+
+def _serialize_state(obj: Any) -> Any:
+    """Recursively convert state objects (like LangChain messages) to dictionaries."""
+    if isinstance(obj, dict):
+        return {k: _serialize_state(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_serialize_state(v) for v in obj]
+    elif hasattr(obj, "dict") and callable(obj.dict):
+        try:
+            return _serialize_state(obj.dict())
+        except Exception:
+            return str(obj)
+    elif hasattr(obj, "to_dict") and callable(obj.to_dict):
+        try:
+            return _serialize_state(obj.to_dict())
+        except Exception:
+            return str(obj)
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        return str(obj)
+
+
 def map_chain_start(
     serialized: Optional[Dict[str, Any]],
     run_id: uuid.UUID,
     trace_id: str,
     parent_run_id: Optional[uuid.UUID] = None,
     name: Optional[str] = None,
+    tags: Optional[List[str]] = None,
+    metadata: Optional[Dict[str, Any]] = None,
+    inputs: Optional[Dict[str, Any]] = None,
 ) -> NoteEvent:
-    """Emit a note event for a chain/agent start so its spanId exists as a node."""
+    """Emit a note event for a chain/agent/graph-node start."""
+    tags = tags or []
+    metadata = metadata or {}
     span_id = derive_span_id(run_id)
     parent_span_id = derive_span_id(parent_run_id) if parent_run_id else None
 
-    # Try to derive a human-readable name for the chain
-    chain_name = name
-    if not chain_name and serialized:
-        chain_name = serialized.get("name") or serialized.get("id", ["chain"])[-1]
-    
-    chain_name = chain_name or "chain"
+    # 'langgraph_node' in metadata is the authoritative signal for a real graph node
+    langgraph_node = metadata.get("langgraph_node")
+    has_step_tag = any(_is_lg_step_tag(t) for t in tags)
+
+    if langgraph_node:
+        # ── Real user-defined LangGraph node ──────────────────────────────────
+        title = langgraph_node
+        payload: Dict[str, Any] = {
+            "kind": "langgraph_node",
+            "node": langgraph_node,
+            "step": metadata.get("langgraph_step"),
+            "triggers": metadata.get("langgraph_triggers"),
+            "path": metadata.get("langgraph_path"),
+            "checkpointNs": metadata.get("langgraph_checkpoint_ns"),
+        }
+        if inputs is not None:
+            payload["state_before"] = _serialize_state(inputs)
+    elif has_step_tag:
+        # ── Internal LangGraph step wrapper (no named node) ────────────────
+        fallback_name = name or (serialized or {}).get("name") or "langgraph_internal"
+        title = fallback_name
+        payload = {
+            "kind": "langgraph_internal",
+            "chain": fallback_name,
+        }
+    else:
+        # ── Pure LangChain chain / agent executor / LCEL runnable ─────────────
+        chain_name = name
+        if not chain_name and serialized:
+            chain_name = serialized.get("name") or serialized.get("id", ["chain"])[-1]
+        chain_name = chain_name or "chain"
+        title = chain_name
+        payload = {
+            "kind": "langchain_chain",
+            "chain": chain_name,
+        }
 
     return build_note_event(
         trace_id=trace_id,
@@ -214,8 +288,8 @@ def map_chain_start(
         parent_span_id=parent_span_id,
         actor_id="langchain",
         actor_name="LangChain",
-        title=chain_name,
-        payload={"chain": chain_name},
+        title=title,
+        payload=payload,
     )
 
 
@@ -224,18 +298,39 @@ def map_chain_end(
     run_id: uuid.UUID,
     trace_id: str,
     parent_run_id: Optional[uuid.UUID] = None,
+    node_name: Optional[str] = None,
+    kind: Optional[str] = None,
 ) -> NoteEvent:
+    """Emit a note event for a chain/graph-node end.
+
+    When called for a real LangGraph node, `node_name` and `kind` will be
+    populated from the per-run metadata stored in the handler.
+    """
     span_id = derive_span_id(run_id) + "_end"
     parent_span_id = derive_span_id(run_id)
-    
+
     output_keys = list(outputs.keys()) if isinstance(outputs, dict) else []
-    
+
+    payload: Dict[str, Any] = {
+        "event": "chain_end",
+        "outputKeys": output_keys,
+    }
+    if node_name:
+        payload["node"] = node_name
+    if kind:
+        payload["kind"] = kind
+        
+    if kind == "langgraph_node" and outputs is not None:
+        payload["state_update"] = _serialize_state(outputs)
+
+    title = f"{node_name}:end" if node_name else "chain_end"
+
     return build_note_event(
         trace_id=trace_id,
         span_id=span_id,
         parent_span_id=parent_span_id,
         actor_id="langchain",
         actor_name="LangChain",
-        title="chain_end",
-        payload={"event": "chain_end", "outputKeys": output_keys},
+        title=title,
+        payload=payload,
     )
