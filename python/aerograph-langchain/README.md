@@ -39,6 +39,7 @@ async def main():
     # 1. Initialize the FlightRecorder pointing to your collector
     recorder = FlightRecorder(
         endpoint="http://localhost:4317",
+        project_id="travel-app", # Optional: Routes traces to a specific project (creates it if new)
         actor={"id": "my-agent", "name": "TravelPlanner"}
     )
 

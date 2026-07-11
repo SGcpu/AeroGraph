@@ -336,6 +336,7 @@ from aerograph_sdk import FlightRecorder
 
 recorder = FlightRecorder(
     endpoint="http://localhost:4317",   # collector URL
+    project_id="my-new-project",        # (Optional) groups traces into a specific project (creates it if it doesn't exist)
     actor={"id": "my-agent", "name": "My Agent"},
 )
 
