@@ -10,7 +10,7 @@ export function buildGraph(events: TraceEvent[]): { nodes: Node[]; edges: Edge[]
   // Set layout direction and spacing
   const nodeWidth = 230;
   const nodeHeight = 120;
-  dagreGraph.setGraph({ rankdir: "TB", nodesep: 50, ranksep: 70 });
+  dagreGraph.setGraph({ rankdir: "TB", nodesep: 50, ranksep: 120 });
 
   const nodes: Node[] = [];
   const edges: Edge[] = [];

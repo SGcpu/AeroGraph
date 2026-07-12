@@ -693,6 +693,18 @@ export default function App() {
     }
     const e = selected.event;
     const p = (e as any).payload ?? {};
+
+    // For LangGraph Nodes, find the associated chain_end event to show state_update
+    let stateUpdate = p.state_update;
+    let endPayload: any = null;
+    if (e.kind === "note" && p?.kind === "langgraph_node" && !stateUpdate) {
+      const endEvent = events.find((ev: any) => ev.parentSpanId === e.spanId && ev.payload?.event === "chain_end");
+      if (endEvent) {
+         endPayload = (endEvent as any).payload;
+         stateUpdate = endPayload?.state_update;
+      }
+    }
+
     return (
       <>
         {/* Meta strip */}
@@ -876,7 +888,7 @@ export default function App() {
                 </div>
               </div>
               
-              {(p.state_before || p.state_update) && (
+              {(p.state_before || stateUpdate) && (
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "16px", marginBottom: "8px" }}>
                   <div className="detail-section-label" style={{ margin: 0 }}>State Views</div>
                   <div style={{ display: "flex", gap: "4px", background: "rgba(0,0,0,0.2)", padding: "2px", borderRadius: "4px" }}>
@@ -923,18 +935,25 @@ export default function App() {
                 </>
               )}
               
-              {p.state_update && (
+              {stateUpdate && (
                 <>
                   <div className="divider" />
                   <CollapsibleSection title="State Update (Outputs)" titleColor="rgb(20,184,166)">
-                    {stateViewMode === "human" ? <HumanReadableState data={p.state_update} /> : <JsonView data={p.state_update} />}
+                    {stateViewMode === "human" ? <HumanReadableState data={stateUpdate} /> : <JsonView data={stateUpdate} />}
                   </CollapsibleSection>
                 </>
               )}
 
               <div className="divider" />
               <CollapsibleSection title="Raw Payload" defaultOpen={false}>
+                <div style={{ marginBottom: 8, fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase" }}>Start Payload</div>
                 <JsonView data={p} />
+                {endPayload && (
+                  <>
+                    <div style={{ marginTop: 12, marginBottom: 8, fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase" }}>End Payload</div>
+                    <JsonView data={endPayload} />
+                  </>
+                )}
               </CollapsibleSection>
             </>
           ) : (
