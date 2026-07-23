@@ -20,10 +20,50 @@ function extractResponseText(generations: any[][]): string {
     .join("\n");
 }
 
+/**
+ * Deeply serializes complex state objects (like LangChain Messages) 
+ * into clean JSON dictionaries for the AeroGraph UI.
+ */
+function serializeState(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (typeof obj !== "object") return obj;
+  
+  if (Array.isArray(obj)) {
+    return obj.map(serializeState);
+  }
+  
+  if (obj instanceof Map) {
+    const res: Record<string, any> = {};
+    for (const [k, v] of obj.entries()) {
+      res[k] = serializeState(v);
+    }
+    return res;
+  }
+  
+  if (obj instanceof Set) {
+    return Array.from(obj).map(serializeState);
+  }
+  
+  if (typeof obj.toJSON === "function") {
+    try {
+      return serializeState(obj.toJSON());
+    } catch {
+      return String(obj);
+    }
+  }
+
+  const res: Record<string, any> = {};
+  for (const k of Object.keys(obj)) {
+    res[k] = serializeState(obj[k]);
+  }
+  return res;
+}
+
 export class AFRCallbackHandler extends BaseCallbackHandler {
   name = "AFRCallbackHandler";
 
   private readonly toolRunMeta = new Map<string, { toolId: string; toolName?: string }>();
+  private readonly emittedChainRuns = new Set<string>();
 
   constructor(private recorder: FlightRecorder) {
     super();
@@ -78,26 +118,88 @@ export class AFRCallbackHandler extends BaseCallbackHandler {
 
   async handleChainStart(
     chain: any,
-    _inputs: any,
+    inputs: any,
     runId: string,
-    parentRunId?: string
+    parentRunId?: string,
+    tags?: string[],
+    metadata?: Record<string, any>,
+    _runType?: string,
+    name?: string
   ) {
-    const chainName = chain?.name || chain?.id?.[chain.id?.length - 1] || "chain";
+    if (tags?.includes("langsmith:hidden")) {
+      return;
+    }
+
+    if (this.emittedChainRuns.has(runId)) {
+      return;
+    }
+    this.emittedChainRuns.add(runId);
+
+    const isLangGraphNode = metadata?.langgraph_node === true;
+    const kind = isLangGraphNode ? "langgraph_node" : "langchain_chain";
+    const chainName = name || chain?.name || chain?.id?.[chain.id?.length - 1] || "chain";
+
+    const payload: any = {
+      event: "chain_start",
+      kind,
+      state_before: serializeState(inputs)
+    };
+
+    if (isLangGraphNode) {
+      payload.node = chainName;
+      if (metadata?.langgraph_step !== undefined) {
+        payload.step = metadata.langgraph_step;
+      }
+      if (metadata?.langgraph_path) {
+        payload.path = metadata.langgraph_path;
+      }
+      if (metadata?.langgraph_triggers) {
+        payload.triggers = metadata.langgraph_triggers;
+      }
+      if (metadata?.checkpoint_ns) {
+        payload.checkpointNs = metadata.checkpoint_ns;
+      }
+    } else {
+      payload.chainName = chainName;
+    }
+
     await this.recorder.note({
       parentSpanId: parentRunId || null,
       spanId: runId,
-      payload: { event: "chain_start", chainName }
+      payload
     });
   }
 
-  async handleChainEnd(outputs: any, runId: string) {
+  async handleChainEnd(
+    outputs: any, 
+    runId: string, 
+    _parentRunId?: string, 
+    tags?: string[]
+  ) {
+    if (tags?.includes("langsmith:hidden")) {
+      return;
+    }
+
     await this.recorder.note({
       parentSpanId: runId,
-      payload: { event: "chain_end", outputKeys: Object.keys(outputs || {}) }
+      payload: { 
+        event: "chain_end", 
+        state_update: serializeState(outputs),
+        outputKeys: Object.keys(outputs || {}) 
+      }
     });
   }
 
-  async handleChainError(err: any, runId: string) {
+  async handleChainError(
+    err: any, 
+    runId: string, 
+    _parentRunId?: string, 
+    tags?: string[]
+  ) {
+    if (tags?.includes("langsmith:hidden")) {
+      return;
+    }
+
     await this.recorder.error({
       parentSpanId: runId,
       message: err?.message || String(err)

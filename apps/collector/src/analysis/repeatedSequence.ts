@@ -35,26 +35,28 @@ export function detectRepeatedSequences(events: readonly TraceEvent[]): LoopWarn
   const seen = new Set<string>();
 
   for (let w = 2; w <= 5; w++) {
-    for (let i = 0; i + 2 * w <= n; i++) {
+    for (let i = 0; i + 3 * w <= n; i++) {
       const windowA = keys.slice(i, i + w).join(",");
       const windowB = keys.slice(i + w, i + 2 * w).join(",");
+      const windowC = keys.slice(i + 2 * w, i + 3 * w).join(",");
 
-      if (windowA === windowB) {
+      if (windowA === windowB && windowB === windowC) {
         const dedupKey = `${windowA}@${i}`;
         if (seen.has(dedupKey)) continue;
         seen.add(dedupKey);
 
         const spanIds = [
           ...sorted.slice(i, i + w).map((e) => e.spanId),
-          ...sorted.slice(i + w, i + 2 * w).map((e) => e.spanId)
+          ...sorted.slice(i + w, i + 2 * w).map((e) => e.spanId),
+          ...sorted.slice(i + 2 * w, i + 3 * w).map((e) => e.spanId)
         ];
 
-        const severity: "low" | "medium" | "high" = w >= 4 ? "high" : w === 3 ? "medium" : "low";
+        const severity: "low" | "medium" | "high" = w >= 4 ? "high" : "medium";
 
         warnings.push({
           kind: "repeated_sequence",
           severity,
-          reason: `Repeated ${w}-event sequence detected starting at index ${i}`,
+          reason: `Repeated ${w}-event sequence detected 3 times starting at index ${i}`,
           spanIds
         });
       }

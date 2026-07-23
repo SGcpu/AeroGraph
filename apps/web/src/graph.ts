@@ -1,18 +1,34 @@
 import { sortTraceEventsDeterministic, type TraceEvent } from "@aerograph/contracts";
 import { MarkerType, type Node, type Edge } from "reactflow";
 
+import dagre from "dagre";
+
 export function buildGraph(events: TraceEvent[]): { nodes: Node[]; edges: Edge[] } {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
+  
+  // Set layout direction and spacing
+  const nodeWidth = 230;
+  const nodeHeight = 120;
+  dagreGraph.setGraph({ rankdir: "TB", nodesep: 50, ranksep: 120 });
+
   const nodes: Node[] = [];
   const edges: Edge[] = [];
   
-  // Basic layout state
-  let x = 100;
-  let y = 100;
+  // 1. Filter out visual noise (e.g., chain_end events)
+  const visualEvents = events.filter((e) => {
+    const p = (e as any).payload;
+    if (e.kind === "note" && p?.event === "chain_end") return false;
+    return true;
+  });
 
-  for (const event of events) {
+  const visualEventIds = new Set(visualEvents.map((e) => e.spanId));
+
+  // 2. Build nodes and add to dagre
+  for (const event of visualEvents) {
     nodes.push({
       id: event.spanId,
-      position: { x, y },
+      position: { x: 0, y: 0 }, // Will be set by dagre
       data: { event },
       type: "default",
       // Failure highlighting using event.status only (T026)
@@ -24,25 +40,95 @@ export function buildGraph(events: TraceEvent[]): { nodes: Node[]; edges: Edge[]
         width: 200
       }
     });
+    
+    dagreGraph.setNode(event.spanId, { width: nodeWidth, height: nodeHeight });
+  }
 
-    if (event.parentSpanId) {
+  // 3. Build edges and add to dagre
+  
+  // Group by parent
+  const childrenByParent = new Map<string, TraceEvent[]>();
+  for (const event of visualEvents) {
+    if (event.parentSpanId && visualEventIds.has(event.parentSpanId)) {
+      if (!childrenByParent.has(event.parentSpanId)) {
+        childrenByParent.set(event.parentSpanId, []);
+      }
+      childrenByParent.get(event.parentSpanId)!.push(event);
+    }
+  }
+
+  // Ensure siblings are sorted chronologically
+  for (const siblings of childrenByParent.values()) {
+    siblings.sort((a, b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
+  }
+
+  for (const [parentId, siblings] of childrenByParent.entries()) {
+    for (let i = 0; i < siblings.length; i++) {
+      const child = siblings[i];
+
+      // A. Parent -> Child edge (Hierarchy, dashed)
       edges.push({
-        id: `e-${event.parentSpanId}-${event.spanId}`,
-        source: event.parentSpanId,
-        target: event.spanId,
+        id: `h-${parentId}-${child.spanId}`,
+        source: parentId,
+        target: child.spanId,
         animated: true,
-        style: { stroke: "rgba(99,102,241,0.75)", strokeWidth: 2.5 },
+        style: { stroke: "rgba(156,163,175,0.35)", strokeWidth: 1.5, strokeDasharray: "4 4" },
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: "rgba(129,140,248,0.9)",
-          width: 16,
-          height: 16
+          color: "rgba(156,163,175,0.5)",
+          width: 12,
+          height: 12
         }
       });
-    }
+      dagreGraph.setEdge(parentId, child.spanId, { weight: 1 });
 
-    y += 100; // simple vertical layout for MVP
+      // B. Sibling -> Sibling edge (Control Flow, solid teal)
+      if (i > 0) {
+        const prevChild = siblings[i - 1];
+        
+        // Determine if there are LangGraph triggers to label the control flow edge
+        let edgeLabel: string | undefined = undefined;
+        const p = (child as any).payload;
+        if (p?.kind === "langgraph_node" && Array.isArray(p?.triggers) && p.triggers.length > 0) {
+          edgeLabel = p.triggers.join(" → ");
+        }
+
+        edges.push({
+          id: `c-${prevChild.spanId}-${child.spanId}`,
+          source: prevChild.spanId,
+          target: child.spanId,
+          animated: true,
+          label: edgeLabel,
+          labelStyle: { fill: "rgba(100,116,139,1)", fontWeight: 600, fontSize: 10, fontFamily: "var(--font-mono)" },
+          labelBgStyle: { fill: "rgba(255,255,255,0.85)", color: "#fff" },
+          style: { stroke: "rgba(20,184,166,0.85)", strokeWidth: 2.5 },
+          zIndex: 1000,
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: "rgba(20,184,166,1)",
+            width: 16,
+            height: 16
+          }
+        });
+        
+        // Give control flow edges high weight so Dagre keeps them vertically aligned
+        dagreGraph.setEdge(prevChild.spanId, child.spanId, { weight: 10 });
+      }
+    }
   }
+
+  // 4. Compute layout
+  dagre.layout(dagreGraph);
+
+  // 5. Apply computed coordinates back to ReactFlow nodes
+  nodes.forEach((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    // ReactFlow positions from top-left, Dagre uses center
+    node.position = {
+      x: nodeWithPosition.x - nodeWidth / 2,
+      y: nodeWithPosition.y - nodeHeight / 2,
+    };
+  });
 
   return { nodes, edges };
 }

@@ -25,7 +25,7 @@ from aerograph_sdk import FlightRecorder
 recorder = FlightRecorder(
     endpoint="http://localhost:4317", # AeroGraph Collector URL
     actor={"id": "my-travel-agent", "name": "Travel Planner"},
-    project_id="travel-app", # Optional (v1.1.0)
+    project_id="travel-app", # Optional: Routes traces to a specific project (creates it if new)
     environment="production" # Optional (v1.1.0)
 )
 

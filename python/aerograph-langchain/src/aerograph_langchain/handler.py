@@ -9,7 +9,7 @@ from langchain_core.documents import Document
 from aerograph_sdk.recorder import FlightRecorder
 from aerograph_sdk.ids import new_trace_id
 
-from .mapping import map_llm_start, map_llm_end, map_tool_start, map_tool_end, map_error, map_chain_start, map_chain_end
+from .mapping import map_llm_start, map_llm_end, map_tool_start, map_tool_end, map_error, map_chain_start, map_chain_end, is_hidden_chain
 from .streaming import StreamingTracker
 from .retriever import RetrieverTracker
 from .langgraph import map_state_snapshot, map_checkpoint
@@ -29,6 +29,8 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
         # Track emitted chain run_ids so we don't double-emit for nested chains
         self._emitted_chain_runs: set[uuid.UUID] = set()
         self._start_times: dict[uuid.UUID, float] = {}
+        # Cache per-run tags/metadata so on_chain_end can retrieve LangGraph context
+        self._run_metadata: dict[uuid.UUID, dict] = {}
 
     def _pop_duration_ms(self, run_id: uuid.UUID) -> Optional[int]:
         start = self._start_times.pop(run_id, None)
@@ -48,22 +50,46 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
         name: Optional[str] = None,
         **kwargs: Any,
     ) -> Any:
-        """Emit a note event for each chain/agent run.
+        """Emit a note event for each chain/agent/graph-node start.
 
-        This ensures every parent_run_id referenced by child events (LLM calls,
-        tool calls) has a corresponding node in the AeroGraph trace graph. Without
-        this, child nodes appear disconnected/floating in the UI.
+        Uses LangGraph's injected tags and metadata to correctly classify the
+        event kind (real graph node vs. internal plumbing vs. plain LangChain
+        chain). Hidden Pregel bookkeeping chains are suppressed entirely.
         """
+        # Suppress LangGraph internal bookkeeping — these are never useful to show
+        if is_hidden_chain(tags):
+            return
+
         if run_id in self._emitted_chain_runs:
             return  # avoid duplicate nodes for re-entrant chains
         self._emitted_chain_runs.add(run_id)
         self._start_times[run_id] = time.time()
+
+        # 'langgraph_node' in metadata is the authoritative signal for a real graph node
+        # Tags in LangGraph v0.2+ use 'graph:step:N' format, not 'langgraph:node'
+        _tags = tags or []
+        _meta = metadata or {}
+        langgraph_node = _meta.get("langgraph_node")
+        has_step_tag = any(t.startswith("graph:step:") for t in _tags)
+        kind = (
+            "langgraph_node" if langgraph_node
+            else "langgraph_internal" if has_step_tag
+            else "langchain_chain"
+        )
+        self._run_metadata[run_id] = {
+            "node_name": langgraph_node,
+            "kind": kind,
+        }
+
         event = map_chain_start(
             serialized=serialized,
             run_id=run_id,
             parent_run_id=parent_run_id,
             trace_id=self.trace_id,
             name=name,
+            tags=tags,
+            metadata=metadata,
+            inputs=inputs,
         )
         self.recorder.emit(event)
 
@@ -75,12 +101,19 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
         parent_run_id: Optional[uuid.UUID] = None,
         **kwargs: Any,
     ) -> Any:
+        # Skip emitting end events for runs we suppressed at start
+        if run_id not in self._emitted_chain_runs:
+            return
         duration_ms = self._pop_duration_ms(run_id)
+        # Retrieve the cached LangGraph context for this run
+        run_meta = self._run_metadata.pop(run_id, {})
         event = map_chain_end(
             outputs=outputs,
             run_id=run_id,
             parent_run_id=parent_run_id,
             trace_id=self.trace_id,
+            node_name=run_meta.get("node_name"),
+            kind=run_meta.get("kind"),
         )
         if duration_ms is not None:
             event = event.model_copy(update={"durationMs": duration_ms})

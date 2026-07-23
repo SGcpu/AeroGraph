@@ -14,7 +14,7 @@ LangChain's complex callback hierarchy is deterministically mapped to the minima
 | `handleToolStart` | `tool_call` | input string/JSON, runId -> spanId |
 | `handleToolEnd` | `tool_result` | output, `durationMs`, runId -> spanId |
 | `handleToolError` | `error` | error message, `durationMs`, runId -> spanId |
-| `handleChainEnd` | `note` | emits `payload.event = "chain_end"` and includes output key summary |
+| `handleChainStart` / `handleChainEnd` | `note` | Detects LangGraph node boundaries (`kind: "langgraph_node"`), capturing `state_before` (Inputs) and `state_update` (Outputs) |
 
 ## Installation
 

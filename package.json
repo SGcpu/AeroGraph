@@ -28,5 +28,8 @@
     "schema:export": "npm run build -w @aerograph/contracts -w @aerograph/schema-exporter && npm run schema:export -w @aerograph/schema-exporter",
     "schema:check": "npm run build -w @aerograph/contracts -w @aerograph/schema-exporter && npm run schema:check -w @aerograph/schema-exporter",
     "drift:check": "npm run schema:check && echo 'Schema drift check passed.'"
+  },
+  "devDependencies": {
+    "@langchain/core": "^1.2.2"
   }
 }

@@ -94,28 +94,17 @@
 
 ## What it does
 
-**Phase 1 - Core Tracing**
-- Captures **prompts**, **responses**, **tool calls**, **agent handoffs**, and **errors** as normalized trace events
-- Stores traces in a replay-safe, append-only SQLite store
-- Visualizes traces as an interactive **trace graph** with payload inspection, failure highlighting, and playback timeline
+### Core Capabilities
 
-**Phase 2 - Branching, Diff, and Loop Detection**
-- **Fork traces**: create derived traces from any span (append-only, parent immutable)
-- **Lineage navigation**: breadcrumb, sibling list, derivedFrom - navigate the branch tree in the UI
-- **Deterministic diff**: compare two lineage-related traces with Myers diff; divergence highlighted on the graph
-- **Loop detection**: automatically detects repeated sequences, recursive tool usage, and multi-agent handoff cycles
-
-**Phase 2.5 - Advanced Observability**
-- **LangGraph State Tracking**: Capture full LangGraph state snapshots at node transitions, track state evolution.
-- **LCEL Streaming Telemetry**: Telemetry overlays for stream completion times, Time-to-First-Token (TTFT), and tokens-per-second metrics.
-- **RAG Payload Inspection**: Explicit first-class support for viewing retrieval queries, source documents, and metadata scoring.
-- **Human Checkpoints**: First-class handling of `interrupt` states and human-in-the-loop approvals.
-
-**Phase 2.6 - Telemetry & Analytics (v1.1.0)**
-- **Canonical Telemetry**: Explicit GenAI semantic attributes (`model.name`, `usage.inputTokens`, `durationMs`) recorded structurally.
-- **Project & Environment Isolation**: Filter traces and analytics natively by `projectId` and `environment`.
-- **Trace Statistics**: New `/stats` endpoint for retrieving aggregations on duration, actor count, and per-model token usage breakdowns.
-- All outputs validated through shared contracts (`@aerograph/contracts`); no schema bypasses
+-  **Normalized Agent Tracing**: Captures **prompts**, **responses**, **tool calls**, **tool results**, **retrievers**, **handoffs**, **checkpoints**, and **errors** as 10 canonical event types across a replay-safe, append-only SQLite store.
+- **Interactive Trace Graph & Playback**: Visualizes execution flow as a dynamic ReactFlow graph with step-by-step playback, payload inspection, and failure highlighting.
+-  **Trace Branching & Lineage Navigation**: "Fork" alternate timelines from any span (`derivedFrom`), navigate full lineage breadcrumbs, and perform Myers diff comparisons to see exact points of divergence.
+-  **LangGraph & Framework Observability**: Automatic LangGraph node boundary detection, side-by-side Input/Output (`state_before` vs `state_update`) state views, human-in-the-loop interrupt handling, and deterministic state hashing (`stateHash`).
+-  **Streaming Telemetry & RAG Inspection**: Live Time-to-First-Token (TTFT), tokens/sec metrics, and first-class retrieval query & document inspection.
+- **Multi-Language Support (TypeScript & Python)**: Native SDKs (`@aerograph/sdk` and `aerograph-sdk`) and LangChain adapters (`@aerograph/adapter-langchain` and `aerograph-langchain`) with zero contract drift.
+- **OpenTelemetry (OTel) Bridge**: Bidirectional export & import between AeroGraph events and standard OTLP JSON spans via `@aerograph/otel` and `aerograph-otel`, plus native `/v1/otlp/traces` ingestion.
+- **Telemetry, Analytics & Isolation**: Track token counts, total & span durations, per-model breakdowns, and isolate workspaces natively by `projectId` and `environment`.
+- **Contract-Driven Guarantee**: All backend, UI, adapter, and bridge payloads are validated strictly through shared `@aerograph/contracts` schemas.
 
 ## Terminology & Concepts
 
@@ -336,6 +325,7 @@ from aerograph_sdk import FlightRecorder
 
 recorder = FlightRecorder(
     endpoint="http://localhost:4317",   # collector URL
+    project_id="my-new-project",        # (Optional) groups traces into a specific project (creates it if it doesn't exist)
     actor={"id": "my-agent", "name": "My Agent"},
 )
 
@@ -601,9 +591,21 @@ result = qa_chain.invoke(
 
 The UI shows a `RetrieverEvent` with the query and each retrieved chunk, linked to the parent `PromptEvent`.
 
-#### LangGraph State Snapshots
+#### LangGraph State Snapshots & Node Tracking
 
-For graphs built with LangGraph, emit state snapshots at node boundaries using LangChain's `dispatch_custom_event`:
+AeroGraph supports both **automatic** and **explicit** state snapshot tracking for LangGraph workflows:
+
+##### 1. Automatic LangGraph Node & State Tracking (Default)
+
+When you pass `AeroGraphCallbackHandler` to your LangGraph graph execution, the adapter automatically detects node boundaries using LangGraph runtime metadata (`langgraph_node`, `langgraph_step`, `langgraph_triggers`, `langgraph_path`, `checkpoint_ns`):
+
+- **Node Start (`on_chain_start`)**: Automatically extracts the node's initial inputs and records them as `state_before`.
+- **Node End (`on_chain_end`)**: Captures the node's outputs as `state_update`.
+- **UI Inspection**: The AeroGraph UI automatically aggregates `state_before` (Inputs) and `state_update` (Outputs) into a unified side-by-side State Views panel for each node, eliminating clutter while preserving full state visibility.
+
+##### 2. Explicit Custom Snapshots & State Diffs
+
+For fine-grained manual snapshots or custom state diffing, emit state snapshots directly using `recorder.state_snapshot(...)` or LangChain's `dispatch_custom_event`:
 
 ```python
 from langchain_core.callbacks import dispatch_custom_event
@@ -625,7 +627,7 @@ async def my_node(state: dict, config):
     return new_state
 ```
 
-The handler captures these as `StateSnapshotEvent`s. The state hash is computed deterministically so the UI can highlight nodes where state diverged across forked traces.
+The handler captures these as `StateSnapshotEvent`s with a deterministic SHA-256 hash, enabling the UI to highlight nodes where state diverged across forked traces.
 
 #### Human-in-the-Loop Checkpoints
 
@@ -657,7 +659,8 @@ await dispatch_custom_event(
 | `on_llm_error` | `ErrorEvent` | Exception message + traceback details |
 | `on_tool_error` | `ErrorEvent` | Tool failure details |
 | `on_chain_error` | `ErrorEvent` | Chain-level failure |
-| `on_custom_event("langgraph_state_snapshot", …)` | `StateSnapshotEvent` | LangGraph node state |
+| `on_chain_start` / `on_chain_end` | `NoteEvent` | Automatically extracts LangGraph node boundaries (`kind: "langgraph_node"`), `state_before` (Inputs), `state_update` (Outputs), `step`, `triggers`, `path`, and `checkpointNs` |
+| `on_custom_event("langgraph_state_snapshot", …)` | `StateSnapshotEvent` | LangGraph node state with deterministic `stateHash` |
 | `on_custom_event("langgraph_checkpoint", …)` | `CheckpointEvent` | Human interrupt state |
 
 #### Streaming Telemetry
