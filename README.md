@@ -94,28 +94,17 @@
 
 ## What it does
 
-**Phase 1 - Core Tracing**
-- Captures **prompts**, **responses**, **tool calls**, **agent handoffs**, and **errors** as normalized trace events
-- Stores traces in a replay-safe, append-only SQLite store
-- Visualizes traces as an interactive **trace graph** with payload inspection, failure highlighting, and playback timeline
+### Core Capabilities
 
-**Phase 2 - Branching, Diff, and Loop Detection**
-- **Fork traces**: create derived traces from any span (append-only, parent immutable)
-- **Lineage navigation**: breadcrumb, sibling list, derivedFrom - navigate the branch tree in the UI
-- **Deterministic diff**: compare two lineage-related traces with Myers diff; divergence highlighted on the graph
-- **Loop detection**: automatically detects repeated sequences, recursive tool usage, and multi-agent handoff cycles
-
-**Phase 2.5 - Advanced Observability**
-- **LangGraph State Tracking**: Capture full LangGraph state snapshots at node transitions, track state evolution.
-- **LCEL Streaming Telemetry**: Telemetry overlays for stream completion times, Time-to-First-Token (TTFT), and tokens-per-second metrics.
-- **RAG Payload Inspection**: Explicit first-class support for viewing retrieval queries, source documents, and metadata scoring.
-- **Human Checkpoints**: First-class handling of `interrupt` states and human-in-the-loop approvals.
-
-**Phase 2.6 - Telemetry & Analytics (v1.1.0)**
-- **Canonical Telemetry**: Explicit GenAI semantic attributes (`model.name`, `usage.inputTokens`, `durationMs`) recorded structurally.
-- **Project & Environment Isolation**: Filter traces and analytics natively by `projectId` and `environment`.
-- **Trace Statistics**: New `/stats` endpoint for retrieving aggregations on duration, actor count, and per-model token usage breakdowns.
-- All outputs validated through shared contracts (`@aerograph/contracts`); no schema bypasses
+-  **Normalized Agent Tracing**: Captures **prompts**, **responses**, **tool calls**, **tool results**, **retrievers**, **handoffs**, **checkpoints**, and **errors** as 10 canonical event types across a replay-safe, append-only SQLite store.
+- **Interactive Trace Graph & Playback**: Visualizes execution flow as a dynamic ReactFlow graph with step-by-step playback, payload inspection, and failure highlighting.
+-  **Trace Branching & Lineage Navigation**: "Fork" alternate timelines from any span (`derivedFrom`), navigate full lineage breadcrumbs, and perform Myers diff comparisons to see exact points of divergence.
+-  **LangGraph & Framework Observability**: Automatic LangGraph node boundary detection, side-by-side Input/Output (`state_before` vs `state_update`) state views, human-in-the-loop interrupt handling, and deterministic state hashing (`stateHash`).
+-  **Streaming Telemetry & RAG Inspection**: Live Time-to-First-Token (TTFT), tokens/sec metrics, and first-class retrieval query & document inspection.
+- **Multi-Language Support (TypeScript & Python)**: Native SDKs (`@aerograph/sdk` and `aerograph-sdk`) and LangChain adapters (`@aerograph/adapter-langchain` and `aerograph-langchain`) with zero contract drift.
+- **OpenTelemetry (OTel) Bridge**: Bidirectional export & import between AeroGraph events and standard OTLP JSON spans via `@aerograph/otel` and `aerograph-otel`, plus native `/v1/otlp/traces` ingestion.
+- **Telemetry, Analytics & Isolation**: Track token counts, total & span durations, per-model breakdowns, and isolate workspaces natively by `projectId` and `environment`.
+- **Contract-Driven Guarantee**: All backend, UI, adapter, and bridge payloads are validated strictly through shared `@aerograph/contracts` schemas.
 
 ## Terminology & Concepts
 
