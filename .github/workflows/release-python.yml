@@ -3,6 +3,7 @@ name: Publish Python Packages
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 jobs:
   publish-sdk:
@@ -35,6 +36,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/aerograph-sdk/dist/
+          skip-existing: true
 
   publish-langchain:
     name: Upload Langchain to PyPI
@@ -64,6 +66,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/aerograph-langchain/dist/
+          skip-existing: true
 
   publish-otel:
     name: Upload OTel Bridge to PyPI
@@ -93,3 +96,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: python/aerograph-otel/dist/
+          skip-existing: true
