@@ -18,14 +18,14 @@
 
 **Purpose**: Scaffold the two new packages and the shared golden fixture directory. No logic yet — just project initialization.
 
-- [ ] T001 Create `packages/otel/` directory with `package.json` (name `@aerograph/otel`, peer dep `@aerograph/contracts@^0.2.0`, dep `zod`, devDep `vitest`)
-- [ ] T002 Create `packages/otel/tsconfig.json` extending root `tsconfig.base.json` and `packages/otel/vitest.config.ts`
-- [ ] T003 Create `packages/otel/src/index.ts` as empty barrel export (placeholder so package builds)
-- [ ] T004 Add `@aerograph/otel` to root `package.json` workspaces array and build/test scripts
-- [ ] T005 Create `python/aerograph-otel/` directory with `pyproject.toml` (name `aerograph-otel`, dep `aerograph-sdk`)
-- [ ] T006 Create `python/aerograph-otel/src/aerograph_otel/__init__.py` as empty module placeholder
-- [ ] T007 Create `specs/004-otel-bridge/fixtures/` directory and populate 10 canonical AeroGraph TraceEvent JSON files (one per event kind: `prompt_event.json`, `response_event.json`, `tool_call_event.json`, `tool_result_event.json`, `handoff_event.json`, `error_event.json`, `note_event.json`, `retriever_event.json`, `checkpoint_event.json`, `state_snapshot_event.json`) — all must pass `validateTraceEvent()` from `@aerograph/contracts`
-- [ ] T008 Create `specs/004-otel-bridge/fixtures/expected_otlp/` directory with 10 expected OTLP span JSON files (`prompt_span.json`, `response_span.json`, etc.) derived from the semantic mapping table in `data-model.md`
+- [x] T001 Create `packages/otel/` directory with `package.json` (name `@aerograph/otel`, peer dep `@aerograph/contracts@^0.2.0`, dep `zod`, devDep `vitest`)
+- [x] T002 Create `packages/otel/tsconfig.json` extending root `tsconfig.base.json` and `packages/otel/vitest.config.ts`
+- [x] T003 Create `packages/otel/src/index.ts` as empty barrel export (placeholder so package builds)
+- [x] T004 Add `@aerograph/otel` to root `package.json` workspaces array and build/test scripts
+- [x] T005 Create `python/aerograph-otel/` directory with `pyproject.toml` (name `aerograph-otel`, dep `aerograph-sdk`)
+- [x] T006 Create `python/aerograph-otel/src/aerograph_otel/__init__.py` as empty module placeholder
+- [x] T007 Create `specs/004-otel-bridge/fixtures/` directory and populate 10 canonical AeroGraph TraceEvent JSON files (one per event kind: `prompt_event.json`, `response_event.json`, `tool_call_event.json`, `tool_result_event.json`, `handoff_event.json`, `error_event.json`, `note_event.json`, `retriever_event.json`, `checkpoint_event.json`, `state_snapshot_event.json`) — all must pass `validateTraceEvent()` from `@aerograph/contracts`
+- [x] T008 Create `specs/004-otel-bridge/fixtures/expected_otlp/` directory with 10 expected OTLP span JSON files (`prompt_span.json`, `response_span.json`, etc.) derived from the semantic mapping table in `data-model.md`
 
 **Checkpoint**: Both packages scaffold, fixture directory populated. Running `npm run build -w @aerograph/otel` produces a valid (empty) build.
 
@@ -37,13 +37,13 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T009 [P] Implement `packages/otel/src/constants.ts` — `AEROGRAPH_ATTRS` object with all attribute key string constants as defined in `contracts/contracts.md §1.3`
-- [ ] T010 [P] Implement `packages/otel/src/timestamp.ts` — `isoToUnixNano(iso: string): string` and `unixNanoToIso(nano: string): string` using BigInt arithmetic, matching algorithm in `data-model.md §4`
-- [ ] T011 [P] Implement `packages/otel/src/otlp-schema.ts` — Zod schemas: `otlpAttributeSchema`, `otlpSpanSchema`, `otlpExportRequestSchema` and exported types `OtlpSpan`, `OtlpExportRequest`, `OtlpAttribute`, `OtlpLink` as specified in `contracts/contracts.md §1.4`
-- [ ] T012 [P] Implement `python/aerograph-otel/src/aerograph_otel/constants.py` — `AeroGraphAttrs` class with identical attribute key constants mirroring T009
-- [ ] T013 [P] Implement `python/aerograph-otel/src/aerograph_otel/timestamp.py` — `iso_to_unix_nano(iso: str) -> str` and `unix_nano_to_iso(nano: str) -> str` with identical semantics to T010
-- [ ] T014 Write unit tests for `timestamp.ts` in `packages/otel/src/__tests__/timestamp.test.ts` — covers round-trip precision, edge cases (midnight, milliseconds, epoch), and matches Python output for same inputs
-- [ ] T015 Write unit tests for `timestamp.py` in `python/aerograph-otel/src/aerograph_otel/tests/test_timestamp.py` — identical assertions to T014
+- [x] T009 [P] Implement `packages/otel/src/constants.ts` — `AEROGRAPH_ATTRS` object with all attribute key string constants as defined in `contracts/contracts.md §1.3`
+- [x] T010 [P] Implement `packages/otel/src/timestamp.ts` — `isoToUnixNano(iso: string): string` and `unixNanoToIso(nano: string): string` using BigInt arithmetic, matching algorithm in `data-model.md §4`
+- [x] T011 [P] Implement `packages/otel/src/otlp-schema.ts` — Zod schemas: `otlpAttributeSchema`, `otlpSpanSchema`, `otlpExportRequestSchema` and exported types `OtlpSpan`, `OtlpExportRequest`, `OtlpAttribute`, `OtlpLink` as specified in `contracts/contracts.md §1.4`
+- [x] T012 [P] Implement `python/aerograph-otel/src/aerograph_otel/constants.py` — `AeroGraphAttrs` class with identical attribute key constants mirroring T009
+- [x] T013 [P] Implement `python/aerograph-otel/src/aerograph_otel/timestamp.py` — `iso_to_unix_nano(iso: str) -> str` and `unix_nano_to_iso(nano: str) -> str` with identical semantics to T010
+- [x] T014 Write unit tests for `timestamp.ts` in `packages/otel/src/__tests__/timestamp.test.ts` — covers round-trip precision, edge cases (midnight, milliseconds, epoch), and matches Python output for same inputs
+- [x] T015 Write unit tests for `timestamp.py` in `python/aerograph-otel/src/aerograph_otel/tests/test_timestamp.py` — identical assertions to T014
 
 **Checkpoint**: Foundation ready — `npm run test -w @aerograph/otel` passes timestamp tests; `pytest python/aerograph-otel -k timestamp` passes.
 
@@ -57,18 +57,18 @@
 
 ### Implementation for User Story 1
 
-- [ ] T016 [P] [US1] Implement `packages/otel/src/mapping.ts` — `getSpanNameForKind`, `getSpanKindInt`, `buildAttributesFromEvent`, `exportLinksToOtlp` covering all 10 event kinds per the mapping table in `data-model.md §5.1`
-- [ ] T017 [P] [US1] Implement `python/aerograph-otel/src/aerograph_otel/mapping.py` — `get_span_name_for_kind`, `get_span_kind_for_kind`, `build_attributes_from_event`, `export_links_to_otlp` mirroring T016 exactly
-- [ ] T018 [US1] Implement `packages/otel/src/export.ts` — `exportEventToOtlpSpan(event: TraceEvent): OtlpSpan` and `exportEventsToOtlp(events: TraceEvent[], options?: ExportOptions): OtlpExportRequest` (depends on T009, T010, T011, T016)
-- [ ] T019 [US1] Implement `python/aerograph-otel/src/aerograph_otel/export.py` — `export_event_to_otlp_span(event)` and `export_events_to_otlp(events, *, service_name, scope_name, scope_version)` (depends on T012, T013, T017)
-- [ ] T020 [US1] Update `packages/otel/src/index.ts` — re-export `exportEventToOtlpSpan`, `exportEventsToOtlp`, `AEROGRAPH_ATTRS`, `OtlpSpan`, `OtlpExportRequest`, `ExportOptions`, `isoToUnixNano`, `unixNanoToIso`, `otlpExportRequestSchema`
-- [ ] T021 [US1] Update `python/aerograph-otel/src/aerograph_otel/__init__.py` — re-export `export_event_to_otlp_span`, `export_events_to_otlp`, `AeroGraphAttrs`, `iso_to_unix_nano`, `unix_nano_to_iso`
-- [ ] T022 [P] [US1] Write `packages/otel/src/__tests__/mapping.test.ts` — unit tests for `getSpanNameForKind`, `getSpanKindInt`, `buildAttributesFromEvent` for all 10 event kinds
-- [ ] T023 [P] [US1] Write `packages/otel/src/__tests__/export.test.ts` — unit tests for `exportEventToOtlpSpan` for all 10 event kinds; assert traceId, spanId, parentSpanId, name, kind integer, status code, and key attributes
-- [ ] T024 [P] [US1] Write `python/aerograph-otel/src/aerograph_otel/tests/test_mapping.py` — unit tests mirroring T022
-- [ ] T025 [P] [US1] Write `python/aerograph-otel/src/aerograph_otel/tests/test_export.py` — unit tests mirroring T023
-- [ ] T026 [US1] Write `packages/otel/src/__tests__/parity.test.ts` — load fixtures from `specs/004-otel-bridge/fixtures/`, run `exportEventToOtlpSpan` on each, assert output matches `expected_otlp/*.json` exactly (deterministic check)
-- [ ] T027 [US1] Write `python/aerograph-otel/src/aerograph_otel/tests/test_parity.py` — load the same fixtures as T026, run `export_event_to_otlp_span`, assert output matches `expected_otlp/*.json` exactly (cross-language parity gate)
+- [x] T016 [P] [US1] Implement `packages/otel/src/mapping.ts` — `getSpanNameForKind`, `getSpanKindInt`, `buildAttributesFromEvent`, `exportLinksToOtlp` covering all 10 event kinds per the mapping table in `data-model.md §5.1`
+- [x] T017 [P] [US1] Implement `python/aerograph-otel/src/aerograph_otel/mapping.py` — `get_span_name_for_kind`, `get_span_kind_for_kind`, `build_attributes_from_event`, `export_links_to_otlp` mirroring T016 exactly
+- [x] T018 [US1] Implement `packages/otel/src/export.ts` — `exportEventToOtlpSpan(event: TraceEvent): OtlpSpan` and `exportEventsToOtlp(events: TraceEvent[], options?: ExportOptions): OtlpExportRequest` (depends on T009, T010, T011, T016)
+- [x] T019 [US1] Implement `python/aerograph-otel/src/aerograph_otel/export.py` — `export_event_to_otlp_span(event)` and `export_events_to_otlp(events, *, service_name, scope_name, scope_version)` (depends on T012, T013, T017)
+- [x] T020 [US1] Update `packages/otel/src/index.ts` — re-export `exportEventToOtlpSpan`, `exportEventsToOtlp`, `AEROGRAPH_ATTRS`, `OtlpSpan`, `OtlpExportRequest`, `ExportOptions`, `isoToUnixNano`, `unixNanoToIso`, `otlpExportRequestSchema`
+- [x] T021 [US1] Update `python/aerograph-otel/src/aerograph_otel/__init__.py` — re-export `export_event_to_otlp_span`, `export_events_to_otlp`, `AeroGraphAttrs`, `iso_to_unix_nano`, `unix_nano_to_iso`
+- [x] T022 [P] [US1] Write `packages/otel/src/__tests__/mapping.test.ts` — unit tests for `getSpanNameForKind`, `getSpanKindInt`, `buildAttributesFromEvent` for all 10 event kinds
+- [x] T023 [P] [US1] Write `packages/otel/src/__tests__/export.test.ts` — unit tests for `exportEventToOtlpSpan` for all 10 event kinds; assert traceId, spanId, parentSpanId, name, kind integer, status code, and key attributes
+- [x] T024 [P] [US1] Write `python/aerograph-otel/src/aerograph_otel/tests/test_mapping.py` — unit tests mirroring T022
+- [x] T025 [P] [US1] Write `python/aerograph-otel/src/aerograph_otel/tests/test_export.py` — unit tests mirroring T023
+- [x] T026 [US1] Write `packages/otel/src/__tests__/parity.test.ts` — load fixtures from `specs/004-otel-bridge/fixtures/`, run `exportEventToOtlpSpan` on each, assert output matches `expected_otlp/*.json` exactly (deterministic check)
+- [x] T027 [US1] Write `python/aerograph-otel/src/aerograph_otel/tests/test_parity.py` — load the same fixtures as T026, run `export_event_to_otlp_span`, assert output matches `expected_otlp/*.json` exactly (cross-language parity gate)
 
 **Checkpoint**: `npm run test -w @aerograph/otel` passes export + parity tests. `pytest python/aerograph-otel` passes export + parity tests. TS and Python produce identical OTLP for all 10 fixture inputs.
 

@@ -118,7 +118,7 @@
 
 - [x] T038 [P] [US2] Add adapter test harness + pinned LangChain deps in `python/aerograph-langchain/pyproject.toml`
 - [x] T039 [P] [US2] Add deterministic spanId derivation tests for LangChain run IDs in `python/aerograph-langchain/tests/test_span_id_derivation.py`
-- [ ] T040 [P] [US2] Add adapter mapping fixture (LangChain callbacks → expected TraceEvents) in `python/aerograph-langchain/tests/fixtures/langchain_run.json`
+- [x] T040 [P] [US2] Add adapter mapping fixture (LangChain callbacks → expected TraceEvents) in `python/aerograph-langchain/tests/fixtures/langchain_run.json`
 - [x] T041 [US2] Add unit tests for prompt/response/tool mapping in `python/aerograph-langchain/tests/test_handler_mapping.py`
 - [x] T042 [US2] Add unit tests for streaming telemetry emission in `python/aerograph-langchain/tests/test_streaming.py`
 - [x] T043 [US2] Add unit tests for retriever payload emission in `python/aerograph-langchain/tests/test_retriever.py`

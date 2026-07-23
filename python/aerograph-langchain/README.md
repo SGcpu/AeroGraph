@@ -82,6 +82,7 @@ The callback adapter automatically intercepts LangChain execution signals and tr
 - **Tool Ends** (`on_tool_end`) $\rightarrow$ `ToolResultEvent` (captures output and `duration_ms`)
 - **Retriever Runs** (`on_retriever_start`, `on_retriever_end`) $\rightarrow$ `RetrieverEvent` (captures source documents, queries, and metadata)
 - **Errors** (`on_llm_error`, `on_tool_error`, `on_chain_error`) $\rightarrow$ `ErrorEvent`
+- **LangGraph Node Boundaries** (`on_chain_start`, `on_chain_end` with `langgraph_node` metadata) $\rightarrow$ `NoteEvent` (automatically captures `state_before` inputs, `state_update` outputs, `step`, `triggers`, `path`, and `checkpoint_ns`)
 - **Custom Events** (`on_custom_event`) $\rightarrow$ `StateSnapshotEvent` and `CheckpointEvent` for LangGraph nodes
 
 ## License
