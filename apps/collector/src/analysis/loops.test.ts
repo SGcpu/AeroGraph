@@ -47,12 +47,14 @@ function mkHandoff(spanId: string, occurredAt: string, from: string, to: string)
 
 describe("analysis: detectRepeatedSequences", () => {
   it("detects a 2-event window repeated consecutively", () => {
-    // patternKey = kind:actorId. 4 prompt events from agent-a → window[0..2] = window[2..4]
+    // patternKey = kind:actorId. 6 prompt events from agent-a → window[0..2] = window[2..4] = window[4..6] (3 occurrences)
     const events: TraceEvent[] = [
       mkPrompt("s1", "2026-05-20T00:00:00.000Z"),
       mkPrompt("s2", "2026-05-20T00:00:01.000Z"),
       mkPrompt("s3", "2026-05-20T00:00:02.000Z"),
-      mkPrompt("s4", "2026-05-20T00:00:03.000Z")
+      mkPrompt("s4", "2026-05-20T00:00:03.000Z"),
+      mkPrompt("s5", "2026-05-20T00:00:04.000Z"),
+      mkPrompt("s6", "2026-05-20T00:00:05.000Z")
     ];
     const warnings = detectRepeatedSequences(events);
     expect(warnings.length).toBeGreaterThan(0);

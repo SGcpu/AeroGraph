@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@aerograph/contracts": "0.3.0",
-    "@aerograph/otel": "0.2.0",
+    "@aerograph/otel": "^0.3.1",
     "better-sqlite3": "^12.10.0",
     "cors": "^2.8.5",
     "express": "^4.19.2",

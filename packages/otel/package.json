@@ -1,6 +1,6 @@
 {
   "name": "@aerograph/otel",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "private": false,
   "description": "OpenTelemetry bridge for AeroGraph — export/import OTLP traces.",
   "type": "module",
