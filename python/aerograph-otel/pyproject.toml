@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "aerograph-otel"
-version = "0.2.0"
+version = "0.3.1"
 description = "OpenTelemetry bridge for AeroGraph — export and import OTLP traces."
 readme = "README.md"
 license = { text = "Apache-2.0" }

@@ -6,11 +6,11 @@
   "scripts": {
     "start": "node --experimental-specifier-resolution=node --loader ts-node/esm src/index.ts",
     "build": "echo \"No build specified\"",
-    "test": "echo \"No test specified\""
+    "test": "exit 0"
   },
   "dependencies": {
     "@aerograph/contracts": "0.3.0",
-    "@aerograph/otel": "0.2.0"
+    "@aerograph/otel": "^0.3.1"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
