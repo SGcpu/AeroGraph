@@ -19,5 +19,5 @@ specs/001-agent-flight-recorder/tasks.md
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/004-otel-bridge/plan.md
+at specs/006-deterministic-replay/plan.md
 <!-- SPECKIT END -->
