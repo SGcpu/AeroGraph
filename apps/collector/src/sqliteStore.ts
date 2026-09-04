@@ -13,11 +13,44 @@ import {
   type TraceDiffResult,
   type TraceAnalysis,
   type TraceStats,
-  type ModelBreakdownEntry
+  type ModelBreakdownEntry,
+  type RunMode,
+  type RunStatus,
+  type GetRunResponse
 } from "@aerograph/contracts";
 import { nanoid } from "nanoid";
 import { diffTraceEvents } from "./diff/index";
 import { analyzeTrace as analyzeTraceEvents } from "./analysis/index";
+
+export type CreateRunInput = {
+  runId?: string;
+  traceId: string;
+  parentTraceId?: string | null;
+  cassetteRunId?: string | null;
+  mode: RunMode;
+  command: string[];
+  projectRoot: string;
+};
+
+export type UpdateRunStatusExtras = {
+  startedAt?: string | null;
+  completedAt?: string | null;
+  exitCode?: number | null;
+  errorMessage?: string | null;
+  cassetteRunId?: string | null;
+};
+
+export type ReplayAnnotationInput = {
+  replaySource?: "cache" | "live" | null;
+  requestKey?: string | null;
+  tokensSaved?: number | null;
+  replayLatencyMs?: number | null;
+  streamingPreserved?: boolean | null;
+  overridden?: boolean | null;
+  decision?: string | null;
+  matchedPattern?: string | null;
+  effectiveClass?: string | null;
+};
 
 export type ForkTraceInput = {
   baseTraceId: string;
@@ -600,5 +633,143 @@ export class SqliteTraceStore {
       rootSpanDurationMs: rootSpanRow?.duration_ms ?? null,
       modelBreakdown
     });
+  }
+
+  createRun(input: CreateRunInput): string {
+    const runId = input.runId || `run_${nanoid(12)}`;
+    const stmt = this.db.prepare(`
+      INSERT INTO replay_runs (
+        run_id, trace_id, parent_trace_id, cassette_run_id,
+        mode, status, command_json, project_root, created_at
+      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, datetime('now'))
+    `);
+    stmt.run(
+      runId,
+      input.traceId,
+      input.parentTraceId ?? null,
+      input.cassetteRunId ?? null,
+      input.mode,
+      JSON.stringify(input.command),
+      input.projectRoot
+    );
+    return runId;
+  }
+
+  updateRunStatus(runId: string, status: RunStatus, extras?: UpdateRunStatusExtras): void {
+    const sets: string[] = ["status = ?"];
+    const params: any[] = [status];
+
+    if (extras?.startedAt !== undefined) {
+      sets.push("started_at = ?");
+      params.push(extras.startedAt);
+    }
+    if (extras?.completedAt !== undefined) {
+      sets.push("completed_at = ?");
+      params.push(extras.completedAt);
+    }
+    if (extras?.exitCode !== undefined) {
+      sets.push("exit_code = ?");
+      params.push(extras.exitCode);
+    }
+    if (extras?.errorMessage !== undefined) {
+      sets.push("error_message = ?");
+      params.push(extras.errorMessage);
+    }
+    if (extras?.cassetteRunId !== undefined) {
+      sets.push("cassette_run_id = ?");
+      params.push(extras.cassetteRunId);
+    }
+
+    params.push(runId);
+    this.db.prepare(`UPDATE replay_runs SET ${sets.join(", ")} WHERE run_id = ?`).run(...params);
+  }
+
+  getRunById(runId: string): GetRunResponse | null {
+    const row = this.db.prepare("SELECT * FROM replay_runs WHERE run_id = ?").get(runId) as any;
+    if (!row) return null;
+    return this.mapRunRow(row);
+  }
+
+  getRunByTraceId(traceId: string): GetRunResponse | null {
+    const row = this.db.prepare("SELECT * FROM replay_runs WHERE trace_id = ? ORDER BY created_at DESC LIMIT 1").get(traceId) as any;
+    if (!row) return null;
+    return this.mapRunRow(row);
+  }
+
+  listRuns(): GetRunResponse[] {
+    const rows = this.db.prepare("SELECT * FROM replay_runs ORDER BY created_at DESC").all() as any[];
+    return rows.map((r) => this.mapRunRow(r));
+  }
+
+  private mapRunRow(row: any): GetRunResponse {
+    let command: string[] | undefined;
+    if (row.command_json) {
+      try {
+        command = JSON.parse(row.command_json);
+      } catch {
+        // ignore
+      }
+    }
+
+    return {
+      runId: row.run_id,
+      traceId: row.trace_id,
+      parentTraceId: row.parent_trace_id ?? null,
+      cassetteRunId: row.cassette_run_id ?? null,
+      status: row.status as RunStatus,
+      mode: row.mode as RunMode,
+      startedAt: row.started_at ?? null,
+      completedAt: row.completed_at ?? null,
+      exitCode: row.exit_code ?? null,
+      errorMessage: row.error_message ?? null,
+      command
+    };
+  }
+
+  appendReplayAnnotation(traceId: string, spanId: string, annotation: ReplayAnnotationInput): void {
+    const row = this.db.prepare("SELECT event_data FROM events WHERE trace_id = ? AND span_id = ?").get(traceId, spanId) as any;
+    if (!row) {
+      console.warn(`[SqliteTraceStore] appendReplayAnnotation: span ${spanId} not found in trace ${traceId}`);
+      return;
+    }
+
+    let event: any;
+    try {
+      event = JSON.parse(row.event_data);
+    } catch {
+      event = {};
+    }
+
+    if (annotation.replaySource !== undefined) event.replaySource = annotation.replaySource;
+    if (annotation.requestKey !== undefined) event.requestKey = annotation.requestKey;
+    if (annotation.tokensSaved !== undefined) event.tokensSaved = annotation.tokensSaved;
+    if (annotation.replayLatencyMs !== undefined) event.replayLatencyMs = annotation.replayLatencyMs;
+    if (annotation.streamingPreserved !== undefined) event.streamingPreserved = annotation.streamingPreserved;
+    if (annotation.overridden !== undefined) event.overridden = annotation.overridden;
+    if (annotation.decision !== undefined) event.decision = annotation.decision;
+    if (annotation.matchedPattern !== undefined) event.matchedPattern = annotation.matchedPattern;
+    if (annotation.effectiveClass !== undefined) event.effectiveClass = annotation.effectiveClass;
+
+    this.db.prepare(`
+      UPDATE events SET
+        replay_source = ?,
+        replay_request_key = ?,
+        replay_tokens_saved = ?,
+        replay_latency_ms = ?,
+        replay_streaming_preserved = ?,
+        replay_overridden = ?,
+        event_data = ?
+      WHERE trace_id = ? AND span_id = ?
+    `).run(
+      annotation.replaySource ?? null,
+      annotation.requestKey ?? null,
+      annotation.tokensSaved ?? null,
+      annotation.replayLatencyMs ?? null,
+      annotation.streamingPreserved != null ? (annotation.streamingPreserved ? 1 : 0) : null,
+      annotation.overridden != null ? (annotation.overridden ? 1 : 0) : null,
+      JSON.stringify(event),
+      traceId,
+      spanId
+    );
   }
 }

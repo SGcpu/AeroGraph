@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schema.aerograph.dev/project/v1.json",
+  "title": "AeroGraphProjectConfig",
+  "description": "Configuration schema for aerograph.project.yaml",
+  "type": "object",
+  "required": ["version", "command"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "enum": ["1", "1.0.0"]
+    },
+    "command": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "description": "Command and arguments to execute the agent in array form"
+    },
+    "collectorUrl": {
+      "type": "string",
+      "format": "uri",
+      "default": "http://localhost:4317",
+      "description": "URL of the AeroGraph Collector service"
+    },
+    "orchestratorUrl": {
+      "type": "string",
+      "format": "uri",
+      "default": "http://localhost:4318",
+      "description": "URL of the Replay Orchestrator service"
+    }
+  },
+  "additionalProperties": false
+}

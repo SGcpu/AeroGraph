@@ -41,6 +41,9 @@ import { JsonView } from "./JsonView";
 import { TraceAnalyticsPanel } from "./TraceAnalyticsPanel";
 import { GlobalFilterBar } from "./GlobalFilterBar";
 import { ProjectLineageView } from "./ProjectLineageView";
+import { ReplayControlPanel } from "./ReplayControlPanel";
+import { ForkResumeModal } from "./ForkResumeModal";
+import { ProjectConfigModal } from "./ProjectConfigModal";
 import type { TraceStats } from "@aerograph/contracts";
 
 export function generateAlias(id: string, prefix = "ID") {
@@ -194,6 +197,22 @@ function TraceNode({
         >
           {lgMeta ? lgMeta.label : meta.label}
         </span>
+        {event.replaySource && (
+          <span
+            style={{
+              fontSize: 8,
+              padding: "1px 5px",
+              borderRadius: 3,
+              fontWeight: 600,
+              fontFamily: "'JetBrains Mono', monospace",
+              background: event.replaySource === "cache" ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.15)",
+              color: event.replaySource === "cache" ? "#22c55e" : "#3b82f6",
+              border: `1px solid ${event.replaySource === "cache" ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.3)"}`,
+            }}
+          >
+            {event.replaySource === "cache" ? "⚡ CACHE" : "🌐 LIVE"}
+          </span>
+        )}
         {step != null && (
           <span
             style={{
@@ -510,6 +529,8 @@ export default function App() {
   const [traceStats, setTraceStats] = useState<TraceStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [forkInProgress, setForkInProgress] = useState(false);
+  const [forkModalSpanId, setForkModalSpanId] = useState<string | null>(null);
+  const [projectConfigOpen, setProjectConfigOpen] = useState(false);
 
   const diffSpanIds = useMemo(
     () => (diffResult ? getDiffChangedSpanIds(diffResult) : new Set<string>()),
@@ -657,24 +678,22 @@ export default function App() {
   }, [analysis, events]);
 
   // ── Fork from a specific span ─────────────────────────────────────────────
-  const doForkFromSpan = useCallback(
-    async (spanId: string) => {
-      if (!traceId || forkInProgress) return;
-      setForkInProgress(true);
+  const doForkFromSpan = useCallback((spanId: string) => {
+    setForkModalSpanId(spanId);
+  }, []);
+
+  const handleForkCompleted = useCallback(
+    async (childId: string, parentId: string) => {
+      await refreshTraces();
+      setTraceId(childId);
       try {
-        setError("");
-        const res = await api.forkTrace(traceId, { forkFromSpanId: spanId });
-        // Refresh trace list then switch to new child trace
-        await refreshTraces();
-        setTraceId(res.traceId);
-        alert(`Fork ID Generated!\n\nCopy this ID:\n${res.traceId}\n\nPaste it into your FlightRecorder initialization in your code to resume your agent from this point.`);
-      } catch (e: any) {
-        setError(`Fork failed: ${e?.message ?? String(e)}`);
-      } finally {
-        setForkInProgress(false);
+        const diff = await api.getDiff(parentId, childId);
+        setDiffResult(diff);
+      } catch (e) {
+        // non-blocking
       }
     },
-    [api, traceId, forkInProgress, refreshTraces],
+    [refreshTraces, api],
   );
 
   // ── Sidebar detail renderer ────────────────────────────────────────────────
@@ -829,6 +848,148 @@ export default function App() {
                   <div className="kv-row">
                     <span className="kv-key">duration</span>
                     <span className="kv-val">{(e as any).durationMs} ms</span>
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {/* Replay Metadata */}
+          {(e.replaySource || e.requestKey || e.replayLatencyMs != null || e.tokensSaved != null || e.streamingPreserved !== undefined || (e as any).decision) && (
+            <CollapsibleSection title="Replay Metadata" titleColor={e.replaySource === "cache" ? "#22c55e" : "#3b82f6"}>
+              <div className="kv-grid">
+                {e.replaySource && (
+                  <div className="kv-row">
+                    <span className="kv-key">replay source</span>
+                    <span className="kv-val">
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          background: e.replaySource === "cache" ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.15)",
+                          color: e.replaySource === "cache" ? "#22c55e" : "#3b82f6",
+                        }}
+                      >
+                        {e.replaySource === "cache" ? "⚡ CACHE" : "🌐 LIVE"}
+                      </span>
+                    </span>
+                  </div>
+                )}
+                {(e as any).decision && (
+                  <div className="kv-row">
+                    <span className="kv-key">decision</span>
+                    <span className="kv-val">
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontSize: "10px",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          background:
+                            (e as any).decision === "cache_hit"
+                              ? "rgba(34,197,94,0.15)"
+                              : (e as any).decision === "must_execute"
+                                ? "rgba(239,68,68,0.15)"
+                                : "rgba(245,158,11,0.15)",
+                          color:
+                            (e as any).decision === "cache_hit"
+                              ? "#22c55e"
+                              : (e as any).decision === "must_execute"
+                                ? "#ef4444"
+                                : "#f59e0b",
+                        }}
+                      >
+                        {(e as any).decision.replace(/_/g, " ")}
+                      </span>
+                    </span>
+                  </div>
+                )}
+                {(e as any).matchedPattern ? (
+                  <div className="kv-row">
+                    <span className="kv-key">rule match</span>
+                    <span className="kv-val" style={{ fontFamily: "var(--font-mono)", fontSize: "10px" }}>
+                      {(e as any).matchedPattern}
+                    </span>
+                  </div>
+                ) : (e as any).decision === "must_execute" ? (
+                  <div className="kv-row">
+                    <span className="kv-key">rule match</span>
+                    <span className="kv-val" style={{ color: "#f59e0b", fontSize: "10px" }}>
+                      ⚠️ No match (defaulted to must_execute)
+                    </span>
+                  </div>
+                ) : null}
+                {(e as any).effectiveClass && (
+                  <div className="kv-row">
+                    <span className="kv-key">safety class</span>
+                    <span className="kv-val" style={{ fontFamily: "var(--font-mono)", fontSize: "10px" }}>
+                      {(e as any).effectiveClass}
+                    </span>
+                  </div>
+                )}
+                {e.requestKey && (
+                  <div className="kv-row">
+                    <span className="kv-key">request key</span>
+                    <span className="kv-val" style={{ fontFamily: "var(--font-mono)", fontSize: "10px" }} title={e.requestKey}>
+                      {e.requestKey.slice(0, 16)}…
+                    </span>
+                  </div>
+                )}
+                {e.replayLatencyMs != null && (
+                  <div className="kv-row">
+                    <span className="kv-key">replay latency</span>
+                    <span className="kv-val">{e.replayLatencyMs} ms</span>
+                  </div>
+                )}
+                {e.tokensSaved != null && (
+                  <div className="kv-row">
+                    <span className="kv-key">tokens saved</span>
+                    <span className="kv-val" style={{ color: "#22c55e", fontWeight: 600 }}>
+                      {e.tokensSaved.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {e.streamingPreserved !== undefined && (
+                  <div className="kv-row">
+                    <span className="kv-key">streaming</span>
+                    <span className="kv-val">
+                      {e.streamingPreserved ? (
+                        <span style={{ color: "#22c55e", fontSize: "11px" }}>✓ Chunks Preserved</span>
+                      ) : (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "4px",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            fontSize: "10px",
+                            fontWeight: 600,
+                            background: "rgba(245,158,11,0.2)",
+                            color: "#f59e0b",
+                            border: "1px solid rgba(245,158,11,0.3)",
+                          }}
+                          title="SSE/chunked response was flattened into a single body during replay"
+                        >
+                          ⚠️ Flattened (Chunks not preserved)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
+                {e.overridden && (
+                  <div className="kv-row">
+                    <span className="kv-key">overridden</span>
+                    <span className="kv-val" style={{ color: "#f59e0b" }}>true</span>
                   </div>
                 )}
               </div>
@@ -1011,6 +1172,16 @@ export default function App() {
             </div>
           )}
 
+          {/* Project Config */}
+          <button
+            className="btn"
+            style={{ display: "flex", alignItems: "center", gap: "6px" }}
+            onClick={() => setProjectConfigOpen(true)}
+            title="Project Agent Configuration"
+          >
+            ⚙️ Config
+          </button>
+
           {/* Theme toggle */}
           <button
             className="theme-toggle btn"
@@ -1019,6 +1190,18 @@ export default function App() {
           >
             {isDark ? "☀️" : "🌙"}
           </button>
+
+          {/* Replay Control Panel */}
+          {traceId && viewMode === "trace" && (
+            <ReplayControlPanel
+              api={api}
+              activeTraceId={traceId}
+              onTraceReplayed={(newId) => {
+                refreshTraces();
+                setTraceId(newId);
+              }}
+            />
+          )}
 
           {/* Delete Trace */}
           {traceId && viewMode === "trace" && (
@@ -1604,6 +1787,23 @@ export default function App() {
           {renderDetail()}
         </aside>
       </main>
+      )}
+
+      {forkModalSpanId && traceId && (
+        <ForkResumeModal
+          api={api}
+          baseTraceId={traceId}
+          forkFromSpanId={forkModalSpanId}
+          onClose={() => setForkModalSpanId(null)}
+          onForkCompleted={handleForkCompleted}
+        />
+      )}
+
+      {projectConfigOpen && (
+        <ProjectConfigModal
+          api={api}
+          onClose={() => setProjectConfigOpen(false)}
+        />
       )}
     </div>
   );

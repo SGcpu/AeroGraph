@@ -186,12 +186,19 @@ class FlightRecorder:
             EmissionError: On non-2xx HTTP response.
         """
         body = self._serialize_event(event)
-        with self._get_client() as client:
-            response = client.post(
+        if self._http_client is not None:
+            response = self._http_client.post(
                 f"{self.endpoint}/v1/events",
                 content=body,
                 headers={"content-type": "application/json"},
             )
+        else:
+            with httpx.Client() as client:
+                response = client.post(
+                    f"{self.endpoint}/v1/events",
+                    content=body,
+                    headers={"content-type": "application/json"},
+                )
         if not response.is_success:
             raise EmissionError(response.status_code, response.text)
         return event
@@ -210,12 +217,19 @@ class FlightRecorder:
             EmissionError: On non-2xx HTTP response.
         """
         body = self._serialize_event(event)
-        async with self._get_async_client() as client:
-            response = await client.post(
+        if self._async_http_client is not None:
+            response = await self._async_http_client.post(
                 f"{self.endpoint}/v1/events",
                 content=body,
                 headers={"content-type": "application/json"},
             )
+        else:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.endpoint}/v1/events",
+                    content=body,
+                    headers={"content-type": "application/json"},
+                )
         if not response.is_success:
             raise EmissionError(response.status_code, response.text)
         return event
@@ -237,12 +251,19 @@ class FlightRecorder:
         """
         ordered = self._sort_batch(events)
         body = json.dumps([self._event_to_dict(e) for e in ordered])
-        with self._get_client() as client:
-            response = client.post(
+        if self._http_client is not None:
+            response = self._http_client.post(
                 f"{self.endpoint}/v1/events",
                 content=body,
                 headers={"content-type": "application/json"},
             )
+        else:
+            with httpx.Client() as client:
+                response = client.post(
+                    f"{self.endpoint}/v1/events",
+                    content=body,
+                    headers={"content-type": "application/json"},
+                )
         if not response.is_success:
             raise EmissionError(response.status_code, response.text)
         return ordered
@@ -266,12 +287,19 @@ class FlightRecorder:
         """
         ordered = self._sort_batch(events)
         body = json.dumps([self._event_to_dict(e) for e in ordered])
-        async with self._get_async_client() as client:
-            response = await client.post(
+        if self._async_http_client is not None:
+            response = await self._async_http_client.post(
                 f"{self.endpoint}/v1/events",
                 content=body,
                 headers={"content-type": "application/json"},
             )
+        else:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.endpoint}/v1/events",
+                    content=body,
+                    headers={"content-type": "application/json"},
+                )
         if not response.is_success:
             raise EmissionError(response.status_code, response.text)
         return ordered

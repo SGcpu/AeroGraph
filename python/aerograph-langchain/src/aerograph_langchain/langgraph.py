@@ -16,8 +16,8 @@ def map_state_snapshot(
     removed_keys: Optional[List[str]] = None,
     parent_run_id: Optional[uuid.UUID] = None,
 ) -> StateSnapshotEvent:
-    span_id = derive_span_id(run_id)
-    parent_span_id = derive_span_id(parent_run_id) if parent_run_id else None
+    span_id = f"{derive_span_id(run_id)}_snap_{uuid.uuid4().hex[:6]}"
+    parent_span_id = derive_span_id(parent_run_id) if parent_run_id else derive_span_id(run_id)
 
     return build_state_snapshot_event(
         trace_id=trace_id,
@@ -41,8 +41,8 @@ def map_checkpoint(
     state: Dict[str, Any],
     parent_run_id: Optional[uuid.UUID] = None,
 ) -> CheckpointEvent:
-    span_id = derive_span_id(run_id)
-    parent_span_id = derive_span_id(parent_run_id) if parent_run_id else None
+    span_id = f"{derive_span_id(run_id)}_chk_{uuid.uuid4().hex[:6]}"
+    parent_span_id = derive_span_id(parent_run_id) if parent_run_id else derive_span_id(run_id)
 
     return build_checkpoint_event(
         trace_id=trace_id,

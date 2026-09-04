@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://schema.aerograph.dev/replay-policy/v1.json",
+  "title": "AeroGraphReplayPolicy",
+  "description": "Tool safety policy schema for aerograph.replay.yaml",
+  "type": "object",
+  "required": ["tools"],
+  "properties": {
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["match", "class"],
+        "properties": {
+          "match": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Glob pattern matched against URL"
+          },
+          "toolName": {
+            "type": "string",
+            "description": "Optional tool name matcher"
+          },
+          "class": {
+            "type": "string",
+            "enum": ["replay_safe", "must_execute"],
+            "description": "Safety classification for replay"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

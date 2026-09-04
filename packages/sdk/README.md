@@ -76,5 +76,11 @@ const child = await recorder.tool_call({
 });
 ```
 
+## Deterministic Replay & Forking
+
+The SDK produces deterministic span hierarchies that seamlessly integrate with AeroGraph's Deterministic Replay Engine (`aerorepl` / `aerograph-replay-core`):
+- **Deterministic Spans**: Events emitted by `FlightRecorder` maintain stable parent-child links that map 1:1 to network interactions.
+- **Cassette Slicing**: When performing a Fork-and-Resume in the Web UI or via `aerorepl /fork <spanId>`, the replay orchestrator slices the recorded cassette up to the target span, allowing pre-fork steps to be served instantly from cache (<5ms latency) while subsequent SDK emissions execute live.
+
 ## License
 Apache-2.0

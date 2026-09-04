@@ -8,6 +8,7 @@ from langchain_core.documents import Document
 
 from aerograph_sdk.recorder import FlightRecorder
 from aerograph_sdk.ids import new_trace_id
+from aerograph_sdk.contracts import StreamingTelemetry
 
 from .mapping import map_llm_start, map_llm_end, map_tool_start, map_tool_end, map_error, map_chain_start, map_chain_end, is_hidden_chain
 from .streaming import StreamingTracker
@@ -196,7 +197,7 @@ class AeroGraphCallbackHandler(BaseCallbackHandler):
         telemetry = self.streaming_tracker.on_llm_end(run_id)
         if telemetry:
             # We recreate the payload with telemetry
-            event.payload.streamingTelemetry = telemetry
+            event.payload.streamingTelemetry = StreamingTelemetry(**telemetry)
         if duration_ms is not None:
             event = event.model_copy(update={"durationMs": duration_ms})
         self.recorder.emit(event)

@@ -83,8 +83,16 @@ The callback adapter automatically intercepts LangChain execution signals and tr
 - **Retriever Runs** (`on_retriever_start`, `on_retriever_end`) $\rightarrow$ `RetrieverEvent` (captures source documents, queries, and metadata)
 - **Errors** (`on_llm_error`, `on_tool_error`, `on_chain_error`) $\rightarrow$ `ErrorEvent`
 - **LangGraph Node Boundaries** (`on_chain_start`, `on_chain_end` with `langgraph_node` metadata) $\rightarrow$ `NoteEvent` (automatically captures `state_before` inputs, `state_update` outputs, `step`, `triggers`, `path`, and `checkpoint_ns`)
-- **Custom Events** (`on_custom_event`) $\rightarrow$ `StateSnapshotEvent` and `CheckpointEvent` for LangGraph nodes
+## Replay Support
+
+Replay support is inherited automatically — no replay-specific code is required in your adapter.
+
+When executing an agent workflow under AeroGraph record mode (`aerorepl record <cmd>` or Orchestrator `POST /v1/runs {mode: "record"}`), HTTP traffic is intercepted and cached in a deterministic cassette. Replaying or forking that workflow transparently serves cached responses to the adapter without requiring any changes or replay imports in your adapter code. See [Quickstart Scenario 1](../../specs/006-deterministic-replay/quickstart.md#scenario-1-record-an-agent-run) for details.
+
+### Span Correlation
+When outbound HTTP clients permit custom header injection, `X-AeroGraph-Span-Id: <spanId>` is attached to correlate network interactions with specific trace spans. When client libraries do not expose header hooks, the proxy seamlessly employs a deterministic timestamp-window fallback to correlate cassette entries.
 
 ## License
 
 Apache-2.0
+

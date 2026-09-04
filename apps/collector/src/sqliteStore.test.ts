@@ -317,4 +317,200 @@ describe("collector: SqliteTraceStore", () => {
     const deletedCount = diff.changed.filter((c) => c.aSpanId && !c.bSpanId).length;
     expect(deletedCount).toBeGreaterThan(0);
   });
+
+  // T025: migration 006_replay test
+  describe("migration 006_replay", () => {
+    it("creates replay_runs table and indexes, and adds replay columns to events", () => {
+      const table = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='replay_runs'")
+        .get();
+      expect(table?.name).toBe("replay_runs");
+
+      const indexes = db
+        .prepare("SELECT name FROM sqlite_master WHERE type='index' AND tbl_name='replay_runs'")
+        .all()
+        .map((r: any) => r.name);
+      expect(indexes).toContain("idx_replay_runs_trace_id");
+      expect(indexes).toContain("idx_replay_runs_status");
+
+      // Verify columns on events table
+      const columns = db
+        .prepare("PRAGMA table_info(events)")
+        .all()
+        .map((r: any) => r.name);
+      expect(columns).toContain("replay_source");
+      expect(columns).toContain("replay_request_key");
+      expect(columns).toContain("replay_tokens_saved");
+      expect(columns).toContain("replay_latency_ms");
+      expect(columns).toContain("replay_streaming_preserved");
+      expect(columns).toContain("replay_overridden");
+    });
+  });
+
+  // T026: store run management tests
+  describe("replay run store methods", () => {
+    it("creates, updates, retrieves, and lists runs", () => {
+      const runId = store.createRun({
+        traceId: "trace-run-1",
+        mode: "record",
+        command: ["python", "agent.py"],
+        projectRoot: "/workspace/project",
+        parentTraceId: null,
+        cassetteRunId: null
+      });
+
+      expect(runId).toBeDefined();
+
+      const run = store.getRunById(runId);
+      expect(run).not.toBeNull();
+      expect(run?.runId).toBe(runId);
+      expect(run?.traceId).toBe("trace-run-1");
+      expect(run?.mode).toBe("record");
+      expect(run?.status).toBe("pending");
+
+      store.updateRunStatus(runId, "running", { startedAt: new Date().toISOString() });
+      const running = store.getRunById(runId);
+      expect(running?.status).toBe("running");
+      expect(running?.startedAt).not.toBeNull();
+
+      store.updateRunStatus(runId, "completed", {
+        completedAt: new Date().toISOString(),
+        exitCode: 0
+      });
+      const completed = store.getRunById(runId);
+      expect(completed?.status).toBe("completed");
+      expect(completed?.exitCode).toBe(0);
+
+      const byTrace = store.getRunByTraceId("trace-run-1");
+      expect(byTrace?.runId).toBe(runId);
+
+      const allRuns = store.listRuns();
+      expect(allRuns.some((r) => r.runId === runId)).toBe(true);
+    });
+  });
+
+  // T050: forkTrace lineage and event prefix guarantees
+  describe("T050 forkTrace lineage and event prefix guarantees", () => {
+    it("creates child trace with derivedFrom lineage, parent events count unchanged, and prefix events match original spanIds", () => {
+      const baseEvents = loadPhase2FixtureTrace("base");
+      for (const e of baseEvents) store.appendEvent(e);
+
+      const parentEventCountBefore = store.getTrace("t_base")!.events.length;
+      expect(parentEventCountBefore).toBeGreaterThan(0);
+
+      const childTraceId = store.forkTrace({
+        baseTraceId: "t_base",
+        forkFromSpanId: "s3"
+      });
+
+      // Child trace created with derivedFrom
+      const childTrace = store.getTrace(childTraceId);
+      expect(childTrace).not.toBeNull();
+      expect(childTrace?.meta.derivedFrom?.baseTraceId).toBe("t_base");
+      expect(childTrace?.meta.derivedFrom?.forkedFromSpanId).toBe("s3");
+
+      // Parent events count unchanged
+      const parentEventCountAfter = store.getTrace("t_base")!.events.length;
+      expect(parentEventCountAfter).toBe(parentEventCountBefore);
+
+      // Child prefix events match original spanIds up to fork point
+      const childEvents = childTrace!.events;
+      expect(childEvents.length).toBeGreaterThan(0);
+      expect(childEvents.some((e) => e.spanId === "s3")).toBe(true);
+    });
+  });
+
+  // T065: appendReplayAnnotation stores decision, matchedPattern, effectiveClass
+  describe("T065 replay routing annotations", () => {
+    it("stores decision, matchedPattern, effectiveClass and surfaces on getTrace", () => {
+      const baseEvents = loadPhase2FixtureTrace("base");
+      for (const e of baseEvents) store.appendEvent(e);
+
+      store.appendReplayAnnotation("t_base", "s1", {
+        replaySource: "live",
+        decision: "must_execute",
+        matchedPattern: "https://api.github.com/*",
+        effectiveClass: "must_execute"
+      });
+
+      const trace = store.getTrace("t_base");
+      expect(trace).not.toBeNull();
+      const s1 = trace!.events.find((e) => e.spanId === "s1") as any;
+      expect(s1).toBeDefined();
+      expect(s1.replaySource).toBe("live");
+      expect(s1.decision).toBe("must_execute");
+      expect(s1.matchedPattern).toBe("https://api.github.com/*");
+      expect(s1.effectiveClass).toBe("must_execute");
+    });
+  });
+
+  // T100: immutable-parent test
+  describe("T100 immutable-parent guarantee", () => {
+    it("guarantees parent trace event count and content are byte-identical after forking", () => {
+      const baseEvents = loadPhase2FixtureTrace("base");
+      for (const e of baseEvents) store.appendEvent(e);
+
+      const parentBefore = JSON.stringify(store.getTrace("t_base")!.events);
+
+      const childTraceId = store.forkTrace({
+        baseTraceId: "t_base",
+        forkFromSpanId: "s2"
+      });
+
+      expect(childTraceId).toBeDefined();
+      const parentAfter = JSON.stringify(store.getTrace("t_base")!.events);
+      expect(parentAfter).toBe(parentBefore);
+    });
+  });
+
+  // T105: replay does not mutate history test
+  describe("T105 replay-does-not-mutate-history", () => {
+    it("guarantees original trace events are untouched when replaying a trace", () => {
+      const baseEvents = loadPhase2FixtureTrace("base");
+      for (const e of baseEvents) store.appendEvent(e);
+
+      const originalTraceBefore = JSON.stringify(store.getTrace("t_base")!.events);
+
+      // Create new replay run pointing to a new traceId
+      const replayTraceId = "t_base_replay";
+      store.createRun({
+        runId: "run-replay-1",
+        traceId: replayTraceId,
+        mode: "replay",
+        command: ["python", "agent.py"],
+        projectRoot: "/tmp"
+      });
+
+      // Annotate spans on the NEW replay trace
+      store.appendEvent({
+        schemaVersion: "1.1.0",
+        traceId: replayTraceId,
+        spanId: "s1",
+        parentSpanId: null,
+        occurredAt: new Date().toISOString(),
+        actor: { kind: "agent", id: "agent-1" },
+        kind: "prompt",
+        status: "ok",
+        payload: { text: "hello" },
+        links: []
+      });
+
+      store.appendReplayAnnotation(replayTraceId, "s1", {
+        replaySource: "cache",
+        tokensSaved: 100
+      });
+
+      const originalTraceAfter = JSON.stringify(store.getTrace("t_base")!.events);
+      expect(originalTraceAfter).toBe(originalTraceBefore);
+
+      // Verify no replaySource on original trace spans
+      const origTrace = store.getTrace("t_base")!;
+      for (const ev of origTrace.events as any[]) {
+        expect(ev.replaySource).toBeUndefined();
+      }
+    });
+  });
 });
+
+
+

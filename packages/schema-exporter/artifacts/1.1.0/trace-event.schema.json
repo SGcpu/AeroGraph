@@ -3,7 +3,7 @@
   "title": "AeroGraph TraceEvent Schema",
   "description": "Language-neutral JSON Schema artifact exported from @aerograph/contracts. Used to generate and validate non-TypeScript runtime bindings.",
   "schemaVersion": "1.1.0",
-  "generatedAt": "2026-06-30T09:40:13.228Z",
+  "generatedAt": "2026-09-04T21:21:32.930Z",
   "traceEventSchema": {
     "$ref": "#/definitions/TraceEvent",
     "definitions": {
@@ -118,6 +118,60 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
               },
               "kind": {
                 "type": "string",
@@ -279,6 +333,60 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
               },
               "kind": {
                 "type": "string",
@@ -487,6 +595,60 @@
                   "type": "string"
                 }
               },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "tool_call"
@@ -628,6 +790,60 @@
                   "type": "string"
                 }
               },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "tool_result"
@@ -768,6 +984,60 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
               },
               "kind": {
                 "type": "string",
@@ -922,6 +1192,60 @@
                   "type": "string"
                 }
               },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "error"
@@ -1072,6 +1396,60 @@
                   "type": "string"
                 }
               },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "note"
@@ -1203,6 +1581,60 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
               },
               "kind": {
                 "type": "string",
@@ -1363,6 +1795,60 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
               },
               "kind": {
                 "type": "string",
@@ -1527,6 +2013,60 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
               },
               "kind": {
                 "type": "string",
@@ -1711,6 +2251,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "prompt"
@@ -1871,6 +2465,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -2079,6 +2727,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "tool_call"
@@ -2220,6 +2922,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "tool_result"
@@ -2360,6 +3116,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -2514,6 +3324,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "error"
@@ -2664,6 +3528,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "note"
@@ -2795,6 +3713,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -2955,6 +3927,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -3119,6 +4145,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -3438,6 +4518,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "prompt"
@@ -3598,6 +4732,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -3806,6 +4994,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "tool_call"
@@ -3947,6 +5189,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "tool_result"
@@ -4087,6 +5383,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -4241,6 +5591,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "error"
@@ -4391,6 +5795,60 @@
                         "type": "string"
                       }
                     },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "note"
@@ -4522,6 +5980,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -4682,6 +6194,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -4846,6 +6412,60 @@
                       "additionalProperties": {
                         "type": "string"
                       }
+                    },
+                    "replaySource": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "enum": [
+                            "cache",
+                            "live"
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "requestKey": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "tokensSaved": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "replayLatencyMs": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "streamingPreserved": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "overridden": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
                     },
                     "kind": {
                       "type": "string",
@@ -5456,6 +7076,60 @@
                   "type": "string"
                 }
               },
+              "replaySource": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "cache",
+                      "live"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "requestKey": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tokensSaved": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "replayLatencyMs": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "streamingPreserved": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "overridden": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "prompt"
@@ -5518,6 +7192,24 @@
               },
               "tags": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tags"
+              },
+              "replaySource": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replaySource"
+              },
+              "requestKey": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/requestKey"
+              },
+              "tokensSaved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tokensSaved"
+              },
+              "replayLatencyMs": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replayLatencyMs"
+              },
+              "streamingPreserved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/streamingPreserved"
+              },
+              "overridden": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
               },
               "kind": {
                 "type": "string",
@@ -5582,6 +7274,24 @@
               "tags": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tags"
               },
+              "replaySource": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replaySource"
+              },
+              "requestKey": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/requestKey"
+              },
+              "tokensSaved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tokensSaved"
+              },
+              "replayLatencyMs": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replayLatencyMs"
+              },
+              "streamingPreserved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/streamingPreserved"
+              },
+              "overridden": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
+              },
               "kind": {
                 "type": "string",
                 "const": "tool_call"
@@ -5644,6 +7354,24 @@
               },
               "tags": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tags"
+              },
+              "replaySource": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replaySource"
+              },
+              "requestKey": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/requestKey"
+              },
+              "tokensSaved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tokensSaved"
+              },
+              "replayLatencyMs": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replayLatencyMs"
+              },
+              "streamingPreserved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/streamingPreserved"
+              },
+              "overridden": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
               },
               "kind": {
                 "type": "string",
@@ -5708,6 +7436,24 @@
               "tags": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tags"
               },
+              "replaySource": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replaySource"
+              },
+              "requestKey": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/requestKey"
+              },
+              "tokensSaved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tokensSaved"
+              },
+              "replayLatencyMs": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replayLatencyMs"
+              },
+              "streamingPreserved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/streamingPreserved"
+              },
+              "overridden": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
+              },
               "kind": {
                 "type": "string",
                 "const": "handoff"
@@ -5771,6 +7517,24 @@
               "tags": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tags"
               },
+              "replaySource": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replaySource"
+              },
+              "requestKey": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/requestKey"
+              },
+              "tokensSaved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tokensSaved"
+              },
+              "replayLatencyMs": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replayLatencyMs"
+              },
+              "streamingPreserved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/streamingPreserved"
+              },
+              "overridden": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
+              },
               "kind": {
                 "type": "string",
                 "const": "error"
@@ -5833,6 +7597,24 @@
               },
               "tags": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tags"
+              },
+              "replaySource": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replaySource"
+              },
+              "requestKey": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/requestKey"
+              },
+              "tokensSaved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tokensSaved"
+              },
+              "replayLatencyMs": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replayLatencyMs"
+              },
+              "streamingPreserved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/streamingPreserved"
+              },
+              "overridden": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
               },
               "kind": {
                 "type": "string",
@@ -5898,6 +7680,24 @@
               "tags": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tags"
               },
+              "replaySource": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replaySource"
+              },
+              "requestKey": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/requestKey"
+              },
+              "tokensSaved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tokensSaved"
+              },
+              "replayLatencyMs": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replayLatencyMs"
+              },
+              "streamingPreserved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/streamingPreserved"
+              },
+              "overridden": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
+              },
               "kind": {
                 "type": "string",
                 "const": "state_snapshot"
@@ -5961,6 +7761,24 @@
               "tags": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tags"
               },
+              "replaySource": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replaySource"
+              },
+              "requestKey": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/requestKey"
+              },
+              "tokensSaved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tokensSaved"
+              },
+              "replayLatencyMs": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replayLatencyMs"
+              },
+              "streamingPreserved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/streamingPreserved"
+              },
+              "overridden": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
+              },
               "kind": {
                 "type": "string",
                 "const": "retriever"
@@ -6023,6 +7841,24 @@
               },
               "tags": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tags"
+              },
+              "replaySource": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replaySource"
+              },
+              "requestKey": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/requestKey"
+              },
+              "tokensSaved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/tokensSaved"
+              },
+              "replayLatencyMs": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/replayLatencyMs"
+              },
+              "streamingPreserved": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/streamingPreserved"
+              },
+              "overridden": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
               },
               "kind": {
                 "type": "string",

@@ -24,8 +24,17 @@ Thumbs.db
 .idea/
 uv.lock
 bump.js
+fix.js
+fix-deps.js
 
+# Internal reports & plans
 Current_State_Report.md
 Feature-006-v2_Reality-Check-and-Revised-Approach.md
+Feature-006-v2_AeroGraph-agrepl-Integration-Plan.md
 AeroGraph_ag_Feasibility_Report.md
 security_report_agrepl.md
+
+# Runtime cassettes, certs, and binaries
+.aerograph/
+.agent-replay/
+*.exe

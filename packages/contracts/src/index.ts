@@ -62,6 +62,24 @@ export const traceLinkSchema = z.object({
   spanId: z.string().min(1)
 });
 
+import { replaySourceSchema } from "./cassette.js";
+
+export const replayMetaSchema = z.object({
+  /** "cache" = served from cassette, "live" = real network call. Null if not a replay run. */
+  replaySource: replaySourceSchema.nullable().optional(),
+  /** SHA-256 content key K(method ‖ normalizedUrl ‖ bodyHash) used for cassette lookup. */
+  requestKey: z.string().nullable().optional(),
+  /** Estimated tokens saved vs. a live call. Null for live calls or non-LLM spans. */
+  tokensSaved: z.number().int().nonnegative().nullable().optional(),
+  /** Wall-clock time in ms to hydrate this span from cassette. Null for live calls. */
+  replayLatencyMs: z.number().nonnegative().nullable().optional(),
+  /** False if streaming chunks could not be preserved individually in the cassette. */
+  streamingPreserved: z.boolean().nullable().optional(),
+  /** True if this span's response was manually overridden by aerorepl /override. */
+  overridden: z.boolean().nullable().optional()
+});
+export type ReplayMeta = z.infer<typeof replayMetaSchema>;
+
 const baseEventSchema = z.object({
   schemaVersion: z.union([
     z.literal(traceEventSchemaVersion),
@@ -83,7 +101,20 @@ const baseEventSchema = z.object({
   /** Deployment environment (e.g. development, staging, production). */
   environment: z.string().min(1).optional(),
   /** Arbitrary key-value telemetry tags. */
-  tags: z.record(z.string(), z.string()).optional()
+  tags: z.record(z.string(), z.string()).optional(),
+  // ── Replay Metadata Fields (v1.1.0 additive, all optional) ──
+  /** "cache" = served from cassette, "live" = real network call. Null if not a replay run. */
+  replaySource: replaySourceSchema.nullable().optional(),
+  /** SHA-256 content key K(method ‖ normalizedUrl ‖ bodyHash) used for cassette lookup. */
+  requestKey: z.string().nullable().optional(),
+  /** Estimated tokens saved vs. a live call. Null for live calls or non-LLM spans. */
+  tokensSaved: z.number().int().nonnegative().nullable().optional(),
+  /** Wall-clock time in ms to hydrate this span from cassette. Null for live calls. */
+  replayLatencyMs: z.number().nonnegative().nullable().optional(),
+  /** False if streaming chunks could not be preserved individually in the cassette. */
+  streamingPreserved: z.boolean().nullable().optional(),
+  /** True if this span's response was manually overridden by aerorepl /override. */
+  overridden: z.boolean().nullable().optional()
 });
 
 export const promptPayloadSchema = z.object({ 
@@ -446,3 +477,6 @@ export function validateTraceStats(input: unknown): TraceStats {
 }
 
 export * from "./utils/hash.js";
+export * from "./cassette.js";
+export * from "./orchestrator.js";
+export * from "./policy.js";

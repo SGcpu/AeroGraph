@@ -69,4 +69,45 @@ export function runMigrations(db: Database): void {
       INSERT OR IGNORE INTO schema_migrations (version) VALUES ('005_telemetry');
     `);
   }
+
+  // Migration 006: deterministic replay columns & replay_runs table
+  const alreadyReplay = db
+    .prepare("SELECT 1 FROM schema_migrations WHERE version = ?")
+    .get("006_replay");
+
+  if (!alreadyReplay) {
+    db.exec(`
+      ALTER TABLE events ADD COLUMN replay_source             TEXT    DEFAULT NULL;
+      ALTER TABLE events ADD COLUMN replay_request_key         TEXT    DEFAULT NULL;
+      ALTER TABLE events ADD COLUMN replay_tokens_saved        INTEGER DEFAULT NULL;
+      ALTER TABLE events ADD COLUMN replay_latency_ms          REAL    DEFAULT NULL;
+      ALTER TABLE events ADD COLUMN replay_streaming_preserved INTEGER DEFAULT NULL;
+      ALTER TABLE events ADD COLUMN replay_overridden          INTEGER DEFAULT NULL;
+
+      INSERT OR IGNORE INTO schema_migrations (version) VALUES ('006_replay');
+    `);
+  }
+
+  // Ensure replay_runs table always exists (idempotent)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS replay_runs (
+      run_id          TEXT PRIMARY KEY,
+      trace_id        TEXT NOT NULL,
+      parent_trace_id TEXT,
+      cassette_run_id TEXT,
+      mode            TEXT NOT NULL,
+      status          TEXT NOT NULL,
+      command_json    TEXT NOT NULL,
+      project_root    TEXT NOT NULL,
+      started_at      TEXT,
+      completed_at    TEXT,
+      exit_code       INTEGER,
+      error_message   TEXT,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_replay_runs_trace_id ON replay_runs(trace_id);
+    CREATE INDEX IF NOT EXISTS idx_replay_runs_status ON replay_runs(status);
+  `);
 }
+

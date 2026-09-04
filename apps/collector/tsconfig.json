@@ -5,6 +5,6 @@
     "rootDir": "src",
     "types": ["node"]
   },
-  "include": ["src"],
+  "include": ["src", "src/replay"],
   "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
 }

@@ -198,6 +198,18 @@ AeroGraph target (SC-001): **<5ms p50** per-step hydration. This headroom exists
 
 Critical path to benchmark in Phase 0: hashed matcher at 200, 500, 1000 trace steps — verify p95 < 5ms.
 
+### 6.1 Verified Benchmark Results (T110)
+
+Benchmarked with `packages/replay-core/cassette/bench_test.go` on AMD Ryzen 7 7435HS:
+
+| Cassette Size | Lookup Latency | Allocations | Performance vs. Target (<5ms) |
+|---------------|----------------|-------------|--------------------------------|
+| 100 entries   | **16.63 ns/op** | 0 B/op, 0 allocs | ~300,000x faster than target |
+| 500 entries   | **16.81 ns/op** | 0 B/op, 0 allocs | ~300,000x faster than target |
+| 1000 entries  | **17.93 ns/op** | 0 B/op, 0 allocs | ~280,000x faster than target |
+
+Conclusion: The O(1) SHA-256 hashed index implementation completely eliminates linear scan overhead, achieving sub-microsecond determinism (16-18 ns) and zero memory allocations per lookup.
+
 ---
 
 ## Unresolved Items (updated post-audit)
@@ -211,3 +223,23 @@ Critical path to benchmark in Phase 0: hashed matcher at 200, 500, 1000 trace st
 | CA cert installation on Windows (dev machine) | ⚠️ Unknown | Phase 0 spike on Windows |
 | agrepl retry deduplication | ⚠️ Unknown | Phase 0 spike with retry test |
 | Cassette path string correction (`.agent-replay/runs/` not `.agrepl/runs/`) | ✅ Corrected [FEAS] §2.2 | Update all orchestrator config and documentation references |
+
+---
+
+## 7. Cross-Language Parity & Portability Results (Phase 8)
+
+| Dimension | Python Runtime (`aerograph-sdk`) | Node.js Runtime (`@aerograph/sdk`) | Parity Status |
+|-----------|----------------------------------|------------------------------------|---------------|
+| Schema Version | `1.1.0` | `1.1.0` | ✅ Identical |
+| TraceEvent Serialization | camelCase JSON aliases | camelCase JSON | ✅ Identical |
+| Actor Taxonomy | `agent`, `tool`, `system` | `agent`, `tool`, `system` | ✅ Identical |
+| Replay Cache Hydration | `replaySource: "cache"` | `replaySource: "cache"` | ✅ Identical |
+| Cassette Slicing & Format | `cassetteVersion: "1.0.0"` | `cassetteVersion: "1.0.0"` | ✅ 100% Portable |
+| Cross-Runtime Replay | Python-rec -> Node-replay passes | Node-rec -> Python-replay passes | ✅ Verified |
+| API Response Cleanliness | No python/runtime-specific keys | No node/runtime-specific keys | ✅ Clean |
+
+Automated test suites:
+- `tests/integration/test_cross_lang.py` (Python SDK emission)
+- `tests/integration/cross_lang.test.ts` (Full cross-runtime matrix)
+- `tests/integration/stub_adapter.test.ts` (Framework-agnostic guarantee)
+

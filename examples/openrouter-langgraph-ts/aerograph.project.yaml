@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../packages/contracts/schemas/aerograph-project-yaml.schema.json
+version: "1"
+command:
+  - "npx"
+  - "tsx"
+  - "src/index.ts"
+
+collectorUrl: "http://localhost:4317"
+orchestratorUrl: "http://localhost:4318"
