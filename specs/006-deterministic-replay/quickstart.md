@@ -15,8 +15,10 @@
 | npm >= 11.x | Existing workspace requirement |
 | Python >= 3.10 | Existing Python SDK requirement |
 | Go >= 1.21 | **NEW**: Required to compile `aerograph-replay-core` |
-| mkcert installed | **NEW**: Required by agrepl vendored fork for TLS interception |
+| mkcert installed | **NEW**: Required by the vendored fork for TLS interception. CA cert is ephemeral — the hardened fork writes it to a temp directory and removes it after each run (FR-037). |
 | `aerograph.project.yaml` in agent project root | **NEW**: Developer creates this for each agent project |
+
+> **Security note**: The Orchestrator will not invoke `aerograph-replay-core` unattended unless FR-037 (CA key lifecycle) is implemented in the fork. Verify this with the setup check below before running any replay scenarios.
 
 ### AeroGraph Services Running
 
@@ -33,7 +35,7 @@ The Replay Orchestrator starts as a sub-service on port 4318 when the collector 
 ### Setup Check
 
 ```bash
-# Verify replay core binary was compiled
+# Verify replay core binary was compiled (must be the hardened fork build, not upstream)
 ls packages/replay-core/bin/aerograph-replay-core
 
 # Verify collector health
@@ -41,6 +43,10 @@ curl http://localhost:4317/health
 
 # Verify Orchestrator health
 curl http://localhost:4318/health
+
+# Verify CA lifecycle: after any test run, .agent-replay/ca/ should be absent or empty
+# (The hardened fork cleans it up. If it persists, the Security Gate is not satisfied.)
+ls -la .agent-replay/ca/ 2>/dev/null && echo "WARNING: CA dir persists — check FR-037 implementation" || echo "OK: no persistent CA"
 ```
 
 ---

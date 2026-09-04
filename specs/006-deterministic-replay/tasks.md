@@ -14,23 +14,57 @@
 
 ---
 
-## Phase 0: Verification Spike (Blocking Research Gate)
+## Phase 0: Fork Build — Hashed Matcher + Verification Spike (Blocking Gate)
 
-**Purpose**: Resolve all open research questions before ANY production code is written.
+**Purpose**: Build the SHA-256 hashed request matcher in the fork (replacing the confirmed-absent linear `DeepEqual` scan), then run the correlation and Windows verification spike against the improved fork. Streaming is NOT verified here — it is a confirmed build target in Phase 0.5.
 
-**CRITICAL**: No Phase 2+ implementation may begin until spike results are documented in `research.md`.
+**CRITICAL**: No Phase 2+ implementation may begin until Phase 0, Phase 0.5, and the Security Gate are all complete.
 
-- [ ] T001 Set up local agrepl spike environment: clone `Taiwrash/agrepl`, build binary with Go 1.21+, document Go version in `specs/006-deterministic-replay/research.md`
-- [ ] T002 Spike — streaming fidelity: wrap AeroGraph demo LangChain agent with `agrepl record`, make a streaming OpenAI call, inspect cassette for SSE chunk representation; document result in `research.md`
-- [ ] T003 Spike — replay streaming: replay T002 recording with `agrepl run`, verify chunk ordering and timing fidelity; document `streamingPreserved` truth value in `research.md`
-- [ ] T004 [P] Spike — correlation headers: verify `X-AeroGraph-Span-Id` custom request header is preserved round-trip through agrepl MITM proxy; document in `research.md`
-- [ ] T005 [P] Spike — LangChain header injection: test whether LangChain/OpenAI SDK calls allow injecting `X-AeroGraph-Span-Id`; document fallback scope in `research.md`
-- [ ] T006 [P] Spike — Windows TLS interception: run mkcert CA installation + agrepl HTTPS interception on Windows; verify Python and Node LLM calls captured; document Windows setup steps in `research.md`
-- [ ] T007 [P] Spike — retry deduplication: trigger HTTP retry in wrapped agent; inspect cassette for duplicate entries vs. deduplication by request key; document in `research.md`
-- [ ] T008 [P] Spike — cassette lookup performance: benchmark agrepl key lookup at 100/500/1000 entries; verify <5ms p50 target; record measurements in `research.md`
-- [ ] T009 Update `research.md` streaming section with complete spike findings; confirm Go/No-Go for FR-010 or document required agrepl fork patches
+**Why Phase 0 is a build phase, not a spike**: Direct audit of `pkg/interceptor/http.go` and `pkg/interceptor/llm.go` confirmed the upstream uses `bytes.Equal`/`reflect.DeepEqual` over a linear step list. The paper's O(1)/sub-ms benchmark assumed a hash index that doesn't exist. Build must happen before spike results are trustworthy.
 
-**Checkpoint**: `research.md` updated. Go/No-Go gate signed off. Phases 1-10 may now proceed.
+- [ ] T001 Vendor agrepl source into `packages/replay-core/`: copy upstream source (MIT license), update `go.mod` to `module aerograph.dev/replay-core`, verify `record` and `replay` commands compile with Go 1.21+; document Go version in `research.md`
+- [ ] T002 **[BUILD]** Design hashed index keyed on `(X-AeroGraph-Span-Id, K(s))` where `K(s) = SHA256(method + normalizedUrl + SHA256(body))`; replace linear `DeepEqual` scan in `packages/replay-core/pkg/interceptor/http.go`
+- [ ] T003 **[BUILD]** Replace linear `DeepEqual` scan in `packages/replay-core/pkg/interceptor/llm.go` with the same hashed index
+- [ ] T004 [P] Verify trace JSON format compatibility with `diff`/`list`/`share`/`pull` after matcher rewrite; assert existing cassette files still parse correctly
+- [ ] T005 Benchmark hashed matcher p95 lookup latency at 200, 500, 1000 step traces; assert p95 < 5ms; record measurements in `research.md`; confirm this replaces any citation of the paper's 0.9ms figure
+- [ ] T006 [P] Spike — correlation headers: verify `X-AeroGraph-Span-Id` custom request header is preserved round-trip through rebuilt fork proxy; document in `research.md`
+- [ ] T007 [P] Spike — LangChain header injection: test whether LangChain/OpenAI SDK calls allow injecting `X-AeroGraph-Span-Id`; document fallback scope in `research.md`
+- [ ] T008 [P] Spike — Windows TLS interception: run mkcert CA installation + fork HTTPS interception on Windows; verify Python and Node LLM calls captured; document Windows setup steps in `research.md`
+- [ ] T009 [P] Spike — retry deduplication: trigger HTTP retry in wrapped agent; inspect cassette for duplicate entries vs. deduplication by hashed key; document in `research.md`
+- [ ] T010 Update `research.md` hashed matcher and performance sections with complete findings; confirm Go/No-Go gate; update benchmark result table
+
+**Checkpoint**: Hashed matcher built and benchmarked (p95 < 5ms). Spike findings documented. Phase 0.5 and Security Gate begin next.
+
+---
+
+## Phase 0.5: Fork Build — Streaming (Confirmed Build Target)
+
+**Purpose**: Implement SSE/chunked transfer passthrough and `GenerateContentStream` interception. This is NOT a spike — streaming is confirmed broken in upstream (`ioutil.ReadAll` buffering; `GenerateContentStream` not intercepted). Must complete before Orchestrator development since it affects the cassette format.
+
+- [ ] T011 **[BUILD]** Replace `ioutil.ReadAll` in `packages/replay-core/pkg/interceptor/http.go` HTTP interceptor with chunked/SSE passthrough: store each chunk as an array entry in the cassette entry, not as a single body blob
+- [ ] T012 **[BUILD]** Add `GenerateContentStream` interception to `packages/replay-core/pkg/interceptor/llm.go`: handle streaming GenAI calls that were previously not intercepted at all
+- [ ] T013 Verify AeroGraph TTFT / tokens-per-sec telemetry survives round-trip through the replay proxy on both record and replay passes
+- [ ] T014 Write unit tests for streaming round-trip in `packages/replay-core/proxy/streaming_test.go`: assert chunks stored as array, assert round-trip chunk count and order match, assert `streamingPreserved: true` in annotation log
+
+**Checkpoint**: Fork binary supports streaming. Cassette format includes chunk arrays for streaming responses. AeroGraph streaming telemetry (TTFT, tokens/sec) survives replay.
+
+---
+
+## Security Gate (Blocking — must complete before Phase 2)
+
+**Purpose**: Remediate the CA key persistence vulnerability before the Orchestrator is allowed to invoke `aerograph-replay-core` unattended (FR-037). This gate BLOCKS Phase 2.
+
+**Background**: Upstream agrepl generates a real ECDSA P-256 CA persisted indefinitely under `.agent-replay/ca/` (10-year validity, no cleanup). Unattended Orchestrator invocation turns this into a standing system-level trust relationship with a leaking key.
+
+- [ ] T015 File upstream issue/advisory with Taiwrash agrepl maintainer documenting CA key persistence vulnerability; this is a parallel, independent action — do not block on upstream response
+- [ ] T016 **[BUILD]** Move CA to `os.MkdirTemp`-based ephemeral storage in `packages/replay-core/pkg/proxy/ca.go`: write key to temp dir, never to persistent `.agent-replay/ca/`
+- [ ] T017 **[BUILD]** Add deferred `os.RemoveAll` in `packages/replay-core/cmd/record.go` and `packages/replay-core/cmd/replay.go` to wipe CA temp dir after each run
+- [ ] T018 **[BUILD]** Add `SIGINT`/`SIGTERM` trap in `packages/replay-core/main.go` to guarantee CA cleanup on interrupt (use `os/signal` + `defer` pattern)
+- [ ] T019 **[BUILD]** Replace `curl | bash` advisory in `packages/replay-core/cmd/uninstall.go` with native Go cleanup routine
+- [ ] T020 Re-run SAST audit against the hardened fork; document results in `specs/006-deterministic-replay/research.md` security section
+- [ ] T021 Write test in `packages/replay-core/proxy/ca_test.go`: verify no file persists under `.agent-replay/ca/` after a completed run; verify `SIGTERM` also triggers cleanup
+
+**Checkpoint**: SAST re-audit passed. No persistent CA key after any run, clean or interrupted. Phase 2 may now begin.
 
 ---
 
@@ -345,9 +379,12 @@
 ### Phase Dependencies
 
 `
-Phase 0 (Spike)  -> research gate, blocks all implementation
+Phase 0 (Fork Build: Hashed Matcher + Spike)  -> blocks all implementation
     |
-Phase 1 (Setup)  -> scaffolding, can overlap with Phase 0
+Phase 0.5 (Fork Build: Streaming)              -> blocks Orchestrator (Phase 2)
+Security Gate (CA Lifecycle Remediation)        -> BLOCKS Phase 2
+    |
+Phase 1 (Setup) -> scaffolding, can overlap with Phase 0 for file structure
     |
 Phase 2 (Contracts) -> BLOCKS ALL USER STORIES
     |
@@ -374,28 +411,28 @@ Phase 10 (Docs + Polish)         requires all above
 
 ### Parallel Opportunities
 
-- T017-T019 (contract tests): fully parallel
-- T020-T023 (contract implementation): parallel after T017
-- T025-T029 (US1 tests): all parallel
-- T032-T035 (replay-core binary): parallel with T030-T031 (SQLite)
-- T036 (cassette.ts): parallel with T037 (runner.ts)
-- T043-T045 (Web API + badges): parallel with each other
-- T063-T065 (US3 tests): parallel after Phase 3
-- T073-T074 (US4 tests): parallel with each other
-- T099-T111 (Phase 9 verification): all parallel
+- T002-T003 (hashed matcher build): T003 can run in parallel with T002 (different files)
+- T004, T006-T009 (compatibility + spikes): all parallel after T001
+- T011-T012 (streaming build): parallel with each other; T014 (test) parallel too
+- T015 (upstream disclosure): parallel with all Security Gate build tasks
+- T016-T019 (CA lifecycle build): T019 (uninstall) parallel with T016-T018
+- T017-T019 within contracts (old IDs shifted): contract tests fully parallel
+- All [P]-marked tasks within each phase: see per-task annotations
 
 ---
 
 ## Implementation Strategy
 
-### MVP Scope (US1 Only, Phases 0-3)
+### MVP Scope (Phases 0, 0.5, Security Gate, 1, 2, then Phase 3)
 
-1. Complete Phase 0 spike, confirm Go/No-Go
-2. Complete Phase 1 setup, scaffolding ready
-3. Complete Phase 2 contracts, CRITICAL blocking gate
-4. Complete Phase 3 (US1), zero-cost replay end-to-end
-5. STOP AND VALIDATE: Run Scenarios 1 + 2 from quickstart.md
-6. MVP ACHIEVED: Zero-cost replay works. Demo-ready.
+1. Complete Phase 0 fork build (hashed matcher) + spike, confirm benchmarks
+2. Complete Phase 0.5 fork build (streaming) in parallel with Security Gate
+3. Complete Security Gate (CA lifecycle) — BLOCKS Phase 2
+4. Complete Phase 1 setup, scaffolding ready
+5. Complete Phase 2 contracts, CRITICAL blocking gate
+6. Complete Phase 3 (US1), zero-cost replay end-to-end
+7. STOP AND VALIDATE: Run Scenarios 1 + 2 from quickstart.md (including CA lifecycle check)
+8. MVP ACHIEVED: Zero-cost replay works. Demo-ready.
 
 ### Incremental Delivery
 
@@ -416,9 +453,12 @@ Phase 10 (Docs + Polish)         requires all above
 - Every [US*] maps to a spec user story for completeness traceability
 - The canonical TraceEvent (Phase 2) is the language-neutral boundary, never add language-specific fields
 - Web UI is a visualization layer only, no replay algorithms in React components
-- aerograph-replay-core binary availability checked at Orchestrator startup with fail-fast error
+- aerograph-replay-core binary must be the hardened fork build (Phase 0 + 0.5 + Security Gate), not upstream
 - ALL child_process.spawn() calls use explicit array form, never shell strings
 - Cassette paths validated before any file I/O to prevent path traversal
+- Fork native cassette path is .agent-replay/runs/ (NOT .agrepl/runs/ as the paper stated); Orchestrator copies to .aerograph/cassettes/
 - Do NOT revive the legacy store.ts JSONL store, sqliteStore.ts is authoritative
 - FR-036 upstream contribution is best-effort; feature ships on vendored fork regardless
-- Total tasks: T001-T120 (120 tasks across 10 phases)
+- FR-037 (CA lifecycle) is NON-NEGOTIABLE and gates the Orchestrator; upstream must also be notified
+- FR-038 (streaming) is a confirmed build dependency, not a spike question
+- Total tasks: T001-T021 (Phase 0 + 0.5 + Security Gate) + T022+ (Phase 1 onward); task IDs in Phase 1+ are shifted by the new pre-work tasks

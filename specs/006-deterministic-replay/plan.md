@@ -10,8 +10,10 @@
 
 Feature 006 transforms AeroGraph from a passive observability tool into an **active replay substrate**. By vendoring a patched fork of `agrepl` (renamed `aerograph-replay-core`) as a local proxy sidecar, AeroGraph can capture every HTTP/HTTPS interaction an agent makes, store it in a content-addressed cassette, and replay it deterministically at zero cost with <5ms per-span hydration latency.
 
+**Updated assessment ([FEAS], [SEC], [STATE] audits):** Integration is still the right approach. The parts of agrepl that are _not_ in question — interception, CA generation, auth/OAuth, sharing, diffing, and CLI — are complete and well-built. The revision is about which specific subsystems need to be built in the fork: the hashed request matcher (upstream uses a linear scan), streaming support (confirmed absent), and CA lifecycle cleanup (confirmed security gap). The fork scope is larger than originally planned but narrow and specific.
+
 The feature introduces four new components:
-1. **`aerograph-replay-core`** — patched agrepl binary (`packages/replay-core/`)
+1. **`aerograph-replay-core`** — hardened agrepl fork (`packages/replay-core/`)
 2. **Replay Orchestrator** — Node.js sub-service inside `apps/collector/src/replay/` (port 4318)
 3. **`aerorepl` CLI** — developer-facing CLI (`packages/aerorepl/`)
 4. **Replay UI** — "Fork and Resume" and "Replay" controls in `apps/web/src/App.tsx`
@@ -34,7 +36,7 @@ The existing fork/lineage infrastructure in the Collector is **already correct**
 
 **Storage**:
 - SQLite `replay_runs` table (new, in `apps/collector/data/afr.sqlite`)
-- `.aerograph/cassettes/<runId>.json` files (in developer's project root)
+- `.aerograph/cassettes/<runId>.json` files (in developer's project root; copied from fork's native `.agent-replay/runs/<id>.json`)
 
 **Testing**:
 - `vitest` (existing) — unit tests for all TypeScript components
@@ -173,20 +175,58 @@ Developer Project
 
 ## Implementation Phases
 
-### Phase 0: Spike — agrepl Verification (no production code)
+### Phase 0: Fork Build — Hashed Matcher + Spike (no production AeroGraph code)
 
-**Goal**: Confirm streaming fidelity, TLS interception on Windows, and header passthrough before writing any production code.
+**Goal**: Build the SHA-256 hashed request matcher in the fork (replacing the upstream linear `DeepEqual` scan). Then run the verification spike against this improved fork.
 
-**Output**: Spike findings written to `research.md` (streaming section updated).
+**Why this changed**: The original plan treated Phase 0 as verification-only. Direct code audit of `pkg/interceptor/http.go` and `pkg/interceptor/llm.go` confirmed the hashed matcher is not implemented — the upstream uses `bytes.Equal`/`reflect.DeepEqual` over a linear step list. The paper's O(1)/sub-ms benchmark assumed a hash index that doesn't exist. This must be built before the spike results can be trusted.
+
+**Output**: Working hashed matcher in `packages/replay-core/`. Spike findings written to `research.md`.
 
 **Work**:
-1. Clone upstream agrepl, build binary, wrap a streaming OpenAI call
-2. Verify SSE chunks are stored/replayed correctly
-3. Test on Windows with mkcert
-4. Test `X-AeroGraph-Span-Id` header passthrough
-5. Test retry deduplication behavior
+1. Vendor agrepl source into `packages/replay-core/`, update `go.mod`
+2. **Design and implement** SHA-256 hashed index keyed on `(X-AeroGraph-Span-Id, K(s))` in `pkg/interceptor/http.go` and `pkg/interceptor/llm.go` (replacing `DeepEqual` linear scan)
+3. Verify trace JSON format compatibility with `diff`/`list`/`share`/`pull` post-rewrite
+4. Benchmark p95 lookup latency at 200, 500, 1000 step traces; verify < 5ms; record in `research.md`
+5. Spike: wrap AeroGraph demo app with rebuilt binary, test `X-AeroGraph-Span-Id` header passthrough
+6. Spike: test retry deduplication behavior
+7. Spike: test on Windows with mkcert
 
-**Go/No-Go Gate**: If streaming is fundamentally broken in agrepl, reassess FR-010. If header passthrough fails, revisit correlation strategy.
+**Go/No-Go Gate**: Hashed matcher benchmarks pass (p95 < 5ms at 200+ steps). Spike findings documented. Phase 0.5 and Security Gate begin next.
+
+### Phase 0.5: Fork Build — Streaming (NEW, confirmed build target)
+
+**Goal**: Implement SSE/chunked transfer passthrough and `GenerateContentStream` interception in the fork. This is **not** a spike to verify — it is a confirmed build target.
+
+**Why this is here**: Upstream agrepl buffers full response bodies via `ioutil.ReadAll` (`pkg/interceptor/http.go`) and does not intercept `GenerateContentStream` at all (`pkg/interceptor/llm.go`). This is a confirmed blocking dependency: any AeroGraph feature relying on TTFT/tokens-per-sec telemetry will silently degrade to zero for streaming LLM calls through the proxy.
+
+**Sequencing**: Must complete before or alongside Phase 1, because it affects the cassette format. Orchestrator (Phase 2) must not be built against a non-streaming fork.
+
+**Work**:
+1. Add chunked/SSE passthrough to HTTP interceptor: stop buffering with `ioutil.ReadAll`, pass chunks through as array entries in cassette
+2. Add `GenerateContentStream` interception to `pkg/interceptor/llm.go`
+3. Verify AeroGraph TTFT / tokens-per-sec telemetry survives round-trip through the replay proxy
+4. Write unit tests for streaming round-trip in `packages/replay-core/`
+
+**Output**: Fork binary supports streaming. Cassette format includes chunk arrays for streaming responses.
+
+---
+
+### Security Gate (NEW — must complete before Phase 2)
+
+**Gate condition**: `aerograph-replay-core` fork MUST NOT be invoked unattended by the Orchestrator until all items below are implemented and re-audited. **This gate blocks Phase 2.**
+
+**Why**: The upstream agrepl generates a real ECDSA P-256 CA and persists the private key indefinitely under `.agent-replay/ca/` (10-year validity, no cleanup on exit). Standing automated invocation from the Orchestrator turns an occasional developer action into a standing system-driven trust relationship with a leaking key — the blast radius scales with the automation.
+
+**Required fork changes (FR-037)**:
+1. Move CA to in-memory where possible; where disk is required, write to `os.MkdirTemp` and wipe after execution
+2. Add deferred `os.RemoveAll` in `cmd/record.go` and `cmd/replay.go`
+3. Add `SIGINT`/`SIGTERM` trap to guarantee cleanup on interrupt
+4. Replace `curl | bash` advisory in `cmd/uninstall.go` with native Go cleanup
+5. Re-run SAST audit against the fork
+6. File upstream issue/advisory with Taiwrash maintainer (parallel, independent action)
+
+**Output**: Security-hardened fork binary. SAST re-audit documented.
 
 ---
 
@@ -195,7 +235,7 @@ Developer Project
 **Goal**: Compile vendored binary, add DB migration, extend contract schemas.
 
 **Files**:
-- `packages/replay-core/` — fork agrepl, add `--live-hosts` flag, compile binary
+- `packages/replay-core/` — fork agrepl (Phases 0/0.5/Security Gate work), add `--live-hosts` flag and `--annotation-log` flag, cross-compile binaries
 - `packages/contracts/src/cassette.ts` — `CassetteEntry`, `Cassette` schemas
 - `packages/contracts/src/orchestrator.ts` — `RunStatus`, `StartRunRequest`, etc.
 - `packages/contracts/src/index.ts` — extend `baseEventSchema` with `replayMeta` fields
@@ -209,6 +249,8 @@ Developer Project
 ---
 
 ### Phase 2: Replay Orchestrator
+
+**Blocked by**: Security Gate (FR-037) must be complete before this phase.
 
 **Goal**: Implement the Orchestrator sub-service in `apps/collector/src/replay/`.
 
@@ -342,6 +384,7 @@ Developer Project
 
 | Risk | Implementation Safeguard |
 |------|--------------------------|
+| **CA key persistence (CRITICAL, FR-037)** | Fork must implement in-memory/temp-dir CA, deferred cleanup, SIGINT/SIGTERM traps before Phase 2 begins. Upstream maintainer notified independently. |
 | Shell injection from `aerograph.project.yaml` | `command` parsed as YAML array, passed to `child_process.spawn()` array form (no shell) |
 | Path traversal in cassette path | `path.resolve()` + `path.startsWith(projectRoot + '/.aerograph')` assertion |
 | Orchestrator exposed to network | `server.listen(4318, '127.0.0.1')` — loopback only |

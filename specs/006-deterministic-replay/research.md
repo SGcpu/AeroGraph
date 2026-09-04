@@ -48,54 +48,57 @@ And `trace_derivations` table is fully implemented. **No new lineage schema work
 
 ## 2. agrepl Compatibility Assessment
 
-**Source**: Official README, integration plan document, formal paper by Mudasiru
+**Source**: Direct codebase audit ([FEAS] AeroGraph_ag_Feasibility_Report.md, [SEC] security_report_agrepl.md, [STATE] Current_State_Report.md). The formal paper by Mudasiru is cited only for the determinism invariant, fidelity metric, and noise taxonomy — not for claims about the shipped implementation, which diverges from the paper in the matching and CA subsystems.
 
-### 2.1 Verified agrepl Capabilities
+### 2.1 Verified agrepl Capabilities (corrected against source code)
 
-| Capability | agrepl Status | Notes |
-|-----------|--------------|-------|
-| Zero-instrumentation record | ✅ Implemented | MITM proxy via `goproxy`, injects `HTTP_PROXY`/`HTTPS_PROXY` env vars |
-| HTTP/HTTPS interception | ✅ Implemented | Ephemeral local CA via mkcert for TLS |
-| Cassette storage | ✅ Implemented | JSON files under `.agrepl/runs/` |
-| Request matching | ✅ Implemented | `K(s) = SHA256(method ‖ norm(url) ‖ hash(body))`, order-independent |
-| Replay (zero-network) | ✅ Implemented | `agrepl run <run-id>` or `agrepl run -- <cmd>` |
-| Fallback mode | ✅ Implemented | `--fallback` flag: live for cache misses, cache for hits |
-| Team sharing | ✅ Implemented | `agrepl share` / `agrepl pull` via Cloudflare R2 |
-| Diff | ✅ Implemented | `agrepl diff` with Signal/Noise/Removed taxonomy |
-| Python agent compatibility | ✅ Works | Proxy-level, language-agnostic |
-| Node agent compatibility | ✅ Works | Same proxy-level mechanism |
-| Go agent compatibility | ✅ Works | Same |
-| Per-host passthrough (`--live-hosts`) | ❌ NOT implemented | **Must be added to vendored fork** |
-| gRPC / HTTP/2 interception | ❌ NOT implemented | On upstream roadmap; out of scope |
-| Streaming SSE preservation | ⚠️ UNKNOWN | Must be validated in Phase 0 spike |
-| Concurrent cassette reads | ✅ Safe | Cassette is read-only during replay |
-| Correlation header passthrough | ⚠️ Partial | Proxy forwards headers; custom header injection needs verification |
-| Cassette portability | ✅ Implemented | Pure JSON, portable across machines |
+| Capability | agrepl Status | Source evidence | Notes |
+|-----------|--------------|----------------|-------|
+| Zero-instrumentation record | ✅ Implemented | [FEAS] §2.1 | Custom `net/http` connection-hijacking proxy — **NOT goproxy** as the paper describes (`pkg/proxy/http_proxy.go`) |
+| HTTP/HTTPS interception | ✅ Implemented | [FEAS] §2.1 | **Persistent** local CA written to `.agent-replay/ca/` and reused across runs — **NOT ephemeral** (`pkg/proxy/ca.go`). See §5 Security. |
+| Cassette storage | ✅ Implemented | [FEAS] §2.2 | JSON files under **`.agent-replay/runs/`** (not `.agrepl/runs/` as the paper states — `pkg/storage/json_storage.go`) |
+| Request matching | ⚠️ **Shipped differently** | [FEAS] §2.3, [STATE] §2.3 | **Linear scan** using `bytes.Equal`/`reflect.DeepEqual` over recorded steps — **SHA-256 hashed O(1) lookup NOT implemented**. `usedSteps` map prevents double-replay. **This is a build target, not an inherited capability.** |
+| Replay (zero-network) | ✅ Implemented | [STATE] §2.3 | `agrepl run <run-id>` works correctly |
+| Fallback mode | ✅ Implemented | [FEAS] §2.4 | `--fallback` flag confirmed in `cmd/replay.go` and `pkg/interceptor/http.go` |
+| Team sharing (`share`/`pull`) | ✅ Complete | [STATE] §5 | R2-backed via AWS SDK v2, GitHub OAuth with device-code fallback |
+| Diff engine | ✅ Complete | [STATE] §6 | Noise-aware diff with Signal/Noise/Removed taxonomy — confirmed reusable as-is |
+| `list`/`inspect`/`auth` | ✅ Complete | [STATE] §4,§5 | SQLite-backed local indexing, tiered access (`local`/`pro`/`enterprise`) |
+| Python agent compatibility | ✅ Works | Proxy-level, language-agnostic | |
+| Node agent compatibility | ✅ Works | Same proxy-level mechanism | |
+| Per-host passthrough (`--live-hosts`) | ❌ NOT implemented | [FEAS] §2.6 | **Must be added to vendored fork** — confirmed absent |
+| gRPC / HTTP/2 interception | ❌ NOT implemented | | On upstream roadmap; out of scope |
+| **Streaming SSE preservation** | ❌ **Confirmed broken** | [FEAS] §2.5, [STATE] §2.1,§7.3 | Full bodies buffered via `ioutil.ReadAll`; `GenerateContentStream` not intercepted at all (only non-streaming `GenerateContent` handled in `pkg/interceptor/llm.go`). **This is a confirmed blocking build target, not a risk to verify.** |
+| Concurrent cassette reads | ✅ Safe | Cassette is read-only during replay | |
+| Correlation header passthrough | ⚠️ Needs verification | | Proxy forwards headers; custom `X-AeroGraph-Span-Id` injection needs spike confirmation |
+| Cassette portability | ✅ Implemented | Pure JSON, portable across machines | |
+| Supply chain cleanliness | ✅ Clean | [SEC] "Supply Chain Assessment" | Reputable deps only (`aws-sdk-go-v2`, `cobra`, `google.golang.org/genai`, `modernc.org/sqlite`); no typosquatting or hidden telemetry found |
 
-### 2.2 Compatibility Table (Feature 006 Requirements)
+### 2.2 Compatibility Table (Feature 006 Requirements — updated)
 
-| FR# | Requirement | agrepl Supports | AeroGraph Change | agrepl Fork | Unknown |
-|-----|-------------|----------------|------------------|-------------|---------|
-| FR-007 | Zero-instrumentation record | ✅ | No | No | |
-| FR-009 | Content-derived request key | ✅ | No | No | |
-| FR-010 | Streaming chunk preservation | | | | ✅ Phase 0 spike needed |
-| FR-011 | Zero-network replay | ✅ | No | No | |
-| FR-012 | Fallback for cache miss | ✅ | No | No | |
-| FR-013 | replaySource badge in UI | | ✅ | No | |
-| FR-021 | `must_execute` always live | | ✅ Orchestrator | ✅ `--live-hosts` | |
-| FR-022 | Default `must_execute` | | ✅ Orchestrator | No | |
-| FR-025 | Per-decision logging | | ✅ Orchestrator | No | |
-| FR-035 | `--live-hosts` flag | | No | ✅ Required | |
+| FR# | Requirement | agrepl Supports | AeroGraph Change | agrepl Fork | Status |
+|-----|-------------|----------------|------------------|-------------|--------|
+| FR-007 | Zero-instrumentation record | ✅ | No | No | Ready |
+| FR-009 | Content-derived request key | ❌ **Must build** | No | ✅ Hashed matcher rewrite | **Build target** |
+| FR-010 | Streaming chunk preservation | ❌ **Confirmed broken** | No | ✅ SSE passthrough + `GenerateContentStream` | **Build target** |
+| FR-011 | Zero-network replay | ✅ | No | No | Ready |
+| FR-012 | Fallback for cache miss | ✅ `--fallback` confirmed | No | No | Ready |
+| FR-013 | replaySource badge in UI | | ✅ | No | AeroGraph work |
+| FR-021 | `must_execute` always live | | ✅ Orchestrator | ✅ `--live-hosts` | Needs fork |
+| FR-022 | Default `must_execute` | | ✅ Orchestrator | No | AeroGraph work |
+| FR-025 | Per-decision logging | | ✅ Orchestrator | No | AeroGraph work |
+| FR-035 | `--live-hosts` flag | | No | ✅ Required | Needs fork |
 
-### 2.3 Cassette Location Mapping
+### 2.3 Cassette Location Mapping (corrected)
 
-agrepl stores cassettes at `.agrepl/runs/<id>.json`. AeroGraph will **store a copy** at `.aerograph/cassettes/<id>.json` after each record run, maintaining the agreed spec storage location while optionally keeping the agrepl native location for raw access.
+agrepl stores cassettes at **`.agent-replay/runs/<id>.json`** (verified in `pkg/storage/json_storage.go` — the paper's `.agrepl/runs/` path is incorrect). AeroGraph will **store a copy** at `.aerograph/cassettes/<id>.json` after each record run, maintaining the agreed spec storage location while keeping the fork's native location as source.
 
-### 2.4 The Spike Question: Streaming
+### 2.4 Streaming — Reclassified from Risk to Confirmed Build Target
 
-The integration plan's paper cites F=1.0 fidelity and 0.9ms median latency. These benchmarks were measured on non-streaming requests. AeroGraph's `streamingTelemetrySchema` (TTFT, tokensPerSecond, tokenCount) depends on chunk timing. If agrepl stores responses as a single body blob, streaming metrics will be incorrect during replay. **Phase 0 spike MUST test this.**
+The integration plan listed streaming as "needs verification in Phase 0." **[FEAS] and [STATE] both confirm it is simply not implemented**: full response bodies are buffered via `ioutil.ReadAll`; `GenerateContentStream` is not intercepted at all. This is no longer a spike question — it is a confirmed Phase 0.5 build item (see §6 Revised Roadmap in plan.md).
 
-Fallback strategy: If streaming cannot be preserved chunk-by-chunk, set `streamingPreserved: false` on affected spans and surface a UI warning. This is already required by FR-010.
+**Consequence**: Any replay path that routes streaming LLM calls through agrepl as it exists today will silently drop TTFT/tokens-per-sec telemetry. This is a launch blocker for streaming-by-default framework/model combinations and must be sequenced before Orchestrator development.
+
+Fallback strategy (unchanged): If streaming cannot be fully preserved, set `streamingPreserved: false` on affected spans and surface a UI warning. This is already required by FR-010.
 
 ---
 
@@ -145,6 +148,8 @@ The agrepl paper benchmarks used standard REST responses. Streaming (SSE) behavi
 
 ## 5. Security Research
 
+### 5.1 Orchestrator-Level Risks (AeroGraph-side)
+
 Because the Orchestrator spawns developer-provided shell commands, the following risks are acknowledged:
 
 | Risk | Mitigation |
@@ -152,29 +157,57 @@ Because the Orchestrator spawns developer-provided shell commands, the following
 | Command injection via `aerograph.project.yaml` | Validate command template against an allowlist of characters; never pass through shell interpolation |
 | Path traversal in cassette path | Validate cassette paths are under `.aerograph/cassettes/` |
 | Malicious cassette response content | The agent receives cassette responses — same trust model as live LLM responses |
-| Orchestrator API exposed beyond localhost | Bind only to `127.0.0.1`, document clearly |
+| Orchestrator API exposed beyond localhost | `server.listen(4318, '127.0.0.1')` — loopback only |
 | `must_execute` misclassification | Default-deny (`must_execute` for unlisted patterns), loud logging |
+
+### 5.2 CA Key Lifecycle — Critical Finding [SEC] (new, gates Orchestrator rollout)
+
+**Finding ([SEC] "CA Lifecycle Analysis", "Critical Vulnerabilities"):** The agrepl MITM proxy generates a real ECDSA P-256 CA and correctly restricts the private key file to `0600` permissions on creation (`pkg/proxy/ca.go`) — but **never deletes it**. The key persists indefinitely under `.agent-replay/ca/`, is silently reused across every future run (10-year validity), and has no `SIGINT`/`SIGTERM` cleanup trap.
+
+**Why this is more severe for AeroGraph than for standalone agrepl use:** A developer manually invoking `agrepl record` occasionally is a bounded, attended action. The Orchestrator design has AeroGraph's backend automatically shelling out to agrepl on every replay and every fork click, **unattended, as a matter of routine UI interaction**. That turns an occasional developer convenience into a standing, system-driven trust relationship with a leaking key — the blast radius scales with exactly the automation we are building.
+
+**Required remediation before Phase 2 (Orchestrator) is allowed to invoke agrepl unattended:**
+1. Move to an in-memory-only CA where possible; where child processes need cert material from disk, write it to `os.MkdirTemp` and wipe it after execution — not the persistent `.agent-replay/ca/` path.
+2. Add deferred cleanup (`os.RemoveAll` on the CA directory) in both `cmd/record.go` and `cmd/replay.go`.
+3. Add `SIGINT`/`SIGTERM` trap so interrupted runs still clean up.
+4. Replace `curl | bash` advisory in `cmd/uninstall.go` with a native Go cleanup routine.
+5. **Re-run SAST audit against the fork before Phase 2 begins.**
+
+**Non-negotiable spec requirement added:** *"CA Key Hygiene is NON-NEGOTIABLE: the replay engine must never leave a trusted root CA private key persisted on disk after a session ends, whether the session exits cleanly or is interrupted."*
+
+**Responsible disclosure:** File upstream issue/advisory with Taiwrash maintainer as an immediate parallel action — independent of AeroGraph timeline.
+
+### 5.3 Supply Chain Assessment — Clean Bill of Health [SEC]
+
+`go.mod`/`go.sum` reviewed ([SEC] "Supply Chain Assessment"): reputable dependencies only (`aws-sdk-go-v2`, `cobra`, `google.golang.org/genai`, `modernc.org/sqlite`, `cli/oauth`). No typosquatting, no hidden telemetry or backdoors found. These can be treated as stable and reusable as-is.
 
 ---
 
 ## 6. Performance Research
 
-agrepl benchmark (from paper):
-- Median replay latency per step: **0.9ms**
-- Median latency reduction: **98.3%**
-- Fidelity (F): **1.0** across 250 instances
+agrepl paper benchmark (cite only for the formal model — see correction note below):
+- Median replay latency per step: **0.9ms** (paper)
+- Median latency reduction: **98.3%** (paper)
+- Fidelity (F): **1.0** across 250 instances (paper)
 
-AeroGraph target (SC-001): **<5ms p50** per-step hydration. This is 5.5× the paper benchmark, providing headroom for Orchestrator overhead, span annotation ingestion, and process startup.
+**⚠️ Correction [FEAS] §2.3, [STATE] §2.3:** The paper's sub-millisecond benchmark was measured assuming an O(1) SHA-256 hashed lookup. The **shipped implementation uses a linear `DeepEqual` scan**, not a hash index. The paper's performance numbers **do not apply to the current codebase**. Sub-100ms replay lookup latency at 200+ recorded steps is a requirement this integration **must build and verify**, not a property it inherits.
 
-Critical path to measure in Phase 0: Does the header injection round-trip (SDK → Orchestrator → agrepl annotation) add material latency?
+**AeroGraph non-functional requirement (added):** p95 cassette lookup latency < 5ms at 200+ step traces, measured after the hashed matcher is implemented in the fork. This replaces any citation of the paper's benchmark as a given.
+
+AeroGraph target (SC-001): **<5ms p50** per-step hydration. This headroom exists to absorb Orchestrator overhead, span annotation ingestion, and process startup — but the underlying matcher must be rewritten first for this to hold.
+
+Critical path to benchmark in Phase 0: hashed matcher at 200, 500, 1000 trace steps — verify p95 < 5ms.
 
 ---
 
-## Unresolved Items (to be confirmed by Phase 0 Spike)
+## Unresolved Items (updated post-audit)
 
-| Item | Risk if not resolved | Resolution path |
-|------|---------------------|-----------------|
-| SSE/streaming chunk storage in agrepl | FR-010 cannot be fully implemented | Phase 0 spike with streaming LLM call |
-| Header injection via LangChain/LangGraph | Correlation fidelity unknown | Phase 0 spike test |
-| CA cert installation on Windows (dev machine) | agrepl HTTPS interception may fail silently | Phase 0 spike on Windows |
-| agrepl retry deduplication | Retries may create duplicate cassette entries | Phase 0 spike with retry test |
+| Item | Status | Resolution path |
+|------|--------|-----------------|
+| SSE/streaming chunk storage in agrepl | ❌ **Confirmed broken** [FEAS] §2.5 | Phase 0.5 build task: add SSE passthrough + `GenerateContentStream` to fork |
+| Hashed request matcher in agrepl | ❌ **Confirmed absent** [FEAS] §2.3 | Phase 0 build task: replace `DeepEqual` linear scan with SHA-256 hashed index in fork |
+| CA key lifecycle / persistent key on disk | ❌ **Critical security gap** [SEC] | Security gate: implement in-memory/temp-dir CA + deferred cleanup before Phase 2 |
+| Header injection via LangChain/LangGraph | ⚠️ Unknown | Phase 0 spike: verify `X-AeroGraph-Span-Id` survives agrepl proxy round-trip |
+| CA cert installation on Windows (dev machine) | ⚠️ Unknown | Phase 0 spike on Windows |
+| agrepl retry deduplication | ⚠️ Unknown | Phase 0 spike with retry test |
+| Cassette path string correction (`.agent-replay/runs/` not `.agrepl/runs/`) | ✅ Corrected [FEAS] §2.2 | Update all orchestrator config and documentation references |

@@ -92,7 +92,7 @@ export const cassetteSchema = z.object({
 export type Cassette = z.infer<typeof cassetteSchema>;
 ```
 
-**Storage**: `.aerograph/cassettes/<runId>.json`
+**Storage**: `.aerograph/cassettes/<runId>.json` (canonical AeroGraph path — copied from the fork's native `.agent-replay/runs/<runId>.json` by the Orchestrator after each run; see path correction note in research.md §2.3)
 
 ---
 
