@@ -71,22 +71,23 @@ export function runMigrations(db: Database): void {
   }
 
   // Migration 006: deterministic replay columns & replay_runs table
-  const alreadyReplay = db
-    .prepare("SELECT 1 FROM schema_migrations WHERE version = ?")
-    .get("006_replay");
+  const existingCols = new Set((db.prepare("PRAGMA table_info(events)").all() as any[]).map(c => c.name));
+  const replayCols: [string, string][] = [
+    ["replay_source", "TEXT DEFAULT NULL"],
+    ["replay_request_key", "TEXT DEFAULT NULL"],
+    ["replay_tokens_saved", "INTEGER DEFAULT NULL"],
+    ["replay_latency_ms", "REAL DEFAULT NULL"],
+    ["replay_streaming_preserved", "INTEGER DEFAULT NULL"],
+    ["replay_overridden", "INTEGER DEFAULT NULL"]
+  ];
 
-  if (!alreadyReplay) {
-    db.exec(`
-      ALTER TABLE events ADD COLUMN replay_source             TEXT    DEFAULT NULL;
-      ALTER TABLE events ADD COLUMN replay_request_key         TEXT    DEFAULT NULL;
-      ALTER TABLE events ADD COLUMN replay_tokens_saved        INTEGER DEFAULT NULL;
-      ALTER TABLE events ADD COLUMN replay_latency_ms          REAL    DEFAULT NULL;
-      ALTER TABLE events ADD COLUMN replay_streaming_preserved INTEGER DEFAULT NULL;
-      ALTER TABLE events ADD COLUMN replay_overridden          INTEGER DEFAULT NULL;
-
-      INSERT OR IGNORE INTO schema_migrations (version) VALUES ('006_replay');
-    `);
+  for (const [col, def] of replayCols) {
+    if (!existingCols.has(col)) {
+      db.exec(`ALTER TABLE events ADD COLUMN ${col} ${def};`);
+    }
   }
+
+  db.exec(`INSERT OR IGNORE INTO schema_migrations (version) VALUES ('006_replay');`);
 
   // Ensure replay_runs table always exists (idempotent)
   db.exec(`

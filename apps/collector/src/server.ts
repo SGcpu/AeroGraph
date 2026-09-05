@@ -238,7 +238,12 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     }
 
     const { forkFromSpanId, overrides, projectConfigYaml } = parseResult.data;
-    let projectRoot = parseResult.data.projectRoot || (req.body.projectRoot as string) || process.cwd();
+    const linkedRun = store.getRunByTraceId(traceId);
+    let projectRoot =
+      parseResult.data.projectRoot ||
+      (req.body.projectRoot as string) ||
+      linkedRun?.projectRoot ||
+      process.cwd();
 
     // 1. If YAML was provided in the request/UI, parse it
     let parsedConfigFromYaml: any = null;
@@ -255,8 +260,6 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     if (config?.configDir) {
       projectRoot = config.configDir;
     }
-
-    const linkedRun = store.getRunByTraceId(traceId);
 
     // 3. Resolve command with intuitive precedence
     let command: string[] | undefined;

@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -285,15 +286,23 @@ func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, er
 		colorCyan, colorReset, req.Method, req.URL.String(), reqKey[:8])
 
 	// Return a fresh response body to the caller
+	outHeader := resp.Header.Clone()
+	if outHeader == nil {
+		outHeader = make(http.Header)
+	}
+	outHeader.Del("Transfer-Encoding")
+	outHeader.Set("Content-Length", strconv.Itoa(len(respBody)))
+
 	return &http.Response{
-		StatusCode: resp.StatusCode,
-		Status:     resp.Status,
-		Proto:      resp.Proto,
-		ProtoMajor: resp.ProtoMajor,
-		ProtoMinor: resp.ProtoMinor,
-		Header:     resp.Header,
-		Body:       io.NopCloser(bytes.NewBuffer(respBody)),
-		Request:    req,
+		StatusCode:    resp.StatusCode,
+		Status:        resp.Status,
+		Proto:         resp.Proto,
+		ProtoMajor:    resp.ProtoMajor,
+		ProtoMinor:    resp.ProtoMinor,
+		Header:        outHeader,
+		Body:          io.NopCloser(bytes.NewBuffer(respBody)),
+		ContentLength: int64(len(respBody)),
+		Request:       req,
 	}, nil
 }
 
@@ -385,15 +394,23 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 			body = io.NopCloser(bytes.NewBuffer(recordedResp.Body))
 		}
 
+		outHeader := recordedResp.Headers.Clone()
+		if outHeader == nil {
+			outHeader = make(http.Header)
+		}
+		outHeader.Del("Transfer-Encoding")
+		outHeader.Set("Content-Length", strconv.Itoa(len(recordedResp.Body)))
+
 		return &http.Response{
-			StatusCode: recordedResp.StatusCode,
-			Status:     recordedResp.Status,
-			Proto:      "HTTP/1.1",
-			ProtoMajor: 1,
-			ProtoMinor: 1,
-			Header:     recordedResp.Headers,
-			Body:       body,
-			Request:    req,
+			StatusCode:    recordedResp.StatusCode,
+			Status:        recordedResp.Status,
+			Proto:         "HTTP/1.1",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
+			Header:        outHeader,
+			Body:          body,
+			ContentLength: int64(len(recordedResp.Body)),
+			Request:       req,
 		}, nil
 	}
 

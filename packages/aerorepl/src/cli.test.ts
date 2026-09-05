@@ -171,15 +171,50 @@ describe("aerorepl REPL session subcommands (T074)", () => {
     expect(res).toContain("Rewound");
   });
 
-  it("/fork <spanId> maps to forkFromSpan(traceId, spanId)", async () => {
-    const forkSpy = vi.spyOn(mockClient, "forkFromSpan").mockResolvedValue({
-      childTraceId: "trace-child",
-      runId: "run-child",
-      status: "running"
+  it("/override extracts payload.text when full event JSON is provided", async () => {
+    const overrideSpy = vi.spyOn(mockClient, "overrideSpan").mockResolvedValue({
+      ok: true,
+      spanId: "s-test",
+      overridden: true
     });
 
-    const res = await handleSessionCommand("/fork s-target", session, mockClient);
-    expect(forkSpy).toHaveBeenCalledWith("trace-abc", "s-target");
-    expect(res).toContain("trace-child");
+    const fullEventJson = JSON.stringify({
+      schemaVersion: "1.1.0",
+      traceId: "t-1",
+      spanId: "s-test",
+      payload: {
+        text: "custom prompt from event payload"
+      }
+    });
+
+    const res = await handleSessionCommand(
+      `/override s-test ${fullEventJson}`,
+      session,
+      mockClient
+    );
+    expect(overrideSpy).toHaveBeenCalledWith("sess-123", "s-test", {
+      promptText: "custom prompt from event payload"
+    });
+    expect(res).toContain("custom prompt from event payload");
+  });
+
+  it("/inspect reflects active session overrides", async () => {
+    vi.spyOn(mockClient, "inspectSpan").mockResolvedValue({
+      spanId: "s-test",
+      kind: "prompt",
+      status: "ok",
+      payload: { text: "original prompt" }
+    } as any);
+
+    // Set override in session
+    (session as any).overrides = {
+      "s-test": { promptText: "updated prompt text" }
+    };
+
+    const res = await handleSessionCommand("/inspect s-test", session, mockClient);
+    const parsed = JSON.parse(res);
+    expect(parsed.payload.text).toBe("updated prompt text");
+    expect(parsed.override.active).toBe(true);
+    expect(parsed.override.promptText).toBe("updated prompt text");
   });
 });

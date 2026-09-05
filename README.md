@@ -139,21 +139,32 @@ AeroGraph includes a local-first **Deterministic Replay** engine backed by `aero
 
 ### CLI Quickstart (`aerorepl`)
 ```bash
-# Record an agent run:
-aerorepl record python agent.py
+# View active configuration and safety rules:
+npx aerorepl config get
 
-# Replay an existing run:
-aerorepl replay <runId>
+# Set and store your agent command (.aerograph/aerograph.project.yaml):
+npx aerorepl config set python agent.py
 
-# Interactive step inspection and override:
-aerorepl session <runId>
+# Paste or import configuration (auto-detects project command vs tool policy):
+npx aerorepl config paste aerograph.replay.yaml
+# Or interactively paste and finish with 'END':
+npx aerorepl config paste
+
+# Record an agent run into a deterministic cassette:
+npx aerorepl record python agent.py
+
+# Replay an existing run from cassette cache (zero token cost):
+npx aerorepl replay <runId>
+
+# Interactive step inspection and live prompt override:
+npx aerorepl session <runId>
 # Inside the session:
-# /step              Advance one step
-# /inspect <spanId>  Inspect full payload of a span
-# /override <spanId> {"promptText": "New prompt"}
-# /rewind 1          Rewind to previous step
-# /fork <spanId>     Fork alternate execution from span
-# /quit              Exit session
+# /step                       Advance one step
+# /inspect <spanId>           Inspect full payload of a span (reflects active overrides)
+# /override <spanId> <input>  Override prompt (accepts multi-line JSON, @file.json, or raw text)
+# /rewind 1                   Rewind to previous step
+# /fork <spanId>              Fork alternate execution from span
+# /quit                       Exit session
 ```
 
 See [Deterministic Replay Quickstart](specs/006-deterministic-replay/quickstart.md) and [Replay Getting Started](docs/replay/getting-started.md) for full documentation.
@@ -252,7 +263,7 @@ AeroGraph is designed so that you **never have to manually drop configuration fi
 - The configuration automatically saves to `.aerograph/aerograph.project.yaml`, keeping your workspace root completely clean.
 
 #### Option B: In the Terminal (`npx aerorepl config`)
-- **View active configuration**:
+- **View active configuration and safety rules**:
   ```sh
   npx aerorepl config get
   ```
@@ -260,15 +271,42 @@ AeroGraph is designed so that you **never have to manually drop configuration fi
   ```sh
   npx aerorepl config set uv run examples/openrouter-langgraph-py/agent.py
   ```
-- **Interactively paste YAML into terminal**:
+- **Paste configuration interactively (type 'END' on a new line when done)**:
   ```sh
   npx aerorepl config paste
   ```
+- **Import an existing configuration or tool policy directly**:
+  ```sh
+  npx aerorepl config paste aerograph.replay.yaml
+  # Or via import:
+  npx aerorepl config import aerograph.replay.yaml
+  ```
 - **Auto-Bind on Record**: When executing `npx aerorepl record -- <command...>`, `aerorepl` automatically stores the command in `.aerograph/aerograph.project.yaml` so all future replays and Web UI forks reuse it seamlessly.
+
+> **Smart Auto-Detection**: `aerorepl config paste` and `import` automatically detect whether your YAML defines a **Tool Safety Policy** (`tools: [...]` → saved to `aerograph.replay.yaml`), an **Agent Project Command** (`command: [...]` → saved to `.aerograph/aerograph.project.yaml`), or both!
 
 #### Configuration Reference
 - **`.aerograph/aerograph.project.yaml`** (or root `aerograph.project.yaml`): Specifies the execution command, project identity, and service URLs.
-- **`aerograph.replay.yaml`**: Defines your [Safety Policy](docs/replay/safety-policy.md), specifying which hosts are `replay_safe` (cached) vs `must_execute` (live), command blacklists, and loop tripwire thresholds.
+- **`aerograph.replay.yaml`**: Defines your [Safety Policy](docs/replay/safety-policy.md), specifying which hosts/tools are `replay_safe` (cached) vs `must_execute` (live), command blacklists, and loop tripwire thresholds.
+
+### 7. Span Correlation & Adapter Development Guide
+For developers contributing or building framework adapters (e.g. LangChain, LlamaIndex, AutoGen, CrewAI):
+
+#### The Correlation Challenge with Standard HTTP Clients
+When an agent framework makes external calls (such as completions to OpenAI/Anthropic/OpenRouter, or web requests via tool libraries):
+- Telemetry events emitted by the adapter (e.g. LangChain callback handler or OTel exporter) produce `prompt`, `response`, `tool_call`, and `tool_result` spans with unique `spanId`s.
+- Network calls intercepted by the Go MITM proxy (`aerograph-replay-core`) capture HTTP request/response steps into a cassette and emit an annotation log (`afr_ann_<runId>.json`).
+- Standard HTTP clients (such as Python `langchain-openai`, `requests`, `httpx`, `urllib3`, or standard `fetch`) **do not send custom telemetry headers** like `X-AeroGraph-Span-Id`. In raw proxy captures, `correlatedSpanId` is therefore empty.
+
+#### AeroGraph's Dual-Correlation Solution
+1. **Explicit Header Injection (Recommended when custom clients are available)**:
+   If your adapter controls the HTTP client or custom fetch/session wrapper, injecting `X-AeroGraph-Span-Id: <spanId>` on outbound HTTP calls allows the Go proxy to achieve exact $O(1)$ correlation.
+2. **Sequential Fallback Correlation (Built-in)**:
+   When `X-AeroGraph-Span-Id` is absent, the AeroGraph Runner sequentially matches HTTP annotation entries with application `prompt` and `response` spans in chronological order, attaching `replaySource` (`⚡ CACHE` vs `🌐 LIVE`), `decision`, `replayLatencyMs`, and `requestKey`.
+3. **Safety Policy Stamping on Tool Spans**:
+   All `tool_call` and `tool_result` spans are matched against `aerograph.replay.yaml` rules. Spans receive `effectiveClass: "replay_safe"` (`🟢 REPLAY SAFE`) or `effectiveClass: "must_execute"` (`🔴 MUST EXECUTE`).
+
+See the [Adapter Authoring Guide](docs/adapters/authoring-guide.md) for full developer guidelines.
 
 ### 7. Updating Cross-Language Artifacts
 AeroGraph is contract-first. If you modify contracts in `packages/contracts`, update the derived JSON schemas and Python models:

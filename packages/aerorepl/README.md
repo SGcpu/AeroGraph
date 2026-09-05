@@ -65,10 +65,10 @@ See [Safety Policy Guide](../../docs/replay/safety-policy.md) for full details o
 ## Commands
 
 ### 1. `config` (Zero-Manual-File Project Binding)
-View, set, or interactively paste project configuration without creating or managing loose YAML files manually.
+View, set, paste, or import project configuration and tool safety policies without creating or managing loose YAML files manually.
 
 ```bash
-# View active configuration and command:
+# View active configuration, command, and safety policy status:
 npx aerorepl config get
 
 # Set and store your agent command in .aerograph/aerograph.project.yaml:
@@ -76,9 +76,17 @@ npx aerorepl config set uv run agent.py
 # Or for TypeScript:
 npx aerorepl config set npm run start
 
-# Interactively paste aerograph.project.yaml content directly into terminal:
+# Interactively paste YAML configuration into terminal (type 'END' when finished):
 npx aerorepl config paste
+
+# Or pass a file directly to paste/save without interactive prompt:
+npx aerorepl config paste aerograph.replay.yaml
+
+# Import an existing YAML file directly:
+npx aerorepl config import aerograph.replay.yaml
 ```
+
+> **Smart Auto-Detection**: `aerorepl config paste` and `import` automatically detect whether your YAML defines a **Tool Safety Policy** (`tools: [...]` → saved to `aerograph.replay.yaml`), an **Agent Project Command** (`command: [...]` → saved to `.aerograph/aerograph.project.yaml`), or both!
 
 ### 2. `record`
 Execute an agent command while intercepting all HTTP/HTTPS traffic through `aerograph-replay-core`. Generates a deterministic cassette saved to `.aerograph/cassettes/<runId>.json`.
@@ -111,14 +119,38 @@ npx aerorepl session <runId>
 #### Interactive Session Commands
 Once inside the REPL prompt (`aerorepl> `):
 
-| Command | Description |
-|---|---|
-| `/step` | Advance execution by 1 span |
-| `/inspect <spanId>` | Print full JSON payload and details of a span |
-| `/override <spanId> <json>` | Override the recorded payload for a span during replay |
-| `/rewind [n]` | Rewind the stepping pointer by `n` spans (default: 1) |
-| `/fork <spanId>` | Fork execution from this span: slices cassette and resumes live execution |
-| `/quit` | Exit the interactive session |
+| Command | Description | Example |
+|---|---|---|
+| `/step` | Advance execution by 1 span | `/step` |
+| `/inspect <spanId>` | Print full JSON payload of a span (reflects active overrides) | `/inspect s_AaBx...` |
+| `/override <spanId> [input]` | Override the prompt text or payload for a span during replay | See options below |
+| `/rewind [n]` | Rewind the stepping pointer by `n` spans (default: 1) | `/rewind 1` |
+| `/fork <spanId>` | Fork execution from this span: slices cassette and resumes live execution | `/fork s_AaBx...` |
+| `/quit` | Exit the interactive session | `/quit` |
+
+#### Flexible `/override` Formats:
+1. **Interactive Multi-Line JSON (Auto-Balanced)**:
+   ```
+   aerorepl> /override s_123
+   override> {
+   override>   "payload": {
+   override>     "text": "Your new prompt text here"
+   override>   }
+   override> }
+   ✓ Overridden span s_123 with prompt: "Your new prompt text here"
+   ```
+   *The accumulator automatically tracks brace depth and will not prematurely cut off on inner closing braces!*
+2. **From a File (`@file` or `--file`)**:
+   ```
+   aerorepl> /override s_123 @prompt.json
+   aerorepl> /override s_123 --file ./prompts/eval_prompt.txt
+   ```
+3. **Plain Text (No JSON Quotes Needed)**:
+   ```
+   aerorepl> /override s_123 Analyze rover navigation algorithms in 3 bullet points.
+   ```
+4. **Full Trace Event Auto-Extraction**:
+   If you paste a full trace event JSON (copied from `/inspect` or the Web UI), `aerorepl` automatically extracts `payload.text`, `payload.prompt`, `text`, or `promptText` without errors!
 
 ### 5. `list`
 List all recorded runs and cassettes in the local project:

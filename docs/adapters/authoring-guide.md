@@ -13,22 +13,53 @@ AeroGraph achieves deterministic replay at the transport/proxy level, not at the
 3. During **Replay mode** (`aerorepl replay <runId>`), the proxy intercepts outbound requests and serves identical matching responses from the cassette cache with sub-5ms latency and zero token cost.
 4. Spans in the resulting replay trace are automatically annotated with `replaySource: "cache"`, `tokensSaved`, and `replayLatencyMs`.
 
-## Authoring Rules for Adapters
+## Span Correlation & Network Interception Architecture
 
-When writing an adapter:
+### The Span Correlation Challenge
+When an agent framework makes external calls (such as completions to OpenAI/Anthropic/OpenRouter, or web requests via tool libraries), two independent streams of observability data are created:
+1. **Application-Level Telemetry**: Emitted by your adapter (e.g., LangChain callback handler or OTel tracer) to the AeroGraph Collector (`POST /v1/events` or OTLP), generating `prompt`, `response`, `tool_call`, and `tool_result` spans with unique `spanId`s.
+2. **Network-Level Telemetry**: Intercepted by the local Go MITM proxy (`aerograph-replay-core`) via `HTTP_PROXY` / `HTTPS_PROXY`, generating request/response steps in the cassette (`.aerograph/cassettes/<runId>.json`) and an annotation log (`afr_ann_<runId>.json`).
 
-1. **Emit Canonical `TraceEvent`s**: Use `@aerograph/sdk` (`FlightRecorder`) in TypeScript or `aerograph_sdk` in Python. Map framework-specific events (e.g., prompt start, response end, tool call, tool result) to standard AFR event kinds (`prompt`, `response`, `tool_call`, `tool_result`, `note`, `error`).
-2. **DO NOT import replay modules**: Adapters must never import or reference replay binaries, cassettes, or caching logic.
-3. **Preserve Span Hierarchy**: Maintain `spanId` and `parentSpanId` causality links so that traces form directed acyclic graphs (DAGs).
-4. **Project Configuration**: Ensure `aerograph.project.yaml` is present at the project root to specify agent launch commands and proxy settings:
-   ```yaml
-   version: "1.0.0"
-   command:
-     - python
-     - agent.py
-   collectorUrl: "http://127.0.0.1:4317"
-   orchestratorUrl: "http://127.0.0.1:4318"
-   ```
-5. **Tool Safety Policy**: Define URL safety classifications in `aerograph.replay.yaml` (`replay_safe` vs. `must_execute`) to control whether tool requests replay from cache or execute live during replay and fork runs.
+Standard HTTP clients (such as Python `langchain-openai`, `requests`, `httpx`, `urllib3`, or browser/Node `fetch`) **do not propagate custom internal telemetry headers**. As a result, the Go proxy intercepts raw HTTP calls where `X-AeroGraph-Span-Id` is empty, producing annotation entries with an empty `correlatedSpanId`.
 
-See the [Deterministic Replay Getting Started](../replay/getting-started.md) and [Tool Safety Policy](../replay/safety-policy.md) for complete end-to-end workflows.
+### AeroGraph's Dual-Correlation Strategy
+
+AeroGraph resolves this seamlessly through a dual-correlation strategy:
+
+#### 1. Header Injection (Explicit O(1) Correlation)
+If your adapter controls the HTTP client instance or provides a custom HTTP transport/session wrapper (for example, in custom SDK clients, Axios interceptors, or custom httpx transports):
+- Inject the active span ID as an HTTP header:
+  ```http
+  X-AeroGraph-Span-Id: <spanId>
+  ```
+- The Go proxy extracts this header directly in `http.go` (`req.Header.Get("X-AeroGraph-Span-Id")`) and attaches it to the `AnnotationEntry.CorrelatedSpanId`.
+- This provides exact, instantaneous $O(1)$ correlation between the network request and the trace span.
+
+#### 2. Automatic Sequential Correlation (Built-in Fallback)
+For standard adapters where modifying the underlying HTTP client is impractical or undesirable:
+- AeroGraph's Runner implements **sequential fallback correlation** in `ingestAnnotations()`.
+- The Runner loads the trace's `prompt` and `response` spans in chronological order:
+  - Annotation entry `i` is correlated with `promptEvents[i]` (the request) and `responseEvents[i]` (the completion).
+  - The spans are enriched with `replaySource` (`"cache"` vs `"live"`), `decision` (`"cache_hit"`, `"must_execute"`, `"fallback"`, `"live_record"`), `replayLatencyMs`, and `requestKey`.
+- Any remaining spans in a `replay` run default to `replaySource: "cache"`, while in a `record` run they default to `"live"`.
+
+#### 3. Tool Safety Policy Annotation
+For all `tool_call` and `tool_result` spans:
+- The Runner inspects the active `aerograph.replay.yaml` tool policy rules.
+- Matches tool spans by `toolName` or URL pattern:
+  - Rules marked `class: "replay_safe"` receive `effectiveClass: "replay_safe"`, `decision: "cache_hit"`, and badge `🟢 REPLAY SAFE` / `⚡ CACHE`.
+  - Rules marked `class: "must_execute"` (or unlisted tools under default-deny safety) receive `effectiveClass: "must_execute"`, `decision: "must_execute"`, and badge `🔴 MUST EXECUTE` / `🌐 LIVE`.
+
+---
+
+## Authoring Checklist for New Adapters
+
+When contributing or maintaining adapters (e.g. for LangChain, LlamaIndex, AutoGen, CrewAI, Haystack):
+
+1. **Emit Canonical `TraceEvent`s**: Use `@aerograph/sdk` in TypeScript or `aerograph_sdk` in Python. Map framework lifecycle events to the standard 10 event kinds: `prompt`, `response`, `tool_call`, `tool_result`, `retriever`, `checkpoint`, `state_snapshot`, `note`, `handoff`, `error`.
+2. **Never Import Replay Binaries**: Adapters must remain pure telemetry emitters. Do not import cassette logic or proxy handlers into the adapter codebase.
+3. **Preserve Causal Hierarchy**: Always set `parentSpanId` so parent-child relationships between chains, LLMs, and tools form a coherent DAG.
+4. **Header Hook (Optional & Encouraged)**: If the framework allows injecting default headers into LLM/tool HTTP clients, forward `X-AeroGraph-Span-Id` during the span's execution window.
+5. **Project Configuration Support**: Support running with `.aerograph/aerograph.project.yaml` and `aerograph.replay.yaml`.
+
+See the [Deterministic Replay Getting Started](../replay/getting-started.md) and [Tool Safety Policy](../replay/safety-policy.md) for full reference.

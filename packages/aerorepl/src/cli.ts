@@ -2,9 +2,17 @@
 
 import { Command } from "commander";
 import readline from "readline";
+import fs from "fs";
+import path from "path";
 import yaml from "js-yaml";
 import { AereplClient, SessionInfo } from "./client.js";
-import { loadProjectConfig, saveProjectConfig, AerographProjectConfig } from "./config.js";
+import {
+  loadProjectConfig,
+  saveProjectConfig,
+  saveYamlAutoDetect,
+  findReplayPolicyPath,
+  AerographProjectConfig
+} from "./config.js";
 
 function getProjectConfig(): AerographProjectConfig {
   try {
@@ -28,13 +36,16 @@ export async function handleSessionCommand(
   if (trimmed === "/step") {
     const result = await client.stepSession(session.sessionId);
     session.currentStep = result.step;
-    return `Step ${result.step}: ${
-      result.spanSummary
-        ? `${result.spanSummary.kind} [${result.spanSummary.spanId}] (${
-            result.spanSummary.status || "ok"
-          })`
-        : "No further spans"
-    }`;
+    if (!result.spanSummary) {
+      const runStatus = (session as any).runStatus;
+      if (runStatus === "failed" || runStatus === "crashed") {
+        return `Step ${result.step}: No further spans (Run ${session.runId} ended with status '${runStatus}')`;
+      }
+      return `Step ${result.step}: No further spans`;
+    }
+    return `Step ${result.step}: ${result.spanSummary.kind} [${result.spanSummary.spanId}] (${
+      result.spanSummary.status || "ok"
+    })`;
   }
 
   if (trimmed.startsWith("/inspect")) {
@@ -42,21 +53,84 @@ export async function handleSessionCommand(
     const spanId = parts[1];
     if (!spanId) return "Error: /inspect requires <spanId>";
     const event = await client.inspectSpan(session.traceId, spanId);
+    if (!event) return `Span ${spanId} not found in trace ${session.traceId}`;
+
+    const activeOverride = (session as any).overrides?.[spanId];
+    if (activeOverride) {
+      const promptText =
+        typeof activeOverride === "string"
+          ? activeOverride
+          : (activeOverride.promptText || activeOverride.payload?.text || JSON.stringify(activeOverride));
+
+      const enrichedEvent: any = {
+        ...event,
+        override: {
+          active: true,
+          promptText
+        }
+      };
+      if (enrichedEvent.payload && typeof enrichedEvent.payload === "object") {
+        enrichedEvent.payload = {
+          ...enrichedEvent.payload,
+          text: promptText,
+          _originalText: (event.payload as any)?.text
+        };
+      }
+      return JSON.stringify(enrichedEvent, null, 2);
+    }
+
     return JSON.stringify(event, null, 2);
   }
 
   if (trimmed.startsWith("/override")) {
-    const match = trimmed.match(/^\/override\s+(\S+)\s+(.+)$/);
-    if (!match) return "Error: /override requires <spanId> <json>";
-    const [, spanId, jsonStr] = match;
-    let value: any;
-    try {
-      value = JSON.parse(jsonStr);
-    } catch {
-      value = jsonStr;
+    const match = trimmed.match(/^\/override\s+(\S+)(?:\s+([\s\S]+))?$/);
+    if (!match) return "Error: /override requires <spanId> [json|text|@file]";
+    const [, spanId, rawArg] = match;
+    const cleanArg = (rawArg || "").trim();
+
+    if (!cleanArg) {
+      return "Error: /override requires a replacement prompt text or JSON. Example: /override s_123 \"new prompt text\" or /override s_123 @file.json";
     }
+
+    let value: any;
+    if (cleanArg.startsWith("@") || cleanArg.startsWith("--file ")) {
+      const filePath = cleanArg.startsWith("@") ? cleanArg.slice(1).trim() : cleanArg.replace(/^--file\s+/, "").trim();
+      try {
+        const fileContent = fs.readFileSync(path.resolve(filePath), "utf-8").trim();
+        try {
+          value = JSON.parse(fileContent);
+        } catch {
+          value = fileContent;
+        }
+      } catch (fErr: any) {
+        return `Error reading file '${filePath}': ${fErr.message}`;
+      }
+    } else {
+      try {
+        value = JSON.parse(cleanArg);
+      } catch {
+        value = cleanArg;
+      }
+    }
+
+    // If full event was passed, automatically extract prompt payload text
+    if (value && typeof value === "object") {
+      if (value.payload?.text) {
+        value = { promptText: value.payload.text };
+      } else if (value.text) {
+        value = { promptText: value.text };
+      } else if (value.promptText) {
+        value = { promptText: value.promptText };
+      }
+    } else if (typeof value === "string") {
+      value = { promptText: value };
+    }
+
     const result = await client.overrideSpan(session.sessionId, spanId, value);
-    return `Overridden span ${result.spanId}`;
+    (session as any).overrides = (session as any).overrides || {};
+    (session as any).overrides[spanId] = value;
+    const preview = typeof value === "object" ? (value.promptText || JSON.stringify(value)) : String(value);
+    return `✓ Overridden span ${result.spanId} with prompt: "${preview.slice(0, 80)}${preview.length > 80 ? '...' : ''}"`;
   }
 
   if (trimmed.startsWith("/rewind")) {
@@ -72,7 +146,19 @@ export async function handleSessionCommand(
     const parts = trimmed.split(/\s+/);
     const spanId = parts[1];
     if (!spanId) return "Error: /fork requires <spanId>";
-    const result = await client.forkFromSpan(session.traceId, spanId);
+    const promptOverride = (session as any).overrides?.[spanId];
+    const promptText =
+      typeof promptOverride === "string"
+        ? promptOverride
+        : promptOverride?.promptText || promptOverride?.payload?.text;
+    const config = getProjectConfig();
+    const result = await client.forkFromSpan(
+      session.traceId,
+      spanId,
+      promptText,
+      config.projectRoot,
+      config.command && config.command.length > 0 ? config.command : undefined
+    );
     return `Forked trace ${session.traceId} at ${spanId} -> child trace: ${result.childTraceId} (run: ${result.runId}, status: ${result.status})`;
   }
 
@@ -147,13 +233,27 @@ export function createProgram(customClient?: AereplClient): Command {
 
   configCmd
     .command("get")
-    .description("Display active project configuration")
+    .description("Display active project and tool safety policy configuration")
     .action(() => {
       const cfg = getProjectConfig();
       console.log(`Project Root:     ${cfg.projectRoot}`);
       console.log(`Active Command:   ${cfg.command && cfg.command.length > 0 ? cfg.command.join(" ") : "(none configured)"}`);
       console.log(`Collector URL:    ${cfg.collectorUrl || "http://127.0.0.1:4317"}`);
       console.log(`Orchestrator URL: ${cfg.orchestratorUrl || "http://127.0.0.1:4318"}`);
+
+      const policyPath = findReplayPolicyPath(cfg.projectRoot);
+      if (policyPath) {
+        try {
+          const raw = fs.readFileSync(policyPath, "utf-8");
+          const parsed = yaml.load(raw) as any;
+          const count = Array.isArray(parsed?.tools) ? parsed.tools.length : 0;
+          console.log(`Tool Policy:      ${policyPath} (${count} rule${count === 1 ? '' : 's'})`);
+        } catch {
+          console.log(`Tool Policy:      ${policyPath} (present)`);
+        }
+      } else {
+        console.log(`Tool Policy:      (none configured — create aerograph.replay.yaml to declare safety rules)`);
+      }
     });
 
   configCmd
@@ -170,34 +270,97 @@ export function createProgram(customClient?: AereplClient): Command {
     });
 
   configCmd
-    .command("paste")
-    .description("Interactively paste aerograph.project.yaml content directly into terminal")
-    .action(async () => {
-      console.log("Paste your aerograph.project.yaml content below. Press Enter then Ctrl+D (or Ctrl+Z on Windows + Enter) when done:\n");
-      const rl = readline.createInterface({
-        input: process.stdin,
-        output: process.stdout,
-        terminal: false
-      });
-      const lines: string[] = [];
-      for await (const line of rl) {
-        lines.push(line);
+    .command("paste [filePath]")
+    .description("Paste or import aerograph.project.yaml or aerograph.replay.yaml")
+    .option("-f, --file <filePath>", "Path to YAML file to import")
+    .action(async (filePathArg: string | undefined, options: { file?: string }) => {
+      const targetFile = filePathArg || options.file;
+      let rawYaml = "";
+
+      if (targetFile) {
+        try {
+          rawYaml = fs.readFileSync(path.resolve(targetFile), "utf-8");
+          console.log(`Reading configuration from: ${targetFile}`);
+        } catch (fErr: any) {
+          console.error(`Error reading file '${targetFile}': ${fErr.message}`);
+          return;
+        }
+      } else {
+        console.log("Paste your configuration below (.aerograph/aerograph.project.yaml or aerograph.replay.yaml).");
+        console.log("When finished, type 'END' on a new line and press Enter (or press Ctrl+D / Ctrl+Z):\n");
+
+        const rl = readline.createInterface({
+          input: process.stdin,
+          output: process.stdout,
+          terminal: false
+        });
+        const lines: string[] = [];
+        let emptyLineCount = 0;
+
+        for await (const line of rl) {
+          const trimmedLine = line.trim();
+          if (
+            trimmedLine.toUpperCase() === "END" ||
+            trimmedLine.toUpperCase() === "EOF" ||
+            trimmedLine === ":wq"
+          ) {
+            break;
+          }
+          if (trimmedLine === "") {
+            emptyLineCount++;
+            if (emptyLineCount >= 2 && lines.length > 0) {
+              break;
+            }
+          } else {
+            emptyLineCount = 0;
+          }
+          lines.push(line);
+        }
+        rl.close();
+        if (typeof process.stdin.pause === "function") {
+          process.stdin.pause();
+        }
+        rawYaml = lines.join("\n").trim();
       }
-      const rawYaml = lines.join("\n").trim();
+
       if (!rawYaml) {
         console.error("Error: No YAML content provided.");
-        return;
+        process.exit(1);
       }
+
       try {
-        const parsed = yaml.load(rawYaml) as any;
-        if (!parsed || typeof parsed !== "object" || !parsed.command) {
-          throw new Error("YAML must contain a 'command' field (e.g. command: [uv, run, agent.py])");
+        const res = saveYamlAutoDetect(rawYaml, process.cwd());
+        for (let i = 0; i < res.savedFiles.length; i++) {
+          const typeLabel =
+            res.types[i] === "policy"
+              ? "Tool Safety Policy (aerograph.replay.yaml)"
+              : "Agent Project Config (.aerograph/aerograph.project.yaml)";
+          console.log(`✓ Successfully saved ${typeLabel} to:`);
+          console.log(`  ${res.savedFiles[i]}`);
         }
-        const cmd = Array.isArray(parsed.command) ? parsed.command : String(parsed.command).trim().split(/\s+/);
-        const savedPath = saveProjectConfig(cmd, process.cwd(), parsed);
-        console.log(`✓ Successfully saved configuration to: ${savedPath}`);
+        process.exit(0);
       } catch (err: any) {
-        console.error(`Failed to save YAML config: ${err.message}`);
+        console.error(`Failed to save configuration: ${err.message}`);
+        process.exit(1);
+      }
+    });
+
+  configCmd
+    .command("import <filePath>")
+    .description("Import configuration directly from a YAML file")
+    .action((filePath: string) => {
+      try {
+        const rawYaml = fs.readFileSync(path.resolve(filePath), "utf-8");
+        const res = saveYamlAutoDetect(rawYaml, process.cwd());
+        for (let i = 0; i < res.savedFiles.length; i++) {
+          const typeLabel =
+            res.types[i] === "policy"
+              ? "Tool Safety Policy"
+              : "Agent Project Config";
+          console.log(`✓ Imported ${typeLabel} to: ${res.savedFiles[i]}`);
+        }
+      } catch (err: any) {
+        console.error(`Failed to import configuration: ${err.message}`);
       }
     });
 
@@ -302,8 +465,27 @@ export function createProgram(customClient?: AereplClient): Command {
       try {
         const init = await client.createSession(runId);
         const session = await client.getSession(init.sessionId);
+        let runStatus: string | undefined;
+        let runErrorMessage: string | null | undefined;
+        try {
+          const run = await client.getRun(runId);
+          runStatus = run.status;
+          runErrorMessage = run.errorMessage;
+          (session as any).runStatus = run.status;
+        } catch {
+          // Non-blocking
+        }
+
         console.log(`Interactive REPL session started: ${session.sessionId} (Run: ${runId})`);
-        console.log("Commands: /step, /inspect <spanId>, /override <spanId> <json>, /rewind <N>, /fork <spanId>, /quit\n");
+        if (runStatus === "failed" || runStatus === "crashed") {
+          console.log(`⚠️  Warning: Run ${runId} has status '${runStatus}'.`);
+          if (runErrorMessage) {
+            const firstLine = runErrorMessage.trim().split("\n")[0];
+            console.log(`   Error: ${firstLine}`);
+          }
+          console.log("   Cassette steps can be replayed and inspected, but live agent spans are not available.\n");
+        }
+        console.log("Commands: /step, /inspect <spanId>, /override <spanId> [text|json|@file], /rewind <N>, /fork <spanId>, /quit\n");
 
         const rl = readline.createInterface({
           input: process.stdin,
@@ -311,22 +493,98 @@ export function createProgram(customClient?: AereplClient): Command {
           prompt: "aerorepl> "
         });
 
+        let isAccumulating = false;
+        let accumulatedLines: string[] = [];
+        let pendingSpanId = "";
+
         rl.prompt();
 
         rl.on("line", async (line) => {
-          const input = line.trim();
-          if (input === "/quit" || input === "/exit") {
-            rl.close();
-            return;
-          }
-          if (input) {
-            try {
-              const output = await handleSessionCommand(input, session, client);
-              console.log(output);
-            } catch (cmdErr: any) {
-              console.error(`Session error: ${cmdErr.message || cmdErr}`);
+          const trimmed = line.trim();
+
+          if (!isAccumulating) {
+            if (trimmed === "/quit" || trimmed === "/exit") {
+              rl.close();
+              return;
+            }
+
+            if (trimmed.startsWith("/override")) {
+              const match = trimmed.match(/^\/override\s+(\S+)(?:\s+([\s\S]+))?$/);
+              if (match) {
+                const [, spanId, rest] = match;
+                const restTrimmed = (rest || "").trim();
+                const isMultiLineStart =
+                  !restTrimmed ||
+                  (restTrimmed.startsWith("{") && !restTrimmed.endsWith("}"));
+
+                if (isMultiLineStart) {
+                  isAccumulating = true;
+                  pendingSpanId = spanId;
+                  accumulatedLines = restTrimmed ? [restTrimmed] : [];
+                  console.log(
+                    `Entering multi-line override for ${spanId}. Paste/enter JSON or prompt text, then type 'END' on a new line when done:`
+                  );
+                  rl.setPrompt("override> ");
+                  rl.prompt();
+                  return;
+                }
+              }
+            }
+
+            if (trimmed) {
+              try {
+                const output = await handleSessionCommand(trimmed, session, client);
+                console.log(output);
+              } catch (cmdErr: any) {
+                console.error(`Session error: ${cmdErr.message || cmdErr}`);
+              }
+            }
+          } else {
+            // Multi-line accumulation mode
+            const isEndMarker =
+              trimmed.toUpperCase() === "END" ||
+              trimmed.toUpperCase() === "EOF" ||
+              trimmed === ":wq";
+
+            if (!isEndMarker) {
+              accumulatedLines.push(line);
+            }
+
+            const combined = accumulatedLines.join("\n").trim();
+            let isComplete = false;
+
+            if (isEndMarker) {
+              isComplete = true;
+            } else if (combined.startsWith("{")) {
+              // Only mark complete if the accumulated string forms a valid, closed JSON object
+              try {
+                JSON.parse(combined);
+                isComplete = true;
+              } catch {
+                // Incomplete JSON (inner braces closed but outer still open)
+                isComplete = false;
+              }
+            }
+
+            if (isComplete) {
+              isAccumulating = false;
+              rl.setPrompt("aerorepl> ");
+              const fullCommand = `/override ${pendingSpanId} ${combined}`;
+              accumulatedLines = [];
+              try {
+                const output = await handleSessionCommand(fullCommand, session, client);
+                console.log(output);
+              } catch (cmdErr: any) {
+                console.error(`Session error: ${cmdErr.message || cmdErr}`);
+              }
+              rl.prompt();
+              return;
+            } else {
+              rl.prompt();
+              return;
             }
           }
+
           rl.prompt();
         });
 

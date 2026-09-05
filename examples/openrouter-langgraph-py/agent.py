@@ -142,7 +142,7 @@ def main():
     # 4. Initialize AeroGraph Flight Recorder
     # ========================================================
 
-    trace_id = new_trace_id()
+    trace_id = os.getenv("AFR_TRACE_ID") or new_trace_id()
 
     # HTTP client used by AeroGraph to communicate with
     # the local/remote collector.

@@ -76,7 +76,13 @@ export const replayMetaSchema = z.object({
   /** False if streaming chunks could not be preserved individually in the cassette. */
   streamingPreserved: z.boolean().nullable().optional(),
   /** True if this span's response was manually overridden by aerorepl /override. */
-  overridden: z.boolean().nullable().optional()
+  overridden: z.boolean().nullable().optional(),
+  /** Replay decision: "cache_hit" | "must_execute" | "fallback" | "live_record" */
+  decision: z.string().nullable().optional(),
+  /** Matched rule pattern from aerograph.replay.yaml */
+  matchedPattern: z.string().nullable().optional(),
+  /** Safety class from aerograph.replay.yaml: "replay_safe" | "must_execute" */
+  effectiveClass: z.string().nullable().optional()
 });
 export type ReplayMeta = z.infer<typeof replayMetaSchema>;
 
@@ -114,7 +120,13 @@ const baseEventSchema = z.object({
   /** False if streaming chunks could not be preserved individually in the cassette. */
   streamingPreserved: z.boolean().nullable().optional(),
   /** True if this span's response was manually overridden by aerorepl /override. */
-  overridden: z.boolean().nullable().optional()
+  overridden: z.boolean().nullable().optional(),
+  /** Replay decision: "cache_hit" | "must_execute" | "fallback" | "live_record" */
+  decision: z.string().nullable().optional(),
+  /** Matched rule pattern from aerograph.replay.yaml */
+  matchedPattern: z.string().nullable().optional(),
+  /** Safety class from aerograph.replay.yaml: "replay_safe" | "must_execute" */
+  effectiveClass: z.string().nullable().optional()
 });
 
 export const promptPayloadSchema = z.object({ 
@@ -272,7 +284,15 @@ export const traceMetaSchema = z.object({
     .optional(),
   projectId: z.string().min(1).optional(),
   environment: z.string().min(1).optional(),
-  isDeleted: z.boolean().optional()
+  isDeleted: z.boolean().optional(),
+  replayRun: z
+    .object({
+      runId: z.string().min(1),
+      mode: z.enum(["record", "replay", "fork"]),
+      cassetteRunId: z.string().nullable().optional(),
+      sourceTraceId: z.string().nullable().optional()
+    })
+    .optional()
 });
 export type TraceMeta = z.infer<typeof traceMetaSchema>;
 

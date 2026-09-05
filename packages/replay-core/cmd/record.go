@@ -39,10 +39,20 @@ No CA key material persists after the process ends (FR-037).`,
 			os.Exit(1)
 		}
 
-		runID, err := s.GetNextRunID()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "\033[31mError getting next run ID: %v\033[0m\n", err)
-			os.Exit(1)
+		runID := os.Getenv("AFR_RUN_ID")
+		if runID == "" {
+			runID = os.Getenv("AEROREPL_RUN_ID")
+		}
+		if flagRunID, _ := cmd.Flags().GetString("run-id"); flagRunID != "" {
+			runID = flagRunID
+		}
+		if runID == "" {
+			var err error
+			runID, err = s.GetNextRunID()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "\033[31mError getting next run ID: %v\033[0m\n", err)
+				os.Exit(1)
+			}
 		}
 
 		currentRun := &core.Run{
@@ -175,6 +185,7 @@ No CA key material persists after the process ends (FR-037).`,
 
 func init() {
 	recordCmd.Flags().SetInterspersed(false)
+	recordCmd.Flags().String("run-id", "", "Specify custom run ID for correlation with orchestrator")
 	recordCmd.Flags().String("annotation-log", "", "Path to write per-request annotation log (JSON array)")
 	rootCmd.AddCommand(recordCmd)
 }

@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -133,18 +134,23 @@ func (p *HTTPProxy) handleHTTPS(w http.ResponseWriter, r *http.Request) {
 		// Repair the URL (ReadRequest might not get the full scheme/host)
 		req.URL.Scheme = "https"
 		req.URL.Host = r.Host
+		req.RequestURI = ""
 
 		// Use the interceptor's RoundTrip method
 		resp, err := p.Interceptor.RoundTrip(req)
 		if err != nil {
+			log.Printf("Error during RoundTrip for %s %s: %v", req.Method, req.URL.String(), err)
+			badGatewayHeaders := make(http.Header)
+			badGatewayHeaders.Set("Content-Length", "0")
 			resp = &http.Response{
-				Status:     "502 Bad Gateway",
-				StatusCode: 502,
-				Proto:      "HTTP/1.1",
-				ProtoMajor: 1,
-				ProtoMinor: 1,
-				Header:     make(http.Header),
-				Body:       io.NopCloser(bufio.NewReader(nil)),
+				Status:        "502 Bad Gateway",
+				StatusCode:    502,
+				Proto:         "HTTP/1.1",
+				ProtoMajor:    1,
+				ProtoMinor:    1,
+				Header:        badGatewayHeaders,
+				Body:          io.NopCloser(bytes.NewReader(nil)),
+				ContentLength: 0,
 			}
 		}
 

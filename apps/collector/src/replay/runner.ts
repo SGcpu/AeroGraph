@@ -98,17 +98,21 @@ export class Runner {
 
     // Write prompt override JSON if provided
     let effectiveOverrideFile = overrideFile;
-    if (!effectiveOverrideFile && forkOverrides?.promptText) {
+    if (!effectiveOverrideFile) {
       const ovrPath = path.join(os.tmpdir(), `afr_ovr_${runId}.json`);
-      fs.writeFileSync(
-        ovrPath,
-        JSON.stringify({
-          forkFromSpanId,
-          promptText: forkOverrides.promptText
-        }),
-        "utf-8"
-      );
-      effectiveOverrideFile = ovrPath;
+      if (forkOverrides?.promptText) {
+        fs.writeFileSync(
+          ovrPath,
+          JSON.stringify({
+            forkFromSpanId,
+            promptText: forkOverrides.promptText
+          }),
+          "utf-8"
+        );
+        effectiveOverrideFile = ovrPath;
+      } else if (fs.existsSync(ovrPath)) {
+        effectiveOverrideFile = ovrPath;
+      }
     }
 
     // In fork mode, produce partial cassette if base cassette exists
@@ -160,6 +164,7 @@ export class Runner {
 
     if (mode === "record") {
       args.push("record");
+      args.push("--run-id", runId);
       args.push("--annotation-log", annotationLogPath);
       args.push(...command);
     } else {
@@ -186,6 +191,7 @@ export class Runner {
     const env = {
       ...process.env,
       AFR_RUN_ID: runId,
+      AEROREPL_RUN_ID: runId,
       AFR_TRACE_ID: traceId,
       HTTP_PROXY: process.env.HTTP_PROXY || "http://127.0.0.1:8000",
       HTTPS_PROXY: process.env.HTTPS_PROXY || "http://127.0.0.1:8000",
@@ -213,10 +219,21 @@ export class Runner {
         return reject(err);
       }
 
+      let stdoutOutput = "";
+      if (child.stdout) {
+        child.stdout.on("data", (chunk) => {
+          const str = chunk.toString();
+          process.stdout.write(`[Run ${runId}] ${str}`);
+          stdoutOutput += str;
+        });
+      }
+
       let stderrOutput = "";
       if (child.stderr) {
         child.stderr.on("data", (chunk) => {
-          stderrOutput += chunk.toString();
+          const str = chunk.toString();
+          process.stderr.write(`[Run ${runId} ERR] ${str}`);
+          stderrOutput += str;
         });
       }
 
@@ -232,7 +249,7 @@ export class Runner {
         const completedAt = new Date().toISOString();
 
         // Ingest annotation log if it was produced
-        this.ingestAnnotations(traceId, annotationLogPath);
+        this.ingestAnnotations(traceId, annotationLogPath, options);
 
         if (exitCode === 0) {
           this.store.updateRunStatus(runId, "completed", {
@@ -253,20 +270,51 @@ export class Runner {
   }
 
   /**
-   * Ingests annotations from the replay-core annotation log.
+   * Ingests annotations from the replay-core annotation log and evaluates tool safety policies.
    */
-  private ingestAnnotations(traceId: string, logPath: string): void {
-    if (!fs.existsSync(logPath)) {
-      return;
+  private ingestAnnotations(traceId: string, logPath: string, options?: SpawnRunOptions): void {
+    let entries: any[] = [];
+    if (fs.existsSync(logPath)) {
+      try {
+        const data = fs.readFileSync(logPath, "utf-8");
+        entries = JSON.parse(data);
+      } catch (err) {
+        console.warn(`[Runner] Failed to parse annotation log at ${logPath}:`, err);
+      } finally {
+        try {
+          fs.unlinkSync(logPath);
+        } catch {
+          // ignore cleanup error
+        }
+      }
     }
 
-    try {
-      const data = fs.readFileSync(logPath, "utf-8");
-      const entries = JSON.parse(data);
-      if (Array.isArray(entries)) {
-        for (const entry of entries) {
-          if (entry.correlatedSpanId) {
-            this.store.appendReplayAnnotation(traceId, entry.correlatedSpanId, {
+    const trace = typeof (this.store as any).getTrace === "function" ? (this.store as any).getTrace(traceId) : null;
+    const events: any[] = trace?.events || [];
+    const annotatedSpans = new Set<string>();
+
+    // 1. Ingest entries that already have correlatedSpanId
+    const unassignedEntries: any[] = [];
+    if (Array.isArray(entries)) {
+      for (const entry of entries) {
+        if (entry.correlatedSpanId) {
+          this.store.appendReplayAnnotation(traceId, entry.correlatedSpanId, {
+            replaySource: entry.replaySource,
+            requestKey: entry.requestKey,
+            replayLatencyMs: entry.replayLatencyMs,
+            tokensSaved: entry.tokensSaved,
+            streamingPreserved: entry.streamingPreserved,
+            overridden: entry.overridden,
+            decision: entry.decision,
+            matchedPattern: entry.matchedPattern,
+            effectiveClass: entry.effectiveClass
+          });
+          annotatedSpans.add(entry.correlatedSpanId);
+
+          // If the correlated span is a prompt, also annotate its child response span
+          const childResponse = events.find(e => e.parentSpanId === entry.correlatedSpanId && e.kind === "response");
+          if (childResponse && !annotatedSpans.has(childResponse.spanId)) {
+            this.store.appendReplayAnnotation(traceId, childResponse.spanId, {
               replaySource: entry.replaySource,
               requestKey: entry.requestKey,
               replayLatencyMs: entry.replayLatencyMs,
@@ -277,16 +325,129 @@ export class Runner {
               matchedPattern: entry.matchedPattern,
               effectiveClass: entry.effectiveClass
             });
+            annotatedSpans.add(childResponse.spanId);
           }
+        } else {
+          unassignedEntries.push(entry);
         }
       }
-    } catch (err) {
-      console.warn(`[Runner] Failed to parse annotation log at ${logPath}:`, err);
-    } finally {
+    }
+
+    // 2. Sequential fallback for unassigned entries against prompt & response events
+    const promptEvents = events.filter(e => e.kind === "prompt" && !annotatedSpans.has(e.spanId));
+    const responseEvents = events.filter(e => e.kind === "response" && !annotatedSpans.has(e.spanId));
+
+    for (let i = 0; i < unassignedEntries.length; i++) {
+      const entry = unassignedEntries[i];
+      if (promptEvents[i]) {
+        this.store.appendReplayAnnotation(traceId, promptEvents[i].spanId, {
+          replaySource: entry.replaySource,
+          requestKey: entry.requestKey,
+          replayLatencyMs: entry.replayLatencyMs,
+          tokensSaved: entry.tokensSaved,
+          streamingPreserved: entry.streamingPreserved,
+          overridden: entry.overridden,
+          decision: entry.decision,
+          matchedPattern: entry.matchedPattern,
+          effectiveClass: entry.effectiveClass
+        });
+        annotatedSpans.add(promptEvents[i].spanId);
+      }
+      if (responseEvents[i]) {
+        this.store.appendReplayAnnotation(traceId, responseEvents[i].spanId, {
+          replaySource: entry.replaySource,
+          requestKey: entry.requestKey,
+          replayLatencyMs: entry.replayLatencyMs,
+          tokensSaved: entry.tokensSaved,
+          streamingPreserved: entry.streamingPreserved,
+          overridden: entry.overridden,
+          decision: entry.decision,
+          matchedPattern: entry.matchedPattern,
+          effectiveClass: entry.effectiveClass
+        });
+        annotatedSpans.add(responseEvents[i].spanId);
+      }
+    }
+
+    // 3. Evaluate and annotate tool_call and tool_result spans against safety policy
+    let policy: any = null;
+    if (options?.projectRoot) {
       try {
-        fs.unlinkSync(logPath);
+        policy = loadPolicy(options.projectRoot);
       } catch {
-        // ignore cleanup error
+        // Policy might not exist or be invalid
+      }
+    }
+
+    for (const e of events) {
+      if (e.kind === "tool_call" || e.kind === "tool_result") {
+        const toolName =
+          (e.actor && e.actor.kind === "tool" ? e.actor.id : null) ||
+          (e.payload as any)?.name ||
+          (e.payload as any)?.toolName ||
+          e.title;
+
+        let effectiveClass: string = "must_execute";
+        let matchedPattern: string | null = null;
+
+        if (policy && Array.isArray(policy.tools)) {
+          for (const rule of policy.tools) {
+            if (rule.toolName && toolName && rule.toolName.toLowerCase() === String(toolName).toLowerCase()) {
+              effectiveClass = rule.class;
+              matchedPattern = rule.match || rule.toolName;
+              break;
+            }
+            if (rule.match && toolName && (rule.match.toLowerCase().includes(String(toolName).toLowerCase()) || String(toolName).toLowerCase().includes(rule.match.toLowerCase()))) {
+              effectiveClass = rule.class;
+              matchedPattern = rule.match;
+              break;
+            }
+          }
+        }
+
+        const replaySource = effectiveClass === "must_execute" ? "live" : "cache";
+        const decision = effectiveClass === "must_execute" ? "must_execute" : "cache_hit";
+
+        this.store.appendReplayAnnotation(traceId, e.spanId, {
+          replaySource,
+          decision,
+          effectiveClass,
+          matchedPattern
+        });
+        annotatedSpans.add(e.spanId);
+      }
+    }
+
+    // 4. Fallback for any unannotated prompt/response spans based on run mode
+    const mode = options?.mode;
+    if (mode === "replay" || mode === "fork") {
+      let isPastForkPoint = false;
+      for (const e of events) {
+        if (options?.forkFromSpanId && e.spanId === options.forkFromSpanId) {
+          isPastForkPoint = true;
+        }
+        if (!annotatedSpans.has(e.spanId) && (e.kind === "prompt" || e.kind === "response")) {
+          const replaySource = isPastForkPoint ? "live" : "cache";
+          const decision = isPastForkPoint ? "live_fork" : "cache_hit";
+          const effectiveClass = isPastForkPoint ? "must_execute" : "replay_safe";
+          this.store.appendReplayAnnotation(traceId, e.spanId, {
+            replaySource,
+            decision,
+            effectiveClass
+          });
+          annotatedSpans.add(e.spanId);
+        }
+      }
+    } else if (mode === "record") {
+      for (const e of events) {
+        if (!annotatedSpans.has(e.spanId) && (e.kind === "prompt" || e.kind === "response")) {
+          this.store.appendReplayAnnotation(traceId, e.spanId, {
+            replaySource: "live",
+            decision: "live_record",
+            effectiveClass: "replay_safe"
+          });
+          annotatedSpans.add(e.spanId);
+        }
       }
     }
   }

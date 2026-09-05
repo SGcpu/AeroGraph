@@ -185,7 +185,9 @@ export class AereplClient {
   async forkFromSpan(
     traceId: string,
     forkFromSpanId: string,
-    promptText?: string
+    promptText?: string,
+    projectRoot?: string,
+    command?: string[]
   ): Promise<ForkAndResumeResponse> {
     return this.request<ForkAndResumeResponse>(
       this.collectorUrl,
@@ -194,7 +196,9 @@ export class AereplClient {
         method: "POST",
         body: JSON.stringify({
           forkFromSpanId,
-          overrides: promptText ? { promptText } : undefined
+          overrides: promptText ? { promptText } : undefined,
+          projectRoot: projectRoot || process.cwd(),
+          command
         })
       }
     );

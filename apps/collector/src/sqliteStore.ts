@@ -172,6 +172,12 @@ export class SqliteTraceStore {
         )
         .get(r.trace_id) as any;
 
+      const runRow = this.db
+        .prepare(
+          "SELECT run_id, mode, cassette_run_id, parent_trace_id FROM replay_runs WHERE trace_id = ? ORDER BY created_at DESC LIMIT 1"
+        )
+        .get(r.trace_id) as any;
+
       return {
         traceId: r.trace_id,
         createdAt: r.created_at,
@@ -183,6 +189,16 @@ export class SqliteTraceStore {
               derivedFrom: {
                 baseTraceId: derivation.parent_trace_id,
                 forkedFromSpanId: derivation.forked_from_span_id
+              }
+            }
+          : {}),
+        ...(runRow
+          ? {
+              replayRun: {
+                runId: runRow.run_id,
+                mode: runRow.mode,
+                cassetteRunId: runRow.cassette_run_id ?? undefined,
+                sourceTraceId: runRow.parent_trace_id ?? undefined
               }
             }
           : {}),
@@ -235,6 +251,12 @@ export class SqliteTraceStore {
       )
       .get(traceId) as any;
 
+    const runRow = this.db
+      .prepare(
+        "SELECT run_id, mode, cassette_run_id, parent_trace_id FROM replay_runs WHERE trace_id = ? ORDER BY created_at DESC LIMIT 1"
+      )
+      .get(traceId) as any;
+
     return {
       meta: {
         traceId,
@@ -247,6 +269,16 @@ export class SqliteTraceStore {
               derivedFrom: {
                 baseTraceId: derivation.parent_trace_id,
                 forkedFromSpanId: derivation.forked_from_span_id
+              }
+            }
+          : {}),
+        ...(runRow
+          ? {
+              replayRun: {
+                runId: runRow.run_id,
+                mode: runRow.mode,
+                cassetteRunId: runRow.cassette_run_id ?? undefined,
+                sourceTraceId: runRow.parent_trace_id ?? undefined
               }
             }
           : {}),

@@ -213,6 +213,23 @@ function TraceNode({
             {event.replaySource === "cache" ? "⚡ CACHE" : "🌐 LIVE"}
           </span>
         )}
+        {(event as any).effectiveClass && (
+          <span
+            style={{
+              fontSize: 8,
+              padding: "1px 5px",
+              borderRadius: 3,
+              fontWeight: 600,
+              fontFamily: "'JetBrains Mono', monospace",
+              background: (event as any).effectiveClass === "must_execute" ? "rgba(239,68,68,0.15)" : "rgba(34,197,94,0.15)",
+              color: (event as any).effectiveClass === "must_execute" ? "#ef4444" : "#22c55e",
+              border: `1px solid ${(event as any).effectiveClass === "must_execute" ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`,
+            }}
+            title={(event as any).matchedPattern ? `Pattern: ${(event as any).matchedPattern}` : undefined}
+          >
+            {(event as any).effectiveClass === "must_execute" ? "🔴 MUST EXECUTE" : "🟢 REPLAY SAFE"}
+          </span>
+        )}
         {step != null && (
           <span
             style={{
@@ -1317,13 +1334,31 @@ export default function App() {
                     <div 
                       className={`trace-list-item ${t.traceId === traceId ? "active" : ""}`}
                       onClick={() => setTraceId(t.traceId)}
-                      style={{ paddingLeft: `${12 + depth * 16}px`, display: matchesSearch || searchTerms === "" ? "flex" : "none", flexDirection: "column", alignItems: "flex-start" }}
+                      style={{ paddingLeft: `${12 + depth * 16}px`, display: matchesSearch || searchTerms === "" ? "flex" : "none", flexDirection: "column", alignItems: "flex-start", gap: 3 }}
                     >
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "13px", color: "var(--text-primary)", fontWeight: depth === 0 ? "bold" : "normal" }}>
-                        {depth > 0 ? "↳ " : ""}{alias}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 6 }}>
+                        <div style={{ fontFamily: "var(--font-mono)", fontSize: "13px", color: "var(--text-primary)", fontWeight: depth === 0 ? "bold" : "normal" }}>
+                          {depth > 0 ? "↳ " : ""}{alias}
+                        </div>
+                        {t.replayRun?.mode === "replay" && (
+                          <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "3px", fontWeight: 700, background: "rgba(34,197,94,0.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}>
+                            🔁 REPLAY
+                          </span>
+                        )}
+                        {t.replayRun?.mode === "fork" && (
+                          <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "3px", fontWeight: 700, background: "rgba(168,85,247,0.15)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.3)" }}>
+                            ⑂ FORK
+                          </span>
+                        )}
+                        {t.replayRun?.mode === "record" && (
+                          <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "3px", fontWeight: 700, background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" }}>
+                            ⏺ RECORD
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
                         {t.eventCount} events {t.environment ? ` · ${t.environment}` : ""}
+                        {t.replayRun ? ` · ${t.replayRun.runId}` : ""}
                       </div>
                     </div>
                     {children.map(child => renderTrace(child, depth + 1))}
@@ -1361,6 +1396,112 @@ export default function App() {
               >
                 {rightSidebarOpen ? '▶' : '◀'}
               </button>
+
+              {/* Replay or Fork Notice Banner */}
+              {activeMeta?.replayRun?.mode === "replay" && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 14,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 25,
+                    background: "rgba(15, 23, 42, 0.92)",
+                    backdropFilter: "blur(8px)",
+                    border: "1px solid rgba(34, 197, 94, 0.4)",
+                    borderRadius: 8,
+                    padding: "6px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 12,
+                    color: "#f8fafc",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+                    pointerEvents: "auto"
+                  }}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(34, 197, 94, 0.2)", color: "#22c55e", padding: "2px 7px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                    🔁 REPLAY RUN
+                  </span>
+                  <span>
+                    Run <code style={{ fontFamily: "var(--font-mono)", color: "#38bdf8", fontWeight: 600 }}>{activeMeta.replayRun.runId}</code>
+                    {activeMeta.replayRun.cassetteRunId && (
+                      <> · Replayed from cassette <code style={{ fontFamily: "var(--font-mono)", color: "#a78bfa" }}>{activeMeta.replayRun.cassetteRunId}</code></>
+                    )}
+                    {activeMeta.replayRun.sourceTraceId && (
+                      <>
+                        {" "}· Source Trace:{" "}
+                        <button
+                          onClick={() => setTraceId(activeMeta.replayRun!.sourceTraceId!)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#38bdf8",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 11,
+                            padding: 0
+                          }}
+                        >
+                          {activeMeta.replayRun.sourceTraceId}
+                        </button>
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {activeMeta?.replayRun?.mode === "fork" && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 14,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 25,
+                    background: "rgba(15, 23, 42, 0.92)",
+                    backdropFilter: "blur(8px)",
+                    border: "1px solid rgba(168, 85, 247, 0.4)",
+                    borderRadius: 8,
+                    padding: "6px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 12,
+                    color: "#f8fafc",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+                    pointerEvents: "auto"
+                  }}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(168, 85, 247, 0.2)", color: "#c084fc", padding: "2px 7px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                    ⑂ FORKED RUN
+                  </span>
+                  <span>
+                    Run <code style={{ fontFamily: "var(--font-mono)", color: "#38bdf8", fontWeight: 600 }}>{activeMeta.replayRun.runId}</code>
+                    {activeMeta.replayRun.sourceTraceId && (
+                      <>
+                        {" "}· Forked from Trace:{" "}
+                        <button
+                          onClick={() => setTraceId(activeMeta.replayRun!.sourceTraceId!)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#38bdf8",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 11,
+                            padding: 0
+                          }}
+                        >
+                          {activeMeta.replayRun.sourceTraceId}
+                        </button>
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
 
               {/* Playback controls */}
               <div className="playback-controls">

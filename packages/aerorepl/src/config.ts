@@ -81,3 +81,73 @@ export function saveProjectConfig(
   fs.writeFileSync(configPath, yaml.dump(data), "utf-8");
   return configPath;
 }
+
+/**
+ * Finds aerograph.replay.yaml in the project directory or parent directories.
+ */
+export function findReplayPolicyPath(cwd: string = process.cwd()): string | null {
+  let currentDir = path.resolve(cwd);
+  while (true) {
+    const policyPath = path.join(currentDir, "aerograph.replay.yaml");
+    const dotPolicyPath = path.join(currentDir, ".aerograph", "aerograph.replay.yaml");
+    if (fs.existsSync(policyPath)) return policyPath;
+    if (fs.existsSync(dotPolicyPath)) return dotPolicyPath;
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) break;
+    currentDir = parentDir;
+  }
+  return null;
+}
+
+/**
+ * Saves tool safety policy configuration into aerograph.replay.yaml
+ */
+export function saveReplayPolicyConfig(content: any, cwd: string = process.cwd()): string {
+  const root = path.resolve(cwd);
+  const policyPath = path.join(root, "aerograph.replay.yaml");
+  const yamlStr = typeof content === "string" ? content : yaml.dump(content);
+  fs.writeFileSync(policyPath, yamlStr, "utf-8");
+  return policyPath;
+}
+
+export interface SaveYamlResult {
+  savedFiles: string[];
+  types: ("project" | "policy")[];
+}
+
+/**
+ * Auto-detects whether raw YAML is aerograph.project.yaml, aerograph.replay.yaml, or both,
+ * and saves each to its proper location.
+ */
+export function saveYamlAutoDetect(rawYaml: string, cwd: string = process.cwd()): SaveYamlResult {
+  const parsed = yaml.load(rawYaml) as any;
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("Invalid YAML: content must parse to an object");
+  }
+
+  const result: SaveYamlResult = { savedFiles: [], types: [] };
+
+  if (parsed.tools && Array.isArray(parsed.tools)) {
+    const policyPath = saveReplayPolicyConfig(parsed, cwd);
+    result.savedFiles.push(policyPath);
+    result.types.push("policy");
+  }
+
+  if (parsed.command) {
+    const cmd = Array.isArray(parsed.command)
+      ? parsed.command
+      : String(parsed.command).trim().split(/\s+/);
+    const projPath = saveProjectConfig(cmd, cwd, parsed);
+    result.savedFiles.push(projPath);
+    result.types.push("project");
+  }
+
+  if (result.savedFiles.length === 0) {
+    throw new Error(
+      "Unrecognized YAML configuration. It must contain either 'command: [...]' (for aerograph.project.yaml) or 'tools: [...]' (for aerograph.replay.yaml)."
+    );
+  }
+
+  return result;
+}

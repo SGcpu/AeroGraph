@@ -83,19 +83,21 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
       return res.status(400).json({ error: `Invalid StartRunRequest: ${err.message}` });
     }
 
-    const projectRoot = parsedReq.projectRoot || process.cwd();
+    // If command or projectRoot not supplied, attempt to resolve from source run or aerograph.project.yaml
+    let sourceRun: any = null;
+    if (parsedReq.cassetteRunId) {
+      sourceRun = store.getRunById(parsedReq.cassetteRunId);
+    }
+
+    const projectRoot = parsedReq.projectRoot || sourceRun?.projectRoot || process.cwd();
     let command = parsedReq.command;
 
-    // If command not supplied, attempt to resolve from aerograph.project.yaml or source run
     if (!command || command.length === 0) {
       const config = loadProjectConfig(projectRoot);
       if (config && config.command) {
         command = config.command;
-      } else if (parsedReq.cassetteRunId) {
-        const sourceRun = store.getRunById(parsedReq.cassetteRunId);
-        if (sourceRun && sourceRun.command) {
-          command = sourceRun.command;
-        }
+      } else if (sourceRun && sourceRun.command) {
+        command = sourceRun.command;
       }
     }
 
@@ -106,12 +108,13 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
     }
 
     const traceId = `t_${nanoid(12)}`;
+    const parentTraceId = (parsedReq as any).parentTraceId ?? (sourceRun ? sourceRun.traceId : null);
     const runId = store.createRun({
       traceId,
       mode: parsedReq.mode,
       command,
       projectRoot,
-      parentTraceId: null,
+      parentTraceId,
       cassetteRunId: parsedReq.cassetteRunId ?? null
     });
 
@@ -140,6 +143,7 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
       command,
       projectRoot,
       cassetteRunId: parsedReq.cassetteRunId,
+      parentTraceId,
       liveHosts
     }).catch((err) => {
       console.error(`[Orchestrator] Run ${runId} encountered background error:`, err);

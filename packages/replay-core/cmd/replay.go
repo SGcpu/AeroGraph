@@ -176,6 +176,7 @@ No CA key material persists after the process ends (FR-037).`,
 }
 
 func init() {
+	replayCmd.Flags().SetInterspersed(false)
 	replayCmd.Flags().BoolVarP(&fallback, "fallback", "f", false, "Hit real network if recorded request is not found")
 	replayCmd.Flags().BoolVarP(&summary, "summary", "s", false, "Show concise summary of replay results")
 	replayCmd.Flags().String("live-hosts", "", "Comma-separated host glob patterns to always forward live (must_execute)")
