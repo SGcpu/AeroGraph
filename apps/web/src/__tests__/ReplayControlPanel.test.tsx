@@ -29,7 +29,8 @@ describe("ReplayControlPanel component", () => {
     cancelRun: vi.fn().mockResolvedValue({ success: true, message: "cancelled" }),
     forkAndResume: vi.fn(),
     getProjectConfig: vi.fn().mockResolvedValue({ config: null }),
-    saveProjectConfig: vi.fn().mockResolvedValue({ ok: true, path: "/test" })
+    saveProjectConfig: vi.fn().mockResolvedValue({ ok: true, path: "/test" }),
+    getRuntimeMetadata: vi.fn().mockResolvedValue(null)
   };
 
   it("renders empty when activeTraceId is null", () => {
@@ -71,7 +72,8 @@ describe("RunStatusBadge component", () => {
     cancelRun: vi.fn(),
     forkAndResume: vi.fn(),
     getProjectConfig: vi.fn().mockResolvedValue({ config: null }),
-    saveProjectConfig: vi.fn().mockResolvedValue({ ok: true, path: "/test" })
+    saveProjectConfig: vi.fn().mockResolvedValue({ ok: true, path: "/test" }),
+    getRuntimeMetadata: vi.fn().mockResolvedValue(null)
   };
 
   it("renders initial loading badge", () => {

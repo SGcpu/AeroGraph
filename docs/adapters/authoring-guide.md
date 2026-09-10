@@ -52,6 +52,40 @@ For all `tool_call` and `tool_result` spans:
 
 ---
 
+## Automatic Runtime Environment Detection & Registration
+
+When developers execute agents directly from their terminal or IDE (e.g., `python agent.py` or `node agent.js`) without running through the CLI wrapper (`aerorepl record`), AeroGraph needs to know the process's working directory, virtual environment, and execution command so that subsequent **"Replay"** or **"Fork & Resume"** actions from the Web UI can re-execute the agent accurately in its original environment.
+
+### The Direct Execution Telemetry Pattern
+
+Every SDK and adapter emitter (Python `aerograph_sdk`, TypeScript `@aerograph/sdk`, or any future language SDK) must implement automatic background runtime metadata collection and registration:
+
+1. **Collect Environment Context**:
+   - `projectRoot`: Current working directory (`os.getcwd()` in Python, `process.cwd()` in Node).
+   - `virtualEnv`: Active virtual environment path (`os.environ.get("VIRTUAL_ENV")` or `CONDA_PREFIX`, or Python `sys.prefix` if isolated).
+   - `executablePath`: Active interpreter binary path (`sys.executable` in Python, `process.execPath` in Node).
+   - `entrypoint`: Relative path from `projectRoot` to the executing script entrypoint.
+   - `command`: Re-executable command array (e.g., `["python", "agent.py", ...]` or `["node", "agent.js", ...]`).
+
+2. **Register Once per Trace (Non-Blocking)**:
+   On the first event emitted for a trace (or during SDK recorder initialization), emit an asynchronous, non-blocking HTTP `POST` to the Collector:
+   ```http
+   POST /v1/traces/{traceId}/runtime-metadata
+   Content-Type: application/json
+
+   {
+     "projectRoot": "/path/to/my-agent",
+     "virtualEnv": "/path/to/my-agent/.venv",
+     "executablePath": "/path/to/my-agent/.venv/bin/python",
+     "entrypoint": "agent.py",
+     "command": ["python", "agent.py"]
+   }
+   ```
+   - This registration **must be non-blocking** and swallowed on failure so agent workflows never fail if the collector is slow or unreachable.
+   - Can be disabled via the environment variable `AEROGRAPH_CAPTURE_RUNTIME=false`.
+
+---
+
 ## Authoring Checklist for New Adapters
 
 When contributing or maintaining adapters (e.g. for LangChain, LlamaIndex, AutoGen, CrewAI, Haystack):
@@ -60,6 +94,8 @@ When contributing or maintaining adapters (e.g. for LangChain, LlamaIndex, AutoG
 2. **Never Import Replay Binaries**: Adapters must remain pure telemetry emitters. Do not import cassette logic or proxy handlers into the adapter codebase.
 3. **Preserve Causal Hierarchy**: Always set `parentSpanId` so parent-child relationships between chains, LLMs, and tools form a coherent DAG.
 4. **Header Hook (Optional & Encouraged)**: If the framework allows injecting default headers into LLM/tool HTTP clients, forward `X-AeroGraph-Span-Id` during the span's execution window.
-5. **Project Configuration Support**: Support running with `.aerograph/aerograph.project.yaml` and `aerograph.replay.yaml`.
+5. **Runtime Environment Detection**: Ensure the underlying FlightRecorder registers `_collect_runtime_metadata` to `/v1/traces/:id/runtime-metadata` so standalone executions (`python agent.py` / `node agent.js`) can be replayed from the UI.
+6. **Project Configuration Support**: Support running with `.aerograph/aerograph.project.yaml` and `aerograph.replay.yaml`.
 
 See the [Deterministic Replay Getting Started](../replay/getting-started.md) and [Tool Safety Policy](../replay/safety-policy.md) for full reference.
+

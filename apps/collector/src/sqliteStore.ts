@@ -30,6 +30,9 @@ export type CreateRunInput = {
   mode: RunMode;
   command: string[];
   projectRoot: string;
+  virtualEnv?: string | null;
+  executablePath?: string | null;
+  entrypoint?: string | null;
 };
 
 export type UpdateRunStatusExtras = {
@@ -672,8 +675,9 @@ export class SqliteTraceStore {
     const stmt = this.db.prepare(`
       INSERT INTO replay_runs (
         run_id, trace_id, parent_trace_id, cassette_run_id,
-        mode, status, command_json, project_root, created_at
-      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, datetime('now'))
+        mode, status, command_json, project_root,
+        virtual_env, executable_path, entrypoint, created_at
+      ) VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, datetime('now'))
     `);
     stmt.run(
       runId,
@@ -682,9 +686,70 @@ export class SqliteTraceStore {
       input.cassetteRunId ?? null,
       input.mode,
       JSON.stringify(input.command),
-      input.projectRoot
+      input.projectRoot,
+      input.virtualEnv ?? null,
+      input.executablePath ?? null,
+      input.entrypoint ?? null
     );
     return runId;
+  }
+
+  saveTraceRuntimeMetadata(input: {
+    traceId: string;
+    projectRoot: string;
+    virtualEnv?: string | null;
+    executablePath?: string | null;
+    entrypoint?: string | null;
+    command?: string[] | string;
+  }): void {
+    const cmdJson = input.command
+      ? JSON.stringify(Array.isArray(input.command) ? input.command : [input.command])
+      : null;
+    const stmt = this.db.prepare(`
+      INSERT INTO trace_runtime_metadata (
+        trace_id, project_root, virtual_env, executable_path, entrypoint, command_json, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+      ON CONFLICT(trace_id) DO UPDATE SET
+        project_root = excluded.project_root,
+        virtual_env = coalesce(excluded.virtual_env, trace_runtime_metadata.virtual_env),
+        executable_path = coalesce(excluded.executable_path, trace_runtime_metadata.executable_path),
+        entrypoint = coalesce(excluded.entrypoint, trace_runtime_metadata.entrypoint),
+        command_json = coalesce(excluded.command_json, trace_runtime_metadata.command_json)
+    `);
+    stmt.run(
+      input.traceId,
+      input.projectRoot,
+      input.virtualEnv ?? null,
+      input.executablePath ?? null,
+      input.entrypoint ?? null,
+      cmdJson
+    );
+  }
+
+  getTraceRuntimeMetadata(traceId: string): {
+    traceId: string;
+    projectRoot: string;
+    virtualEnv?: string | null;
+    executablePath?: string | null;
+    entrypoint?: string | null;
+    command?: string[];
+  } | null {
+    const row = this.db.prepare("SELECT * FROM trace_runtime_metadata WHERE trace_id = ?").get(traceId) as any;
+    if (!row) return null;
+    let command: string[] | undefined;
+    if (row.command_json) {
+      try {
+        command = JSON.parse(row.command_json);
+      } catch {}
+    }
+    return {
+      traceId: row.trace_id,
+      projectRoot: row.project_root,
+      virtualEnv: row.virtual_env ?? null,
+      executablePath: row.executable_path ?? null,
+      entrypoint: row.entrypoint ?? null,
+      command
+    };
   }
 
   updateRunStatus(runId: string, status: RunStatus, extras?: UpdateRunStatusExtras): void {
@@ -724,8 +789,30 @@ export class SqliteTraceStore {
 
   getRunByTraceId(traceId: string): GetRunResponse | null {
     const row = this.db.prepare("SELECT * FROM replay_runs WHERE trace_id = ? ORDER BY created_at DESC LIMIT 1").get(traceId) as any;
-    if (!row) return null;
-    return this.mapRunRow(row);
+    if (row) return this.mapRunRow(row);
+
+    const meta = this.getTraceRuntimeMetadata(traceId);
+    if (meta) {
+      return {
+        runId: `run_direct_${traceId.replace(/^t_/, "")}`,
+        traceId,
+        parentTraceId: null,
+        cassetteRunId: null,
+        status: "completed",
+        mode: "record",
+        startedAt: null,
+        completedAt: null,
+        exitCode: 0,
+        errorMessage: null,
+        command: meta.command,
+        projectRoot: meta.projectRoot,
+        virtualEnv: meta.virtualEnv ?? null,
+        executablePath: meta.executablePath ?? null,
+        entrypoint: meta.entrypoint ?? null
+      };
+    }
+
+    return null;
   }
 
   listRuns(): GetRunResponse[] {
@@ -754,7 +841,11 @@ export class SqliteTraceStore {
       completedAt: row.completed_at ?? null,
       exitCode: row.exit_code ?? null,
       errorMessage: row.error_message ?? null,
-      command
+      command,
+      projectRoot: row.project_root,
+      virtualEnv: row.virtual_env ?? null,
+      executablePath: row.executable_path ?? null,
+      entrypoint: row.entrypoint ?? null
     };
   }
 

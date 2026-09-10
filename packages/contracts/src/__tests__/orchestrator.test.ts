@@ -7,7 +7,8 @@ import {
   runModeSchema,
   runStatusSchema,
   startRunRequestSchema,
-  startRunResponseSchema
+  startRunResponseSchema,
+  runtimeMetadataSchema
 } from "../orchestrator";
 
 describe("contracts: orchestrator schemas", () => {
@@ -94,10 +95,15 @@ describe("contracts: orchestrator schemas", () => {
 
     const forkReq = {
       forkFromSpanId: "span-abc",
-      overrides: { promptText: "changed prompt" }
+      overrides: { promptText: "changed prompt" },
+      virtualEnv: "/home/user/.venv",
+      executablePath: "/home/user/.venv/bin/python",
+      entrypoint: "/home/user/agent.py"
     };
     const parsedFork = forkAndResumeRequestSchema.parse(forkReq);
     expect(parsedFork.forkFromSpanId).toBe("span-abc");
+    expect(parsedFork.virtualEnv).toBe("/home/user/.venv");
+    expect(parsedFork.executablePath).toBe("/home/user/.venv/bin/python");
 
     const forkRes = {
       childTraceId: "child-t-1",
@@ -106,5 +112,19 @@ describe("contracts: orchestrator schemas", () => {
     };
     const parsedForkRes = forkAndResumeResponseSchema.parse(forkRes);
     expect(parsedForkRes.childTraceId).toBe("child-t-1");
+  });
+
+  it("validates runtimeMetadataSchema", () => {
+    const meta = {
+      projectRoot: "/path/to/my-agent",
+      virtualEnv: "/path/to/my-agent/.venv",
+      executablePath: "/path/to/my-agent/.venv/bin/python",
+      entrypoint: "/path/to/my-agent/agent.py",
+      command: ["python", "agent.py"]
+    };
+    const parsed = runtimeMetadataSchema.parse(meta);
+    expect(parsed.projectRoot).toBe("/path/to/my-agent");
+    expect(parsed.virtualEnv).toBe("/path/to/my-agent/.venv");
+    expect(parsed.command).toEqual(["python", "agent.py"]);
   });
 });

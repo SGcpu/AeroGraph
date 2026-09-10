@@ -7,6 +7,7 @@ import type { SqliteTraceStore } from "../sqliteStore.js";
 import type { RunMode } from "@aerograph/contracts";
 import { writeForkCassette } from "./cassette.js";
 import { loadPolicy, computeLiveHosts } from "./policy.js";
+import { resolveCommandScriptPaths } from "./commandResolver.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,6 +24,8 @@ export interface SpawnRunOptions {
   forkOverrides?: { promptText?: string } | null;
   liveHosts?: string[];
   overrideFile?: string | null;
+  virtualEnv?: string | null;
+  executablePath?: string | null;
 }
 
 export class Runner {
@@ -155,6 +158,32 @@ export class Runner {
     }
 
     const binary = this.resolveBinary();
+    let resolvedCommand = resolveCommandScriptPaths(command, projectRoot);
+
+    const virtualEnv = options.virtualEnv;
+    const executablePath = options.executablePath;
+
+    // Resolve interpreter to virtual environment binary if available
+    if (virtualEnv) {
+      const venvBin = process.platform === "win32"
+        ? path.join(virtualEnv, "Scripts")
+        : path.join(virtualEnv, "bin");
+
+      if (resolvedCommand[0] === "python" || resolvedCommand[0] === "python3") {
+        const venvPython = process.platform === "win32"
+          ? path.join(venvBin, "python.exe")
+          : path.join(venvBin, "python");
+        if (fs.existsSync(venvPython)) {
+          resolvedCommand = [venvPython, ...resolvedCommand.slice(1)];
+        } else if (executablePath && fs.existsSync(executablePath)) {
+          resolvedCommand = [executablePath, ...resolvedCommand.slice(1)];
+        }
+      }
+    } else if (executablePath && (resolvedCommand[0] === "python" || resolvedCommand[0] === "python3")) {
+      if (fs.existsSync(executablePath)) {
+        resolvedCommand = [executablePath, ...resolvedCommand.slice(1)];
+      }
+    }
 
     // Create temp path for annotation log
     const annotationLogPath = path.join(os.tmpdir(), `afr_ann_${runId}.json`);
@@ -166,7 +195,7 @@ export class Runner {
       args.push("record");
       args.push("--run-id", runId);
       args.push("--annotation-log", annotationLogPath);
-      args.push(...command);
+      args.push(...resolvedCommand);
     } else {
       // replay or fork mode
       args.push("replay");
@@ -185,19 +214,40 @@ export class Runner {
       }
 
       args.push(targetCassetteId);
-      args.push(...command);
+      args.push(...resolvedCommand);
     }
 
-    const env = {
+    // Build environment with virtual environment on PATH
+    const currentPath = process.env.PATH || process.env.Path || "";
+    let effectivePath = currentPath;
+    if (virtualEnv) {
+      const venvBin = process.platform === "win32"
+        ? path.join(virtualEnv, "Scripts")
+        : path.join(virtualEnv, "bin");
+      if (fs.existsSync(venvBin)) {
+        effectivePath = `${venvBin}${path.delimiter}${currentPath}`;
+      }
+    }
+
+    const env: NodeJS.ProcessEnv = {
       ...process.env,
       AFR_RUN_ID: runId,
       AEROREPL_RUN_ID: runId,
       AFR_TRACE_ID: traceId,
+      AFR_PROMPT_OVERRIDE: forkOverrides?.promptText || "",
+      AFR_FORK_FROM_SPAN_ID: forkFromSpanId || "",
       HTTP_PROXY: process.env.HTTP_PROXY || "http://127.0.0.1:8000",
       HTTPS_PROXY: process.env.HTTPS_PROXY || "http://127.0.0.1:8000",
       http_proxy: process.env.http_proxy || "http://127.0.0.1:8000",
-      https_proxy: process.env.https_proxy || "http://127.0.0.1:8000"
+      https_proxy: process.env.https_proxy || "http://127.0.0.1:8000",
+      PATH: effectivePath,
+      Path: effectivePath
     };
+
+    if (virtualEnv) {
+      env.VIRTUAL_ENV = virtualEnv;
+      delete env.PYTHONHOME;
+    }
 
     const startedAt = new Date().toISOString();
     this.store.updateRunStatus(runId, "running", { startedAt });

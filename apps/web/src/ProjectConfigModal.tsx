@@ -171,6 +171,21 @@ export function ProjectConfigModal({ api, onClose }: ProjectConfigModalProps): J
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <button
               type="button"
+              onClick={() => handleSetPreset("python examples/openrouter-langgraph-py/agent.py")}
+              style={{
+                fontSize: "11px",
+                padding: "4px 8px",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                borderRadius: "4px",
+                color: "#e2e8f0",
+                cursor: "pointer"
+              }}
+            >
+              Python Example: <code style={{ color: "#38bdf8" }}>python examples/openrouter-langgraph-py/agent.py</code>
+            </button>
+            <button
+              type="button"
               onClick={() => handleSetPreset("uv run agent.py")}
               style={{
                 fontSize: "11px",

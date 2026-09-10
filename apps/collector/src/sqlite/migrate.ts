@@ -110,5 +110,35 @@ export function runMigrations(db: Database): void {
     CREATE INDEX IF NOT EXISTS idx_replay_runs_trace_id ON replay_runs(trace_id);
     CREATE INDEX IF NOT EXISTS idx_replay_runs_status ON replay_runs(status);
   `);
+
+  // Migration 007: Runtime environment (virtual_env, executable_path, entrypoint)
+  const runTableInfo = db.prepare("PRAGMA table_info(replay_runs);").all() as { name: string }[];
+  const existingRunCols = new Set(runTableInfo.map((c) => c.name));
+  const runEnvCols: [string, string][] = [
+    ["virtual_env", "TEXT DEFAULT NULL"],
+    ["executable_path", "TEXT DEFAULT NULL"],
+    ["entrypoint", "TEXT DEFAULT NULL"]
+  ];
+  for (const [col, def] of runEnvCols) {
+    if (!existingRunCols.has(col)) {
+      db.exec(`ALTER TABLE replay_runs ADD COLUMN ${col} ${def};`);
+    }
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS trace_runtime_metadata (
+      trace_id        TEXT PRIMARY KEY,
+      project_root    TEXT NOT NULL,
+      virtual_env     TEXT,
+      executable_path TEXT,
+      entrypoint      TEXT,
+      command_json    TEXT,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_trace_runtime_metadata_trace_id ON trace_runtime_metadata(trace_id);
+  `);
+
+  db.exec(`INSERT OR IGNORE INTO schema_migrations (version) VALUES ('007_runtime_environment');`);
 }
+
 

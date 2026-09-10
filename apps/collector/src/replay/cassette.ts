@@ -56,11 +56,41 @@ export function readCassette(runId: string, projectRoot: string): Cassette {
     throw new Error(`Cassette for run ${runId} is missing or unreadable at ${filePath}: ${err}`);
   }
 
-  let parsed: unknown;
+  let parsed: any;
   try {
     parsed = JSON.parse(content);
   } catch (err) {
     throw new Error(`Cassette for run ${runId} is corrupted or invalid JSON: ${err}`);
+  }
+
+  // Handle native Go storage format { run_id, original_command, steps: [...] }
+  if (parsed && typeof parsed === "object" && Array.isArray(parsed.steps)) {
+    const rawSteps = parsed.steps;
+    return {
+      cassetteVersion: "1.0.0",
+      runId: parsed.run_id || runId,
+      traceId: parsed.trace_id || "",
+      command: [(parsed.original_command || "")],
+      recordedAt: new Date().toISOString(),
+      entries: rawSteps.map((s: any, idx: number) => ({
+        index: idx,
+        correlatedSpanId: s.correlated_span_id || s.correlatedSpanId || "",
+        request: {
+          method: s.request?.method || "GET",
+          url: s.request?.url || "",
+          headers: s.request?.headers || {},
+          body: s.request?.body || ""
+        },
+        response: {
+          status: s.response?.status || "200 OK",
+          statusCode: s.response?.statusCode || 200,
+          headers: s.response?.headers || {},
+          body: s.response?.body || "",
+          chunks: s.response?.chunks,
+          streamingPreserved: s.response?.streamingPreserved
+        }
+      }))
+    };
   }
 
   try {
@@ -87,7 +117,8 @@ export function writeCassette(runId: string, projectRoot: string, data: Cassette
 }
 
 /**
- * Creates a partial fork cassette containing only entries up to forkFromSpanId.
+ * Creates a partial fork cassette containing only entries strictly before forkFromSpanId.
+ * Synchronizes to both .aerograph/cassettes/ and .agent-replay/runs/ so replay-core uses it.
  */
 export function writeForkCassette(
   childRunId: string,
@@ -97,16 +128,16 @@ export function writeForkCassette(
 ): Cassette {
   const baseCassette = readCassette(baseCassetteRunId, projectRoot);
 
-  // Filter entries up to the fork span
+  // Filter entries strictly prior to the fork span so the fork point executes live
   const preForkEntries: CassetteEntry[] = [];
   let foundForkSpan = false;
 
   for (const entry of baseCassette.entries) {
-    preForkEntries.push(entry);
     if (entry.correlatedSpanId === forkFromSpanId) {
       foundForkSpan = true;
       break;
     }
+    preForkEntries.push(entry);
   }
 
   const forkCassette: Cassette = {
@@ -115,9 +146,40 @@ export function writeForkCassette(
     traceId: baseCassette.traceId,
     command: baseCassette.command,
     recordedAt: new Date().toISOString(),
-    entries: foundForkSpan ? preForkEntries : baseCassette.entries
+    entries: foundForkSpan ? preForkEntries : []
   };
 
   writeCassette(childRunId, projectRoot, forkCassette);
+
+  // Also write native Go replay-core format to .agent-replay/runs/<childRunId>.json
+  try {
+    const runsDir = path.join(projectRoot, ".agent-replay", "runs");
+    if (!fs.existsSync(runsDir)) {
+      fs.mkdirSync(runsDir, { recursive: true });
+    }
+    const runFilePath = path.join(runsDir, `${childRunId}.json`);
+    const nativeSteps = forkCassette.entries.map((entry) => ({
+      type: "http",
+      correlated_span_id: entry.correlatedSpanId,
+      request: entry.request,
+      response: entry.response
+    }));
+    fs.writeFileSync(
+      runFilePath,
+      JSON.stringify(
+        {
+          run_id: childRunId,
+          original_command: forkCassette.command.join(" "),
+          steps: nativeSteps
+        },
+        null,
+        2
+      ),
+      "utf-8"
+    );
+  } catch (err) {
+    console.warn(`[Cassette] Could not sync partial run file to .agent-replay/runs:`, err);
+  }
+
   return forkCassette;
 }

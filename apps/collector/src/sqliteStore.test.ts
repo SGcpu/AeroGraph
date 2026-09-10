@@ -387,6 +387,48 @@ describe("collector: SqliteTraceStore", () => {
       const allRuns = store.listRuns();
       expect(allRuns.some((r) => r.runId === runId)).toBe(true);
     });
+
+    it("stores and retrieves runtime environment fields (virtualEnv, executablePath, entrypoint)", () => {
+      const runId = store.createRun({
+        traceId: "trace-env-1",
+        mode: "record",
+        command: ["python", "custom_agent.py"],
+        projectRoot: "/external/project",
+        virtualEnv: "/external/project/.venv",
+        executablePath: "/external/project/.venv/bin/python",
+        entrypoint: "/external/project/custom_agent.py"
+      });
+
+      const run = store.getRunById(runId);
+      expect(run?.projectRoot).toBe("/external/project");
+      expect(run?.virtualEnv).toBe("/external/project/.venv");
+      expect(run?.executablePath).toBe("/external/project/.venv/bin/python");
+      expect(run?.entrypoint).toBe("/external/project/custom_agent.py");
+    });
+
+    it("saves and retrieves trace_runtime_metadata and falls back in getRunByTraceId", () => {
+      store.saveTraceRuntimeMetadata({
+        traceId: "trace-direct-sdk-1",
+        projectRoot: "/sdk/project",
+        virtualEnv: "/sdk/project/.venv",
+        executablePath: "/sdk/project/.venv/bin/python",
+        entrypoint: "/sdk/project/agent.py",
+        command: ["python", "agent.py"]
+      });
+
+      const meta = store.getTraceRuntimeMetadata("trace-direct-sdk-1");
+      expect(meta).not.toBeNull();
+      expect(meta?.projectRoot).toBe("/sdk/project");
+      expect(meta?.virtualEnv).toBe("/sdk/project/.venv");
+
+      // getRunByTraceId synthesizes run context from trace_runtime_metadata
+      const synthesizedRun = store.getRunByTraceId("trace-direct-sdk-1");
+      expect(synthesizedRun).not.toBeNull();
+      expect(synthesizedRun?.projectRoot).toBe("/sdk/project");
+      expect(synthesizedRun?.virtualEnv).toBe("/sdk/project/.venv");
+      expect(synthesizedRun?.executablePath).toBe("/sdk/project/.venv/bin/python");
+      expect(synthesizedRun?.command).toEqual(["python", "agent.py"]);
+    });
   });
 
   // T050: forkTrace lineage and event prefix guarantees

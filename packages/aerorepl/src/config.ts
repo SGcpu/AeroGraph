@@ -15,6 +15,24 @@ export function findProjectConfigPath(cwd: string = process.cwd()): string | nul
   while (true) {
     const dotPath = path.join(currentDir, ".aerograph", "aerograph.project.yaml");
     const rootPath = path.join(currentDir, "aerograph.project.yaml");
+    if (fs.existsSync(dotPath) && fs.existsSync(rootPath)) {
+      try {
+        const dotParsed = yaml.load(fs.readFileSync(dotPath, "utf-8")) as any;
+        const rootParsed = yaml.load(fs.readFileSync(rootPath, "utf-8")) as any;
+        const dotHasScript = Array.isArray(dotParsed?.command) && dotParsed.command.some((a: string) => {
+          const ext = path.extname(a).toLowerCase();
+          return [".py", ".ts", ".js", ".mjs", ".cjs"].includes(ext) && fs.existsSync(path.resolve(currentDir, a));
+        });
+        const rootHasScript = Array.isArray(rootParsed?.command) && rootParsed.command.some((a: string) => {
+          const ext = path.extname(a).toLowerCase();
+          return [".py", ".ts", ".js", ".mjs", ".cjs"].includes(ext) && fs.existsSync(path.resolve(currentDir, a));
+        });
+        if (rootHasScript && !dotHasScript) {
+          return rootPath;
+        }
+      } catch {}
+      return dotPath;
+    }
     if (fs.existsSync(dotPath)) return dotPath;
     if (fs.existsSync(rootPath)) return rootPath;
 
@@ -43,12 +61,34 @@ export function loadProjectConfig(cwd: string = process.cwd()): AerographProject
         throw new Error(`Configuration at ${configPath} must specify a non-empty 'command' array`);
       }
 
+      const projectRoot = path.dirname(configPath.includes(".aerograph") ? path.dirname(configPath) : configPath);
+      const command = parsed.command.map((arg: string) => {
+        const ext = path.extname(arg).toLowerCase();
+        if ([".py", ".ts", ".js", ".mjs", ".cjs"].includes(ext) && !fs.existsSync(path.resolve(projectRoot, arg))) {
+          const filename = path.basename(arg);
+          const candidateSubdirs = [
+            path.join("examples", "openrouter-langgraph-py"),
+            path.join("examples", "openrouter-langgraph-ts"),
+            path.join("examples"),
+            path.join("tests", "fixtures"),
+            path.join("src")
+          ];
+          for (const subdir of candidateSubdirs) {
+            const candidateRelative = path.join(subdir, filename);
+            if (fs.existsSync(path.resolve(projectRoot, candidateRelative))) {
+              return candidateRelative.replace(/\\/g, "/");
+            }
+          }
+        }
+        return arg;
+      });
+
       return {
         version: parsed.version || "1.0.0",
-        command: parsed.command,
+        command,
         collectorUrl: parsed.collectorUrl || process.env.VITE_COLLECTOR_URL || "http://127.0.0.1:4317",
         orchestratorUrl: parsed.orchestratorUrl || process.env.VITE_ORCHESTRATOR_URL || "http://127.0.0.1:4318",
-        projectRoot: path.dirname(configPath.includes(".aerograph") ? path.dirname(configPath) : configPath)
+        projectRoot
       };
     } catch (err: any) {
       throw new Error(`Error reading project configuration at ${configPath}: ${err.message}`);

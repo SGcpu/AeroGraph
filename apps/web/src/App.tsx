@@ -819,7 +819,7 @@ export default function App() {
               onClick={() => doForkFromSpan(e.spanId)}
               title={`Fork trace from span ${e.spanId}`}
             >
-              {forkInProgress ? "Forking…" : "⑂ Generate Fork ID"}
+              {forkInProgress ? "Forking…" : e.kind === "prompt" ? "⑂ Fork & Override Prompt" : "⑂ Generate Fork ID"}
             </button>
           </div>
 
@@ -1930,15 +1930,23 @@ export default function App() {
       </main>
       )}
 
-      {forkModalSpanId && traceId && (
-        <ForkResumeModal
-          api={api}
-          baseTraceId={traceId}
-          forkFromSpanId={forkModalSpanId}
-          onClose={() => setForkModalSpanId(null)}
-          onForkCompleted={handleForkCompleted}
-        />
-      )}
+      {forkModalSpanId && traceId && (() => {
+        const targetEvt = events.find((ev) => ev.spanId === forkModalSpanId);
+        const initialPrompt =
+          (targetEvt as any)?.payload?.text ||
+          (targetEvt as any)?.payload?.promptText ||
+          "";
+        return (
+          <ForkResumeModal
+            api={api}
+            baseTraceId={traceId}
+            forkFromSpanId={forkModalSpanId}
+            initialPromptText={initialPrompt}
+            onClose={() => setForkModalSpanId(null)}
+            onForkCompleted={handleForkCompleted}
+          />
+        );
+      })()}
 
       {projectConfigOpen && (
         <ProjectConfigModal

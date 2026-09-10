@@ -210,10 +210,26 @@ export function createProgram(customClient?: AereplClient): Command {
           // non-blocking
         }
 
+        const virtualEnv = process.env.VIRTUAL_ENV || process.env.CONDA_PREFIX || null;
+        let executablePath: string | null = null;
+        if (virtualEnv) {
+          const venvBin = process.platform === "win32"
+            ? path.join(virtualEnv, "Scripts")
+            : path.join(virtualEnv, "bin");
+          const venvPy = process.platform === "win32"
+            ? path.join(venvBin, "python.exe")
+            : path.join(venvBin, "python");
+          if (fs.existsSync(venvPy)) {
+            executablePath = venvPy;
+          }
+        }
+
         const res = await client.startRun({
           mode: "record",
           command: finalCommand,
-          projectRoot: config.projectRoot
+          projectRoot: config.projectRoot,
+          virtualEnv: virtualEnv ?? undefined,
+          executablePath: executablePath ?? undefined
         });
         if (options.json) {
           console.log(JSON.stringify(res, null, 2));
@@ -236,7 +252,9 @@ export function createProgram(customClient?: AereplClient): Command {
     .description("Display active project and tool safety policy configuration")
     .action(() => {
       const cfg = getProjectConfig();
+      const activeVenv = process.env.VIRTUAL_ENV || process.env.CONDA_PREFIX;
       console.log(`Project Root:     ${cfg.projectRoot}`);
+      console.log(`Virtual Env:      ${activeVenv || "(none detected)"}`);
       console.log(`Active Command:   ${cfg.command && cfg.command.length > 0 ? cfg.command.join(" ") : "(none configured)"}`);
       console.log(`Collector URL:    ${cfg.collectorUrl || "http://127.0.0.1:4317"}`);
       console.log(`Orchestrator URL: ${cfg.orchestratorUrl || "http://127.0.0.1:4318"}`);

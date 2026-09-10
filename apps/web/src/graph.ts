@@ -117,6 +117,46 @@ export function buildGraph(events: TraceEvent[]): { nodes: Node[]; edges: Edge[]
     }
   }
 
+  // C. Fork -> Resumed execution root edge (keeps forked traces unified and connected)
+  const forkEvent = visualEvents.find(
+    (e) => e.kind === "note" && (e as any).payload?.event === "trace_fork"
+  );
+  if (forkEvent) {
+    const forkTime = new Date(forkEvent.occurredAt).getTime();
+    const postForkRoots = visualEvents.filter((e) => {
+      if (e.spanId === forkEvent.spanId) return false;
+      const eTime = new Date(e.occurredAt).getTime();
+      if (eTime < forkTime) return false;
+      return !e.parentSpanId || !visualEventIds.has(e.parentSpanId);
+    });
+
+    for (const postRoot of postForkRoots) {
+      edges.push({
+        id: `fork-${forkEvent.spanId}-${postRoot.spanId}`,
+        source: forkEvent.spanId,
+        target: postRoot.spanId,
+        animated: true,
+        label: "⑂ fork resume",
+        labelStyle: {
+          fill: "#c084fc",
+          fontWeight: 700,
+          fontSize: 10,
+          fontFamily: "var(--font-mono)"
+        },
+        labelBgStyle: { fill: "rgba(15, 23, 42, 0.9)", color: "#fff" },
+        style: { stroke: "#c084fc", strokeWidth: 2.5, strokeDasharray: "4 4" },
+        zIndex: 1000,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          color: "#c084fc",
+          width: 16,
+          height: 16
+        }
+      });
+      dagreGraph.setEdge(forkEvent.spanId, postRoot.spanId, { weight: 10 });
+    }
+  }
+
   // 4. Compute layout
   dagre.layout(dagreGraph);
 

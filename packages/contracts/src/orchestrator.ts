@@ -17,7 +17,13 @@ export const startRunRequestSchema = z.object({
   /** Optional for fork: prompt override at fork span */
   forkOverrides: z.object({ promptText: z.string().optional() }).optional(),
   /** Optional: override default project root */
-  projectRoot: z.string().optional()
+  projectRoot: z.string().optional(),
+  /** Optional: virtual environment path (e.g. .venv) */
+  virtualEnv: z.string().optional().nullable(),
+  /** Optional: exact executable path (e.g. /path/to/.venv/bin/python) */
+  executablePath: z.string().optional().nullable(),
+  /** Optional: entrypoint script file */
+  entrypoint: z.string().optional().nullable()
 });
 export type StartRunRequest = z.infer<typeof startRunRequestSchema>;
 
@@ -39,7 +45,11 @@ export const getRunResponseSchema = z.object({
   completedAt: z.string().datetime().nullable(),
   exitCode: z.number().int().nullable(),
   errorMessage: z.string().nullable(),
-  command: z.array(z.string()).optional()
+  command: z.array(z.string()).optional(),
+  projectRoot: z.string().optional(),
+  virtualEnv: z.string().optional().nullable(),
+  executablePath: z.string().optional().nullable(),
+  entrypoint: z.string().optional().nullable()
 });
 export type GetRunResponse = z.infer<typeof getRunResponseSchema>;
 
@@ -57,9 +67,21 @@ export const forkAndResumeRequestSchema = z.object({
   command: z.union([z.string(), z.array(z.string())]).optional(),
   projectConfigYaml: z.string().optional(),
   projectRoot: z.string().optional(),
-  cassetteRunId: z.string().optional()
+  cassetteRunId: z.string().optional(),
+  virtualEnv: z.string().optional().nullable(),
+  executablePath: z.string().optional().nullable(),
+  entrypoint: z.string().optional().nullable()
 });
 export type ForkAndResumeRequest = z.infer<typeof forkAndResumeRequestSchema>;
+
+export const runtimeMetadataSchema = z.object({
+  projectRoot: z.string().min(1),
+  virtualEnv: z.string().optional().nullable(),
+  executablePath: z.string().optional().nullable(),
+  entrypoint: z.string().optional().nullable(),
+  command: z.union([z.string(), z.array(z.string())]).optional()
+});
+export type RuntimeMetadata = z.infer<typeof runtimeMetadataSchema>;
 
 export const forkAndResumeResponseSchema = z.object({
   childTraceId: z.string().min(1),
@@ -91,3 +113,8 @@ export function validateForkAndResumeRequest(input: unknown): ForkAndResumeReque
 export function validateForkAndResumeResponse(input: unknown): ForkAndResumeResponse {
   return forkAndResumeResponseSchema.parse(input);
 }
+
+export function validateRuntimeMetadata(input: unknown): RuntimeMetadata {
+  return runtimeMetadataSchema.parse(input);
+}
+

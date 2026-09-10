@@ -7,6 +7,7 @@ export interface ForkResumeModalProps {
   api: Api;
   baseTraceId: string;
   forkFromSpanId: string;
+  initialPromptText?: string;
   onClose: () => void;
   onForkCompleted: (childTraceId: string, parentTraceId: string) => void;
 }
@@ -15,10 +16,11 @@ export function ForkResumeModal({
   api,
   baseTraceId,
   forkFromSpanId,
+  initialPromptText,
   onClose,
   onForkCompleted
 }: ForkResumeModalProps): JSX.Element {
-  const [promptOverride, setPromptOverride] = useState("");
+  const [promptOverride, setPromptOverride] = useState(initialPromptText || "");
   const [customConfig, setCustomConfig] = useState("");
   const [activeConfigCommand, setActiveConfigCommand] = useState<string | null>(null);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
@@ -28,29 +30,49 @@ export function ForkResumeModal({
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [childTraceId, setChildTraceId] = useState<string | null>(null);
   const [manualGeneratedId, setManualGeneratedId] = useState<string | null>(null);
+  const [runtimeMeta, setRuntimeMeta] = useState<{
+    traceId?: string;
+    projectRoot?: string;
+    virtualEnv?: string | null;
+    executablePath?: string | null;
+    entrypoint?: string | null;
+    command?: string[] | null;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    async function checkConfig() {
+    async function loadMetaAndConfig() {
       try {
-        const res = await api.getProjectConfig();
-        if (!cancelled && res?.config?.command) {
-          const cmdStr = Array.isArray(res.config.command)
-            ? res.config.command.join(" ")
-            : String(res.config.command);
+        const [metaRes, configRes] = await Promise.all([
+          api.getRuntimeMetadata(baseTraceId).catch(() => null),
+          api.getProjectConfig().catch(() => ({ config: null }))
+        ]);
+
+        if (cancelled) return;
+
+        if (metaRes) {
+          setRuntimeMeta(metaRes);
+        }
+
+        if (configRes?.config?.command) {
+          const cmdStr = Array.isArray(configRes.config.command)
+            ? configRes.config.command.join(" ")
+            : String(configRes.config.command);
           setActiveConfigCommand(cmdStr);
-        } else if (!cancelled) {
+        } else if (metaRes?.command && metaRes.command.length > 0) {
+          setActiveConfigCommand(metaRes.command.join(" "));
+        } else {
           setShowConfigEditor(true);
         }
       } catch {
         if (!cancelled) setShowConfigEditor(true);
       }
     }
-    checkConfig();
+    loadMetaAndConfig();
     return () => {
       cancelled = true;
     };
-  }, [api]);
+  }, [api, baseTraceId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +102,10 @@ export function ForkResumeModal({
 
         const res = await api.forkAndResume(baseTraceId, forkFromSpanId, overrides, {
           command: commandOption,
-          projectConfigYaml: yamlOption
+          projectConfigYaml: yamlOption,
+          projectRoot: runtimeMeta?.projectRoot,
+          virtualEnv: runtimeMeta?.virtualEnv ?? undefined,
+          executablePath: runtimeMeta?.executablePath ?? undefined
         });
         setChildTraceId(res.childTraceId);
         setActiveRunId(res.runId);
@@ -200,6 +225,51 @@ export function ForkResumeModal({
                 }}
               />
             </div>
+
+            {/* Recorded Execution Environment Card */}
+            {runtimeMeta && (runtimeMeta.projectRoot || runtimeMeta.virtualEnv) && (
+              <div
+                style={{
+                  background: "rgba(15, 23, 42, 0.7)",
+                  border: "1px solid rgba(56, 189, 248, 0.25)",
+                  borderRadius: "6px",
+                  padding: "10px 12px",
+                  fontSize: "11px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px"
+                }}
+              >
+                <div style={{ fontWeight: 600, color: "#38bdf8", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span>🔍</span>
+                  <span>Recorded Execution Environment</span>
+                </div>
+                {runtimeMeta.projectRoot && (
+                  <div style={{ color: "#94a3b8", display: "flex", gap: "6px", alignItems: "baseline" }}>
+                    <span style={{ color: "#cbd5e1", minWidth: "80px" }}>📁 Working Dir:</span>
+                    <code style={{ color: "#e2e8f0", fontFamily: "monospace", wordBreak: "break-all" }}>
+                      {runtimeMeta.projectRoot}
+                    </code>
+                  </div>
+                )}
+                {runtimeMeta.virtualEnv && (
+                  <div style={{ color: "#94a3b8", display: "flex", gap: "6px", alignItems: "baseline" }}>
+                    <span style={{ color: "#cbd5e1", minWidth: "80px" }}>🐍 Virtual Env:</span>
+                    <code style={{ color: "#4ade80", fontFamily: "monospace", wordBreak: "break-all" }}>
+                      {runtimeMeta.virtualEnv}
+                    </code>
+                  </div>
+                )}
+                {runtimeMeta.command && runtimeMeta.command.length > 0 && (
+                  <div style={{ color: "#94a3b8", display: "flex", gap: "6px", alignItems: "baseline" }}>
+                    <span style={{ color: "#cbd5e1", minWidth: "80px" }}>⚡ Command:</span>
+                    <code style={{ color: "#facc15", fontFamily: "monospace", wordBreak: "break-all" }}>
+                      {runtimeMeta.command.join(" ")}
+                    </code>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Config & Command section */}
             <div style={{ background: "rgba(15, 23, 42, 0.6)", border: "1px solid #334155", borderRadius: "6px", padding: "10px 12px" }}>

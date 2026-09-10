@@ -391,6 +391,33 @@ describe("collector: API", () => {
 
       db.close();
     });
+
+    it("POST and GET /v1/traces/:id/runtime-metadata saves and retrieves environment metadata", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      const postRes = await request(app)
+        .post("/v1/traces/t_test_runtime/runtime-metadata")
+        .send({
+          projectRoot: "/workspace/external-agent",
+          virtualEnv: "/workspace/external-agent/.venv",
+          executablePath: "/workspace/external-agent/.venv/bin/python",
+          entrypoint: "/workspace/external-agent/main.py",
+          command: ["python", "main.py"]
+        });
+      expect(postRes.status).toBe(201);
+      expect(postRes.body.ok).toBe(true);
+
+      const getRes = await request(app)
+        .get("/v1/traces/t_test_runtime/runtime-metadata");
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.projectRoot).toBe("/workspace/external-agent");
+      expect(getRes.body.virtualEnv).toBe("/workspace/external-agent/.venv");
+      expect(getRes.body.executablePath).toBe("/workspace/external-agent/.venv/bin/python");
+      expect(getRes.body.command).toEqual(["python", "main.py"]);
+
+      db.close();
+    });
   });
 });
 

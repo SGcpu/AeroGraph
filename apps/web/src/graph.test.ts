@@ -80,4 +80,54 @@ describe("web: graph utilities", () => {
 
     expect(r1.map((e: any) => e.spanId)).toEqual(r2.map((e: any) => e.spanId));
   });
+
+  it("buildGraph connects trace_fork event to post-fork root spans", () => {
+    const events = [
+      {
+        traceId: "t-1",
+        spanId: "s-root-1",
+        parentSpanId: null,
+        occurredAt: "2026-05-20T00:00:00.000Z",
+        kind: "note",
+        payload: { kind: "langchain_chain" }
+      },
+      {
+        traceId: "t-1",
+        spanId: "s-prompt-1",
+        parentSpanId: "s-root-1",
+        occurredAt: "2026-05-20T00:00:01.000Z",
+        kind: "prompt",
+        payload: { text: "Original prompt" }
+      },
+      {
+        traceId: "t-1",
+        spanId: "n-fork-1",
+        parentSpanId: "s-prompt-1",
+        occurredAt: "2026-05-20T00:00:02.000Z",
+        kind: "note",
+        payload: { event: "trace_fork" }
+      },
+      {
+        traceId: "t-1",
+        spanId: "s-root-2",
+        parentSpanId: null,
+        occurredAt: "2026-05-20T00:00:03.000Z",
+        kind: "note",
+        payload: { kind: "langchain_chain" }
+      },
+      {
+        traceId: "t-1",
+        spanId: "s-prompt-2",
+        parentSpanId: "s-root-2",
+        occurredAt: "2026-05-20T00:00:04.000Z",
+        kind: "prompt",
+        payload: { text: "Resumed prompt" }
+      }
+    ] as any;
+
+    const graph = buildGraph(events);
+    const forkEdge = graph.edges.find((e) => e.source === "n-fork-1" && e.target === "s-root-2");
+    expect(forkEdge).toBeDefined();
+    expect(forkEdge?.label).toBe("⑂ fork resume");
+  });
 });

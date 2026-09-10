@@ -177,5 +177,34 @@ describe("replay: Runner", () => {
     expect(elapsedMs).toBeLessThan(50);
     expect(mockStore.appendReplayAnnotation).toHaveBeenCalledTimes(50);
   });
+
+  it("injects VIRTUAL_ENV and prepends venv to PATH when virtualEnv is specified", async () => {
+    const fakeChild: any = new EventEmitter();
+    fakeChild.pid = 12345;
+    fakeChild.stdout = new EventEmitter();
+    fakeChild.stderr = new EventEmitter();
+
+    const spawnSpy = vi.spyOn(child_process, "spawn").mockReturnValue(fakeChild);
+
+    const runPromise = runner.spawnRun({
+      runId: "run-venv-1",
+      traceId: "t_venv-1",
+      mode: "record",
+      command: ["python", "agent.py"],
+      projectRoot: "/external/project",
+      virtualEnv: "/external/project/.venv"
+    });
+
+    expect(spawnSpy).toHaveBeenCalled();
+    const [, , spawnOpts] = spawnSpy.mock.calls[0];
+
+    expect(spawnOpts?.cwd).toBe("/external/project");
+    expect(spawnOpts?.env?.VIRTUAL_ENV).toBe("/external/project/.venv");
+    expect(spawnOpts?.env?.PYTHONHOME).toBeUndefined();
+
+    fakeChild.emit("close", 0);
+    await runPromise;
+    spawnSpy.mockRestore();
+  });
 });
 

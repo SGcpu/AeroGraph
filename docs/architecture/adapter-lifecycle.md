@@ -9,6 +9,7 @@ By design (ADR-0002), the collector does not understand LangChain or AutoGen con
 1. **Deterministic Mapping**: Translate framework-specific states into standard `TraceEvent` payloads.
 2. **Span Relationship Management**: Accurately pass `spanId` and `parentSpanId` based on the framework's internal execution tree.
 3. **Loss-Aware Serialization**: If a framework provides rich metadata that doesn't fit the schema's top-level properties, serialize it into the generic `payload` map. Do not invent new top-level properties.
+4. **Automatic Environment Registration**: Delegate to or ensure the underlying `FlightRecorder` registers process runtime metadata (`projectRoot`, `virtualEnv`, `executablePath`, `command`) via `POST /v1/traces/:id/runtime-metadata` on the initial event, enabling UI replay/forking for directly executed scripts (`node agent.js`, `python agent.py`).
 
 ### Initialization Example
 An adapter usually accepts a configured `FlightRecorder` instance from `@afr/sdk` and returns a native callback handler or plugin:

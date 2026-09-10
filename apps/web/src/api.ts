@@ -46,8 +46,22 @@ export type Api = {
     traceId: string,
     forkFromSpanId: string,
     overrides?: { promptText?: string },
-    options?: { command?: string | string[]; projectConfigYaml?: string }
+    options?: {
+      command?: string | string[];
+      projectConfigYaml?: string;
+      projectRoot?: string;
+      virtualEnv?: string;
+      executablePath?: string;
+    }
   ): Promise<ForkAndResumeResponse>;
+  getRuntimeMetadata(traceId: string): Promise<{
+    traceId?: string;
+    projectRoot?: string;
+    virtualEnv?: string | null;
+    executablePath?: string | null;
+    entrypoint?: string | null;
+    command?: string[] | null;
+  } | null>;
   getProjectConfig(): Promise<{ config: any }>;
   saveProjectConfig(payload: { yamlContent?: string; command?: string | string[] }): Promise<{ ok: boolean; path: string }>;
 };
@@ -172,6 +186,16 @@ export function createApi(
       return await res.json();
     },
 
+    async getRuntimeMetadata(traceId: string) {
+      try {
+        const res = await fetch(`${base}/v1/traces/${encodeURIComponent(traceId)}/runtime-metadata`);
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    },
+
     async forkAndResume(traceId, forkFromSpanId, overrides, options) {
       const res = await fetch(`${base}/v1/traces/${encodeURIComponent(traceId)}/fork-and-resume`, {
         method: "POST",
@@ -180,7 +204,10 @@ export function createApi(
           forkFromSpanId,
           overrides,
           command: options?.command,
-          projectConfigYaml: options?.projectConfigYaml
+          projectConfigYaml: options?.projectConfigYaml,
+          projectRoot: options?.projectRoot,
+          virtualEnv: options?.virtualEnv,
+          executablePath: options?.executablePath
         })
       });
       if (!res.ok) throw new Error(await res.text());

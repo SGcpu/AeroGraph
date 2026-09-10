@@ -14,6 +14,7 @@ import {
 import type { SqliteTraceStore } from "../sqliteStore.js";
 import type { Runner } from "./runner.js";
 import { loadPolicy, computeLiveHosts } from "./policy.js";
+import { commandHasExistingScript, resolveCommandScriptPaths } from "./commandResolver.js";
 
 /**
  * Loads and parses aerograph.project.yaml from projectRoot if it exists,
@@ -29,7 +30,27 @@ export function loadProjectConfig(projectRoot: string): {
   while (true) {
     const dotPath = path.join(currentDir, ".aerograph", "aerograph.project.yaml");
     const rootPath = path.join(currentDir, "aerograph.project.yaml");
-    const configPath = fs.existsSync(dotPath) ? dotPath : fs.existsSync(rootPath) ? rootPath : null;
+
+    let configPath: string | null = null;
+    if (fs.existsSync(dotPath) && fs.existsSync(rootPath)) {
+      try {
+        const dotParsed = yaml.load(fs.readFileSync(dotPath, "utf-8")) as any;
+        const rootParsed = yaml.load(fs.readFileSync(rootPath, "utf-8")) as any;
+        const dotHasScript = dotParsed?.command && commandHasExistingScript(dotParsed.command, currentDir);
+        const rootHasScript = rootParsed?.command && commandHasExistingScript(rootParsed.command, currentDir);
+        if (rootHasScript && !dotHasScript) {
+          configPath = rootPath;
+        } else {
+          configPath = dotPath;
+        }
+      } catch {
+        configPath = dotPath;
+      }
+    } else if (fs.existsSync(dotPath)) {
+      configPath = dotPath;
+    } else if (fs.existsSync(rootPath)) {
+      configPath = rootPath;
+    }
 
     if (configPath) {
       try {
@@ -90,15 +111,26 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
     }
 
     const projectRoot = parsedReq.projectRoot || sourceRun?.projectRoot || process.cwd();
+    const virtualEnv = parsedReq.virtualEnv ?? sourceRun?.virtualEnv ?? null;
+    const executablePath = parsedReq.executablePath ?? sourceRun?.executablePath ?? null;
+    const entrypoint = parsedReq.entrypoint ?? sourceRun?.entrypoint ?? null;
     let command = parsedReq.command;
 
     if (!command || command.length === 0) {
       const config = loadProjectConfig(projectRoot);
-      if (config && config.command) {
+      if (sourceRun && sourceRun.command && commandHasExistingScript(sourceRun.command, projectRoot)) {
+        command = sourceRun.command;
+      } else if (config && config.command && commandHasExistingScript(config.command, projectRoot)) {
+        command = config.command;
+      } else if (config && config.command) {
         command = config.command;
       } else if (sourceRun && sourceRun.command) {
         command = sourceRun.command;
       }
+    }
+
+    if (command && command.length > 0) {
+      command = resolveCommandScriptPaths(command, projectRoot);
     }
 
     if (!command || command.length === 0) {
@@ -115,7 +147,10 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
       command,
       projectRoot,
       parentTraceId,
-      cassetteRunId: parsedReq.cassetteRunId ?? null
+      cassetteRunId: parsedReq.cassetteRunId ?? null,
+      virtualEnv,
+      executablePath,
+      entrypoint
     });
 
     const response: StartRunResponse = {
@@ -144,7 +179,9 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
       projectRoot,
       cassetteRunId: parsedReq.cassetteRunId,
       parentTraceId,
-      liveHosts
+      liveHosts,
+      virtualEnv,
+      executablePath
     }).catch((err) => {
       console.error(`[Orchestrator] Run ${runId} encountered background error:`, err);
     });

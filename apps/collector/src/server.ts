@@ -13,7 +13,8 @@ import {
   validateTraceAnalysis,
   validateTraceStats,
   replayTraceRequestSchema,
-  forkAndResumeRequestSchema
+  forkAndResumeRequestSchema,
+  validateRuntimeMetadata
 } from "@aerograph/contracts";
 import { getDatabase } from "./sqlite/db";
 import { runMigrations } from "./sqlite/migrate";
@@ -21,6 +22,7 @@ import { SqliteTraceStore } from "./sqliteStore";
 import { createOtlpIngestHandler } from "./otel/ingest";
 import { Runner } from "./replay/runner.js";
 import { createOrchestratorApp, loadProjectConfig } from "./replay/orchestrator.js";
+import { commandHasExistingScript, resolveCommandScriptPaths } from "./replay/commandResolver.js";
 import { cassetteExists } from "./replay/cassette.js";
 
 export type CreateAppOptions = {
@@ -107,6 +109,44 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     }
   });
 
+  app.post("/v1/traces/:traceId/runtime-metadata", (req, res) => {
+    const traceId = req.params.traceId;
+    try {
+      const data = validateRuntimeMetadata(req.body);
+      store.saveTraceRuntimeMetadata({
+        traceId,
+        projectRoot: data.projectRoot,
+        virtualEnv: data.virtualEnv,
+        executablePath: data.executablePath,
+        entrypoint: data.entrypoint,
+        command: data.command
+      });
+      res.status(201).json({ ok: true, traceId });
+    } catch (err: any) {
+      res.status(400).json({ error: err?.message ?? String(err) });
+    }
+  });
+
+  app.get("/v1/traces/:traceId/runtime-metadata", (req, res) => {
+    const traceId = req.params.traceId;
+    const meta = store.getTraceRuntimeMetadata(traceId);
+    if (!meta) {
+      const run = store.getRunByTraceId(traceId);
+      if (run) {
+        return res.json({
+          traceId,
+          projectRoot: run.projectRoot,
+          virtualEnv: run.virtualEnv,
+          executablePath: run.executablePath,
+          entrypoint: run.entrypoint,
+          command: run.command
+        });
+      }
+      return res.status(404).json({ error: `No runtime metadata for trace ${traceId}` });
+    }
+    res.json(meta);
+  });
+
   app.post("/v1/otlp/traces", createOtlpIngestHandler(store));
 
   app.get("/v1/traces", (req, res) => {
@@ -180,22 +220,23 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       return res.status(404).json({ error: `Trace ${traceId} not found` });
     }
 
-    const projectRoot = (req.body.projectRoot as string) || process.cwd();
+    const linkedRun = store.getRunByTraceId(traceId);
     let cassetteRunId = req.body.cassetteRunId as string | undefined;
-
-    if (!cassetteRunId) {
-      const linkedRun = store.getRunByTraceId(traceId);
-      if (linkedRun) {
-        cassetteRunId = linkedRun.cassetteRunId || linkedRun.runId;
-      }
+    if (!cassetteRunId && linkedRun) {
+      cassetteRunId = linkedRun.cassetteRunId || linkedRun.runId;
     }
+
+    const projectRoot = (req.body.projectRoot as string) || linkedRun?.projectRoot || process.cwd();
+    const virtualEnv = (req.body.virtualEnv as string) ?? linkedRun?.virtualEnv ?? null;
+    const executablePath = (req.body.executablePath as string) ?? linkedRun?.executablePath ?? null;
+    const entrypoint = (req.body.entrypoint as string) ?? linkedRun?.entrypoint ?? null;
 
     if (!cassetteRunId || !cassetteExists(cassetteRunId, projectRoot)) {
       return res.status(409).json({ error: "No cassette linked. Re-record this run" });
     }
 
     const config = loadProjectConfig(projectRoot);
-    const command = (req.body.command as string[]) || config?.command || ["python", "agent.py"];
+    const command = (req.body.command as string[]) || linkedRun?.command || config?.command || ["python", "agent.py"];
 
     const newTraceId = `t_${nanoid(12)}`;
     const runId = store.createRun({
@@ -204,7 +245,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       command,
       projectRoot,
       cassetteRunId,
-      parentTraceId: traceId
+      parentTraceId: traceId,
+      virtualEnv,
+      executablePath,
+      entrypoint
     });
 
     runner.spawnRun({
@@ -213,7 +257,9 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       mode: "replay",
       command,
       projectRoot,
-      cassetteRunId
+      cassetteRunId,
+      virtualEnv,
+      executablePath
     }).catch((err) => {
       console.error(`[Server] Background replay run ${runId} failed:`, err);
     });
@@ -269,10 +315,18 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
         : parseResult.data.command.trim().split(/\s+/);
     } else if (parsedConfigFromYaml?.command && Array.isArray(parsedConfigFromYaml.command)) {
       command = parsedConfigFromYaml.command;
-    } else if (config?.command && config.command.length > 0) {
+    } else if (linkedRun?.command && linkedRun.command.length > 0 && commandHasExistingScript(linkedRun.command, projectRoot)) {
+      command = linkedRun.command;
+    } else if (config?.command && config.command.length > 0 && commandHasExistingScript(config.command, projectRoot)) {
       command = config.command;
     } else if (linkedRun?.command && linkedRun.command.length > 0) {
       command = linkedRun.command;
+    } else if (config?.command && config.command.length > 0) {
+      command = config.command;
+    }
+
+    if (command && command.length > 0) {
+      command = resolveCommandScriptPaths(command, projectRoot);
     }
 
     if (!command || command.length === 0) {
@@ -290,7 +344,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       const targetYaml = path.join(dotAerograph, "aerograph.project.yaml");
       if (projectConfigYaml && projectConfigYaml.trim()) {
         fs.writeFileSync(targetYaml, projectConfigYaml.trim(), "utf-8");
-      } else if (!fs.existsSync(targetYaml) && (!config || !config.command)) {
+      } else if (!fs.existsSync(targetYaml) && (!config || !config.command) && commandHasExistingScript(command, projectRoot)) {
         fs.writeFileSync(targetYaml, yaml.dump({ version: "1", command }), "utf-8");
       }
     } catch {
@@ -301,6 +355,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     if (!cassetteRunId && linkedRun) {
       cassetteRunId = linkedRun.cassetteRunId || linkedRun.runId;
     }
+
+    const virtualEnv = parseResult.data.virtualEnv ?? linkedRun?.virtualEnv ?? null;
+    const executablePath = parseResult.data.executablePath ?? linkedRun?.executablePath ?? null;
+    const entrypoint = parseResult.data.entrypoint ?? linkedRun?.entrypoint ?? null;
 
     let childTraceId: string;
     try {
@@ -319,7 +377,10 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       command,
       projectRoot,
       cassetteRunId,
-      parentTraceId: traceId
+      parentTraceId: traceId,
+      virtualEnv,
+      executablePath,
+      entrypoint
     });
 
     runner.spawnRun({
@@ -331,7 +392,9 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       cassetteRunId,
       parentTraceId: traceId,
       forkFromSpanId,
-      forkOverrides: overrides
+      forkOverrides: overrides,
+      virtualEnv,
+      executablePath
     }).catch((err) => {
       console.error(`[Server] Background fork run ${runId} failed:`, err);
     });
