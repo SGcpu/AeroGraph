@@ -3,6 +3,7 @@ package interceptor_test
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -281,6 +282,99 @@ func TestStreamingPreservedFlagInAnnotation(t *testing.T) {
 		t.Fatalf("Annotation log missing streamingPreserved=true: %s", string(logData))
 	}
 }
+
+func TestRewriteRequestBodyPrompt_Messages(t *testing.T) {
+	origJSON := `{"messages":[{"role":"user","content":"Provide a concise 2-sentence summary."}],"model":"openrouter/free"}`
+	rewritten, ok := interceptor.RewriteRequestBodyPrompt([]byte(origJSON), "Provide a concise 2-sentence summary.", "Provide a concise 3-sentence summary.")
+	if !ok {
+		t.Fatalf("Expected rewrite to succeed")
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal(rewritten, &parsed); err != nil {
+		t.Fatalf("Failed to parse rewritten JSON: %v", err)
+	}
+	msgs := parsed["messages"].([]any)
+	firstMsg := msgs[0].(map[string]any)
+	if firstMsg["content"] != "Provide a concise 3-sentence summary." {
+		t.Fatalf("Expected content 'Provide a concise 3-sentence summary.', got: %v", firstMsg["content"])
+	}
+}
+
+func TestRewriteRequestBodyPrompt_StripRolePrefix(t *testing.T) {
+	origJSON := `{"messages":[{"role":"user","content":"Synthesize findings into briefing"}],"model":"openrouter/free"}`
+	rewritten, ok := interceptor.RewriteRequestBodyPrompt([]byte(origJSON), "human: Synthesize findings into briefing", "human: Detailed 5-page report")
+	if !ok {
+		t.Fatalf("Expected rewrite to succeed")
+	}
+
+	var parsed map[string]any
+	if err := json.Unmarshal(rewritten, &parsed); err != nil {
+		t.Fatalf("Failed to parse rewritten JSON: %v", err)
+	}
+	msgs := parsed["messages"].([]any)
+	firstMsg := msgs[0].(map[string]any)
+	if firstMsg["content"] != "Detailed 5-page report" {
+		t.Fatalf("Expected 'Detailed 5-page report' with role stripped, got: %v", firstMsg["content"])
+	}
+}
+
+func TestReplayPromptOverrideExecution(t *testing.T) {
+	// A mock round tripper to capture outbound request
+	var capturedReqBody []byte
+	mockTransport := &mockRoundTripper{
+		roundTripFunc: func(r *http.Request) (*http.Response, error) {
+			b, _ := io.ReadAll(r.Body)
+			capturedReqBody = b
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(bytes.NewBufferString(`{"choices":[{"message":{"content":"Here is the 3-sentence summary."}}]}`)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	}
+
+	run := &core.Run{RunID: "ovr-001", Steps: []core.Step{}}
+	inter := interceptor.NewHTTPInterceptor(interceptor.ModeReplay, nil, run)
+	inter.Transport = mockTransport
+	inter.Fallback = true
+	inter.OverrideConfig = &interceptor.OverrideConfig{
+		ForkFromSpanId:     "s_synth",
+		OriginalPromptText: "Provide a concise 2-sentence summary.",
+		PromptText:         "Provide a concise 3-sentence summary.",
+	}
+
+	reqBody := `{"messages":[{"role":"user","content":"Provide a concise 2-sentence summary."}],"model":"openrouter/free"}`
+	req, _ := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBufferString(reqBody))
+	req.Header.Set("X-AeroGraph-Span-Id", "s_synth")
+
+	resp, err := inter.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("RoundTrip failed: %v", err)
+	}
+	resp.Body.Close()
+
+	// Verify that the captured request body sent to the transport had the rewritten prompt
+	if !strings.Contains(string(capturedReqBody), "Provide a concise 3-sentence summary.") {
+		t.Fatalf("Expected outbound body to contain rewritten prompt, got: %s", string(capturedReqBody))
+	}
+
+	// Verify that the annotation log marked the span as overridden
+	logData := inter.WriteAnnotationLog()
+	if !strings.Contains(string(logData), `"overridden":true`) {
+		t.Fatalf("Annotation log missing overridden=true: %s", string(logData))
+	}
+}
+
+type mockRoundTripper struct {
+	roundTripFunc func(*http.Request) (*http.Response, error)
+}
+
+func (m *mockRoundTripper) RoundTrip(r *http.Request) (*http.Response, error) {
+	return m.roundTripFunc(r)
+}
+
 
 // ─── Benchmark: p95 lookup latency (T005) ────────────────────────────────────
 

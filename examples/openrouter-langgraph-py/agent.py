@@ -238,11 +238,6 @@ def main():
             "Respond in 2 short bullet points."
         )
 
-        prompt_override = os.getenv("AFR_PROMPT_OVERRIDE")
-        if prompt_override and prompt_override.strip():
-            prompt_text = prompt_override.strip()
-            print(f"  ⚡ [FORK OVERRIDE] Using active prompt override from UI/REPL:\n  {prompt_text}")
-
         plan_content = ""
 
         # ----------------------------------------------------

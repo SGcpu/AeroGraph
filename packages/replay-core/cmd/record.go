@@ -87,6 +87,16 @@ No CA key material persists after the process ends (FR-037).`,
 		proxyAddr := "127.0.0.1:" + strconv.Itoa(proxyPort)
 
 		httpInterceptor := interceptor.NewHTTPInterceptor(interceptor.ModeRecord, s, currentRun)
+
+		// Apply prompt/span override file if provided
+		if overrideFilePath, _ := cmd.Flags().GetString("override-file"); overrideFilePath != "" {
+			if err := httpInterceptor.LoadOverrideFile(overrideFilePath); err != nil {
+				fmt.Fprintf(os.Stderr, "\033[33m[RECORD] Warning: failed to load override file '%s': %v\033[0m\n", overrideFilePath, err)
+			} else {
+				fmt.Printf("\033[36m[RECORD] Loaded override file: %s\033[0m\n", overrideFilePath)
+			}
+		}
+
 		httpProxy := proxy.NewHTTPProxy(proxyAddr, httpInterceptor, caManager)
 
 		httpProxy.Start()
@@ -187,5 +197,6 @@ func init() {
 	recordCmd.Flags().SetInterspersed(false)
 	recordCmd.Flags().String("run-id", "", "Specify custom run ID for correlation with orchestrator")
 	recordCmd.Flags().String("annotation-log", "", "Path to write per-request annotation log (JSON array)")
+	recordCmd.Flags().String("override-file", "", "Path to JSON file containing prompt/span overrides")
 	rootCmd.AddCommand(recordCmd)
 }

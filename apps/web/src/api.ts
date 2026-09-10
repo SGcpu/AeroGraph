@@ -52,6 +52,7 @@ export type Api = {
       projectRoot?: string;
       virtualEnv?: string;
       executablePath?: string;
+      mode?: "fork" | "record";
     }
   ): Promise<ForkAndResumeResponse>;
   getRuntimeMetadata(traceId: string): Promise<{
@@ -61,6 +62,8 @@ export type Api = {
     executablePath?: string | null;
     entrypoint?: string | null;
     command?: string[] | null;
+    cassetteRunId?: string | null;
+    hasCassette?: boolean;
   } | null>;
   getProjectConfig(): Promise<{ config: any }>;
   saveProjectConfig(payload: { yamlContent?: string; command?: string | string[] }): Promise<{ ok: boolean; path: string }>;
@@ -207,7 +210,8 @@ export function createApi(
           projectConfigYaml: options?.projectConfigYaml,
           projectRoot: options?.projectRoot,
           virtualEnv: options?.virtualEnv,
-          executablePath: options?.executablePath
+          executablePath: options?.executablePath,
+          mode: options?.mode
         })
       });
       if (!res.ok) throw new Error(await res.text());

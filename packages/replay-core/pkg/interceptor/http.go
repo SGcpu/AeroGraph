@@ -55,10 +55,12 @@ type AnnotationEntry struct {
 
 // OverrideConfig represents prompt/span substitutions supplied via --override-file.
 type OverrideConfig struct {
-	ForkFromSpanId string            `json:"forkFromSpanId,omitempty"`
-	PromptText     string            `json:"promptText,omitempty"`
-	Overrides      map[string]string `json:"overrides,omitempty"`
+	ForkFromSpanId     string            `json:"forkFromSpanId,omitempty"`
+	PromptText         string            `json:"promptText,omitempty"`
+	OriginalPromptText string            `json:"originalPromptText,omitempty"`
+	Overrides          map[string]string `json:"overrides,omitempty"`
 }
+
 
 // requestKey computes K(s) = SHA256(method ‖ normalizedUrl ‖ SHA256(body))
 // This is the canonical deterministic request key per spec FR-009.
@@ -149,6 +151,7 @@ type HTTPInterceptor struct {
 	LiveHosts         []string // Host glob patterns that always go live (must_execute)
 	AnnotationLog     []AnnotationEntry
 	OverrideConfig    *OverrideConfig
+	overrideApplied   bool
 	// hashed index — populated on first replay RoundTrip from CurrentRun.Steps
 	cassetteIdx *cassetteIndex
 	idxOnce     sync.Once
@@ -221,6 +224,43 @@ func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, er
 		req.Body = io.NopCloser(bytes.NewBuffer(reqBodyBytes))
 	}
 
+	normalizedURL := i.normalizeURL(req.URL.String())
+	correlatedSpanId := req.Header.Get("X-AeroGraph-Span-Id")
+
+	isOverridden := false
+	if i.OverrideConfig != nil && !i.overrideApplied && i.OverrideConfig.PromptText != "" {
+		shouldOverride := false
+		if correlatedSpanId != "" && (correlatedSpanId == i.OverrideConfig.ForkFromSpanId || (i.OverrideConfig.Overrides != nil && i.OverrideConfig.Overrides[correlatedSpanId] != "")) {
+			shouldOverride = true
+		} else if i.OverrideConfig.OriginalPromptText != "" {
+			cleanOrig := stripRolePrefix(i.OverrideConfig.OriginalPromptText)
+			prefixLen := len(cleanOrig)
+			if prefixLen > 30 {
+				prefixLen = 30
+			}
+			if cleanOrig != "" && bytes.Contains(reqBodyBytes, []byte(cleanOrig[:prefixLen])) {
+				shouldOverride = true
+			}
+		} else if i.OverrideConfig.ForkFromSpanId != "" {
+			if strings.Contains(normalizedURL, "chat/completions") || strings.Contains(normalizedURL, "completions") {
+				shouldOverride = true
+			}
+		}
+
+		if shouldOverride {
+			if rewritten, ok := RewriteRequestBodyPrompt(reqBodyBytes, i.OverrideConfig.OriginalPromptText, i.OverrideConfig.PromptText); ok {
+				reqBodyBytes = rewritten
+				req.Body = io.NopCloser(bytes.NewBuffer(rewritten))
+				req.ContentLength = int64(len(rewritten))
+				req.Header.Set("Content-Length", strconv.Itoa(len(rewritten)))
+				isOverridden = true
+				i.overrideApplied = true
+				fmt.Printf("%s[RECORD] Rewrote request body with prompt override: %s%s\n",
+					colorCyan, req.URL.String(), colorReset)
+			}
+		}
+	}
+
 	startTime := time.Now()
 
 	// Perform actual call — for streaming responses we pass chunks through
@@ -240,9 +280,7 @@ func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, er
 	i.mu.Lock()
 	i.NetworkCallCount++
 
-	normalizedURL := i.normalizeURL(req.URL.String())
 	reqKey := RequestKey(req.Method, normalizedURL, reqBodyBytes)
-	correlatedSpanId := req.Header.Get("X-AeroGraph-Span-Id")
 
 	httpStep := core.Step{
 		Type: core.StepTypeHTTP,
@@ -273,11 +311,12 @@ func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, er
 
 	// Emit annotation
 	i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
-		RequestKey:        reqKey,
-		CorrelatedSpanId:  correlatedSpanId,
-		ReplaySource:      "live",
+		RequestKey:         reqKey,
+		CorrelatedSpanId:   correlatedSpanId,
+		ReplaySource:       "live",
 		StreamingPreserved: streamingPreserved,
-		Decision:          "live_record",
+		Decision:           "live_record",
+		Overridden:         isOverridden,
 	})
 
 	i.mu.Unlock()
@@ -306,6 +345,83 @@ func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, er
 	}, nil
 }
 
+// stripRolePrefix removes leading role tags like "human: ", "user: ", "system: ", "assistant: "
+// that telemetry frameworks often prepend when serializing chat history to a trace span.
+func stripRolePrefix(s string) string {
+	trimmed := strings.TrimSpace(s)
+	lower := strings.ToLower(trimmed)
+	for _, p := range []string{"human:", "user:", "system:", "assistant:"} {
+		if strings.HasPrefix(lower, p) {
+			return strings.TrimSpace(trimmed[len(p):])
+		}
+	}
+	return trimmed
+}
+
+// RewriteRequestBodyPrompt inspects an outbound LLM request body and updates the prompt content.
+func RewriteRequestBodyPrompt(body []byte, originalPrompt, newPrompt string) ([]byte, bool) {
+	if len(body) == 0 || newPrompt == "" {
+		return body, false
+	}
+
+	cleanNew := stripRolePrefix(newPrompt)
+	cleanOrig := stripRolePrefix(originalPrompt)
+
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err == nil {
+		// 1. Check for "messages" array (standard Chat Completions API)
+		if rawMsgs, ok := payload["messages"].([]any); ok && len(rawMsgs) > 0 {
+			targetIdx := -1
+			for i := len(rawMsgs) - 1; i >= 0; i-- {
+				if m, ok := rawMsgs[i].(map[string]any); ok {
+					content, _ := m["content"].(string)
+					role, _ := m["role"].(string)
+					if cleanOrig != "" {
+						if content == cleanOrig || strings.Contains(content, cleanOrig) || strings.Contains(cleanOrig, content) {
+							targetIdx = i
+							break
+						}
+					}
+					if targetIdx == -1 && (role == "user" || role == "human") {
+						targetIdx = i
+					}
+				}
+			}
+
+			if targetIdx == -1 {
+				targetIdx = len(rawMsgs) - 1
+			}
+
+			if targetIdx >= 0 && targetIdx < len(rawMsgs) {
+				if m, ok := rawMsgs[targetIdx].(map[string]any); ok {
+					m["content"] = cleanNew
+					newBytes, err := json.Marshal(payload)
+					if err == nil {
+						return newBytes, true
+					}
+				}
+			}
+		}
+
+		// 2. Check for "prompt" field (Completions API)
+		if _, ok := payload["prompt"]; ok {
+			payload["prompt"] = cleanNew
+			newBytes, err := json.Marshal(payload)
+			if err == nil {
+				return newBytes, true
+			}
+		}
+	}
+
+	// 3. Fallback: Byte substring replacement if cleanOrig is present in body
+	if cleanOrig != "" && bytes.Contains(body, []byte(cleanOrig)) {
+		newBytes := bytes.Replace(body, []byte(cleanOrig), []byte(cleanNew), 1)
+		return newBytes, true
+	}
+
+	return body, false
+}
+
 func (i *HTTPInterceptor) ensureCassetteIndex() {
 	i.idxOnce.Do(func() {
 		i.cassetteIdx = newCassetteIndex(i.CurrentRun.Steps, i.normalizeURL)
@@ -332,12 +448,58 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 	correlatedSpanId := req.Header.Get("X-AeroGraph-Span-Id")
 
 	isOverridden := false
-	if i.OverrideConfig != nil {
+	if i.OverrideConfig != nil && !i.overrideApplied && i.OverrideConfig.PromptText != "" {
+		shouldOverride := false
 		if correlatedSpanId != "" && (correlatedSpanId == i.OverrideConfig.ForkFromSpanId || (i.OverrideConfig.Overrides != nil && i.OverrideConfig.Overrides[correlatedSpanId] != "")) {
-			isOverridden = true
-		} else if i.OverrideConfig.PromptText != "" && bytes.Contains(incomingReqBodyBytes, []byte(i.OverrideConfig.PromptText)) {
-			isOverridden = true
+			shouldOverride = true
+		} else if i.OverrideConfig.OriginalPromptText != "" {
+			cleanOrig := stripRolePrefix(i.OverrideConfig.OriginalPromptText)
+			prefixLen := len(cleanOrig)
+			if prefixLen > 30 {
+				prefixLen = 30
+			}
+			if cleanOrig != "" && bytes.Contains(incomingReqBodyBytes, []byte(cleanOrig[:prefixLen])) {
+				shouldOverride = true
+			}
 		}
+
+		if !shouldOverride && (strings.Contains(normalizedURL, "chat/completions") || strings.Contains(normalizedURL, "completions")) {
+			if i.cassetteIdx != nil && i.cassetteIdx.LookupWithoutMarking(reqKey) == -1 {
+				shouldOverride = true
+			}
+		}
+
+		if shouldOverride {
+			if rewritten, ok := RewriteRequestBodyPrompt(incomingReqBodyBytes, i.OverrideConfig.OriginalPromptText, i.OverrideConfig.PromptText); ok {
+				incomingReqBodyBytes = rewritten
+				req.Body = io.NopCloser(bytes.NewBuffer(rewritten))
+				req.ContentLength = int64(len(rewritten))
+				req.Header.Set("Content-Length", strconv.Itoa(len(rewritten)))
+				reqKey = RequestKey(req.Method, normalizedURL, rewritten)
+				isOverridden = true
+				i.overrideApplied = true
+				fmt.Printf("%s[REPLAY] Rewrote request body with prompt override: %s (key: %s...)%s\n",
+					colorCyan, req.URL.String(), reqKey[:8], colorReset)
+			}
+		}
+	}
+
+	if isOverridden {
+		i.mu.Lock()
+		i.NetworkCallCount++
+		i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
+			RequestKey:       reqKey,
+			CorrelatedSpanId: correlatedSpanId,
+			ReplaySource:     "live",
+			Decision:         "fallback",
+			EffectiveClass:   "replay_safe",
+			Overridden:       true,
+		})
+		i.mu.Unlock()
+
+		fmt.Printf("%s[REPLAY] Executing overridden prompt live: %s %s%s\n",
+			colorCyan, req.Method, req.URL.String(), colorReset)
+		return i.Transport.RoundTrip(req)
 	}
 
 	// must_execute: if host is in live-hosts list, always forward live

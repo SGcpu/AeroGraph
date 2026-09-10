@@ -24,6 +24,7 @@ export function ForkResumeModal({
   const [customConfig, setCustomConfig] = useState("");
   const [activeConfigCommand, setActiveConfigCommand] = useState<string | null>(null);
   const [showConfigEditor, setShowConfigEditor] = useState(false);
+  const [executionMode, setExecutionMode] = useState<"fork" | "record">("fork");
   const [manualOnly, setManualOnly] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,8 @@ export function ForkResumeModal({
     executablePath?: string | null;
     entrypoint?: string | null;
     command?: string[] | null;
+    cassetteRunId?: string | null;
+    hasCassette?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -52,6 +55,12 @@ export function ForkResumeModal({
 
         if (metaRes) {
           setRuntimeMeta(metaRes);
+          // Auto-select "record" if the parent trace has no cassette recorded on disk
+          if (metaRes.hasCassette === false) {
+            setExecutionMode("record");
+          } else {
+            setExecutionMode("fork");
+          }
         }
 
         if (configRes?.config?.command) {
@@ -105,7 +114,8 @@ export function ForkResumeModal({
           projectConfigYaml: yamlOption,
           projectRoot: runtimeMeta?.projectRoot,
           virtualEnv: runtimeMeta?.virtualEnv ?? undefined,
-          executablePath: runtimeMeta?.executablePath ?? undefined
+          executablePath: runtimeMeta?.executablePath ?? undefined,
+          mode: executionMode
         });
         setChildTraceId(res.childTraceId);
         setActiveRunId(res.runId);
@@ -224,6 +234,101 @@ export function ForkResumeModal({
                   boxSizing: "border-box"
                 }}
               />
+            </div>
+
+            {/* Execution Strategy Selection */}
+            <div>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 500, marginBottom: "6px", color: "#cbd5e1" }}>
+                Execution Strategy
+              </label>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {/* Option 1: Replay & Fork */}
+                <div
+                  onClick={() => setExecutionMode("fork")}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: "6px",
+                    border: `1px solid ${executionMode === "fork" ? "#38bdf8" : "#334155"}`,
+                    backgroundColor: executionMode === "fork" ? "rgba(56, 189, 248, 0.1)" : "#0f172a",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: executionMode === "fork" ? "#38bdf8" : "#e2e8f0" }}>
+                      ⚡ Replay & Fork
+                    </span>
+                    <input
+                      type="radio"
+                      name="exec-mode"
+                      checked={executionMode === "fork"}
+                      onChange={() => setExecutionMode("fork")}
+                      style={{ cursor: "pointer", accentColor: "#38bdf8" }}
+                    />
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#94a3b8", lineHeight: "1.4" }}>
+                    Replay pre-fork steps from cassette (0ms, $0.00). Overridden prompt & subsequent steps run live.
+                  </div>
+                  {runtimeMeta?.hasCassette && (
+                    <span style={{ fontSize: "10px", color: "#4ade80", fontWeight: 500, marginTop: "2px" }}>
+                      ✓ Cassette available
+                    </span>
+                  )}
+                </div>
+
+                {/* Option 2: Record as New Baseline */}
+                <div
+                  onClick={() => setExecutionMode("record")}
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: "6px",
+                    border: `1px solid ${executionMode === "record" ? "#a855f7" : "#334155"}`,
+                    backgroundColor: executionMode === "record" ? "rgba(168, 85, 247, 0.1)" : "#0f172a",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "4px"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: executionMode === "record" ? "#c084fc" : "#e2e8f0" }}>
+                      ⏺ Record as Baseline
+                    </span>
+                    <input
+                      type="radio"
+                      name="exec-mode"
+                      checked={executionMode === "record"}
+                      onChange={() => setExecutionMode("record")}
+                      style={{ cursor: "pointer", accentColor: "#a855f7" }}
+                    />
+                  </div>
+                  <div style={{ fontSize: "11px", color: "#94a3b8", lineHeight: "1.4" }}>
+                    Runs through recorder proxy and saves a complete new cassette. All future forks are 100% cached.
+                  </div>
+                  {!runtimeMeta?.hasCassette && (
+                    <span style={{ fontSize: "10px", color: "#facc15", fontWeight: 500, marginTop: "2px" }}>
+                      ★ Recommended (no parent cassette)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Advisory note when no cassette exists */}
+              {!runtimeMeta?.hasCassette && executionMode === "record" && (
+                <div style={{ marginTop: "8px", padding: "8px 10px", backgroundColor: "rgba(168, 85, 247, 0.08)", border: "1px solid rgba(168, 85, 247, 0.25)", borderRadius: "5px", fontSize: "11px", color: "#e9d5ff", lineHeight: "1.4" }}>
+                  💡 <strong>Recommendation</strong>: The parent trace was run directly without a proxy recorder cassette. Recording this run will generate a new cassette so all future replays/forks will show <strong>⚡ CACHE</strong>.
+                </div>
+              )}
+
+              {!runtimeMeta?.hasCassette && executionMode === "fork" && (
+                <div style={{ marginTop: "8px", padding: "8px 10px", backgroundColor: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.25)", borderRadius: "5px", fontSize: "11px", color: "#fef3c7", lineHeight: "1.4" }}>
+                  ⚠️ <strong>Notice</strong>: The parent trace has no recorded cassette. Replaying will fall back to live network for all steps. Switch to <strong>Record as Baseline</strong> to create a reusable cassette.
+                </div>
+              )}
             </div>
 
             {/* Recorded Execution Environment Card */}
@@ -366,16 +471,23 @@ export function ForkResumeModal({
                 disabled={loading}
                 style={{
                   padding: "6px 16px",
-                  backgroundColor: "#2563eb",
+                  backgroundColor: executionMode === "record" ? "#9333ea" : "#2563eb",
                   border: "none",
                   borderRadius: "6px",
                   color: "white",
                   cursor: loading ? "not-allowed" : "pointer",
                   fontSize: "12px",
-                  fontWeight: 500
+                  fontWeight: 500,
+                  transition: "background-color 0.15s ease"
                 }}
               >
-                {loading ? "Launching..." : manualOnly ? "Generate Fork ID" : "Launch Fork & Resume"}
+                {loading
+                  ? "Launching..."
+                  : manualOnly
+                  ? "Generate Fork ID"
+                  : executionMode === "record"
+                  ? "⏺ Record & Resume"
+                  : "⚡ Replay Cache & Fork"}
               </button>
             </div>
           </form>

@@ -83,6 +83,7 @@ export class Runner {
       command,
       projectRoot,
       cassetteRunId,
+      parentTraceId,
       forkFromSpanId,
       forkOverrides,
       overrideFile
@@ -101,6 +102,40 @@ export class Runner {
 
     // Write prompt override JSON if provided
     let effectiveOverrideFile = overrideFile;
+    let originalPromptText = "";
+    let targetNodeName = "";
+
+    const baseTraceId = parentTraceId || (cassetteRunId ? (this.store as any).getRunById?.(cassetteRunId)?.traceId : null);
+    if (baseTraceId && forkFromSpanId) {
+      try {
+        let currTraceId: string | null = baseTraceId;
+        while (currTraceId) {
+          const t = (this.store as any).getTrace?.(currTraceId);
+          const targetSpan = t?.events?.find((e: any) => e.spanId === forkFromSpanId);
+          if (targetSpan) {
+            if ((targetSpan.payload as any)?.text) {
+              originalPromptText = (targetSpan.payload as any).text;
+            }
+            if (!targetNodeName) {
+              if (targetSpan.parentSpanId) {
+                const parentSpan = t.events.find((e: any) => e.spanId === targetSpan.parentSpanId);
+                if (parentSpan?.title) {
+                  targetNodeName = parentSpan.title.toLowerCase();
+                }
+              }
+              if (!targetNodeName && targetSpan.title) {
+                targetNodeName = targetSpan.title.toLowerCase();
+              }
+            }
+          }
+          // If this trace has a parent trace, traverse up to find the root original prompt text
+          currTraceId = t?.parentTraceId || null;
+        }
+      } catch {
+        // best effort lookup
+      }
+    }
+
     if (!effectiveOverrideFile) {
       const ovrPath = path.join(os.tmpdir(), `afr_ovr_${runId}.json`);
       if (forkOverrides?.promptText) {
@@ -108,7 +143,8 @@ export class Runner {
           ovrPath,
           JSON.stringify({
             forkFromSpanId,
-            promptText: forkOverrides.promptText
+            promptText: forkOverrides.promptText,
+            originalPromptText
           }),
           "utf-8"
         );
@@ -122,7 +158,7 @@ export class Runner {
     let targetCassetteId = cassetteRunId || runId;
     if (mode === "fork" && cassetteRunId && forkFromSpanId) {
       try {
-        writeForkCassette(runId, cassetteRunId, forkFromSpanId, projectRoot);
+        writeForkCassette(runId, cassetteRunId, forkFromSpanId, projectRoot, originalPromptText);
         targetCassetteId = runId;
       } catch (err) {
         console.warn(`[Runner] Could not create partial fork cassette:`, err);
@@ -195,6 +231,9 @@ export class Runner {
       args.push("record");
       args.push("--run-id", runId);
       args.push("--annotation-log", annotationLogPath);
+      if (effectiveOverrideFile) {
+        args.push("--override-file", effectiveOverrideFile);
+      }
       args.push(...resolvedCommand);
     } else {
       // replay or fork mode
@@ -234,14 +273,16 @@ export class Runner {
       AFR_RUN_ID: runId,
       AEROREPL_RUN_ID: runId,
       AFR_TRACE_ID: traceId,
-      AFR_PROMPT_OVERRIDE: forkOverrides?.promptText || "",
+      AFR_PROMPT_OVERRIDE: "",
+      AFR_TARGET_NODE: targetNodeName || "",
       AFR_FORK_FROM_SPAN_ID: forkFromSpanId || "",
       HTTP_PROXY: process.env.HTTP_PROXY || "http://127.0.0.1:8000",
       HTTPS_PROXY: process.env.HTTPS_PROXY || "http://127.0.0.1:8000",
       http_proxy: process.env.http_proxy || "http://127.0.0.1:8000",
       https_proxy: process.env.https_proxy || "http://127.0.0.1:8000",
       PATH: effectivePath,
-      Path: effectivePath
+      Path: effectivePath,
+      PYTHONUNBUFFERED: "1"
     };
 
     if (virtualEnv) {
@@ -252,6 +293,14 @@ export class Runner {
     const startedAt = new Date().toISOString();
     this.store.updateRunStatus(runId, "running", { startedAt });
 
+    if (mode === "fork" || mode === "record") {
+      try {
+        (this.store as any).clearTraceEvents?.(traceId);
+      } catch (err) {
+        console.warn(`[Runner] Could not clear trace events for trace ${traceId}:`, err);
+      }
+    }
+
     return new Promise<void>((resolve, reject) => {
       let child: ChildProcess;
       try {
@@ -261,6 +310,7 @@ export class Runner {
           stdio: ["pipe", "pipe", "pipe"],
           shell: false // CRITICAL: Security rule — no shell interpolation
         });
+        child.stdin?.end();
       } catch (err: any) {
         this.store.updateRunStatus(runId, "crashed", {
           completedAt: new Date().toISOString(),
@@ -348,6 +398,7 @@ export class Runner {
     if (Array.isArray(entries)) {
       for (const entry of entries) {
         if (entry.correlatedSpanId) {
+          const isPrompt = events.find(e => e.spanId === entry.correlatedSpanId && e.kind === "prompt");
           this.store.appendReplayAnnotation(traceId, entry.correlatedSpanId, {
             replaySource: entry.replaySource,
             requestKey: entry.requestKey,
@@ -357,7 +408,8 @@ export class Runner {
             overridden: entry.overridden,
             decision: entry.decision,
             matchedPattern: entry.matchedPattern,
-            effectiveClass: entry.effectiveClass
+            effectiveClass: entry.effectiveClass,
+            payloadText: isPrompt && entry.overridden && options?.forkOverrides?.promptText ? options.forkOverrides.promptText : undefined
           });
           annotatedSpans.add(entry.correlatedSpanId);
 
@@ -399,7 +451,8 @@ export class Runner {
           overridden: entry.overridden,
           decision: entry.decision,
           matchedPattern: entry.matchedPattern,
-          effectiveClass: entry.effectiveClass
+          effectiveClass: entry.effectiveClass,
+          payloadText: entry.overridden && options?.forkOverrides?.promptText ? options.forkOverrides.promptText : undefined
         });
         annotatedSpans.add(promptEvents[i].spanId);
       }

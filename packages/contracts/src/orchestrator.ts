@@ -70,7 +70,8 @@ export const forkAndResumeRequestSchema = z.object({
   cassetteRunId: z.string().optional(),
   virtualEnv: z.string().optional().nullable(),
   executablePath: z.string().optional().nullable(),
-  entrypoint: z.string().optional().nullable()
+  entrypoint: z.string().optional().nullable(),
+  mode: runModeSchema.optional()
 });
 export type ForkAndResumeRequest = z.infer<typeof forkAndResumeRequestSchema>;
 

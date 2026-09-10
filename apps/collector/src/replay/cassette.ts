@@ -31,8 +31,15 @@ export function validateCassettePath(runId: string, projectRoot: string): string
  */
 export function cassetteExists(runId: string, projectRoot: string): boolean {
   try {
-    const filePath = validateCassettePath(runId, projectRoot);
-    return fs.existsSync(filePath);
+    const aeroFile = path.resolve(projectRoot, ".aerograph", "cassettes", `${runId}.json`);
+    const agentFile = path.resolve(projectRoot, ".agent-replay", "runs", `${runId}.json`);
+    const target = fs.existsSync(aeroFile) ? aeroFile : fs.existsSync(agentFile) ? agentFile : null;
+    if (!target) return false;
+    const content = fs.readFileSync(target, "utf-8");
+    const parsed = JSON.parse(content);
+    if (Array.isArray(parsed?.steps) && parsed.steps.length > 0) return true;
+    if (Array.isArray(parsed?.entries) && parsed.entries.length > 0) return true;
+    return false;
   } catch {
     return false;
   }
@@ -116,6 +123,21 @@ export function writeCassette(runId: string, projectRoot: string, data: Cassette
   fs.renameSync(tempPath, filePath);
 }
 
+function getRequestBodyString(body: any): string {
+  if (!body) return "";
+  if (typeof body === "string") {
+    try {
+      const decoded = Buffer.from(body, "base64").toString("utf-8");
+      if (decoded.includes("{") || decoded.includes("[")) return decoded;
+    } catch {}
+    return body;
+  }
+  if (Buffer.isBuffer(body)) {
+    return body.toString("utf-8");
+  }
+  return JSON.stringify(body);
+}
+
 /**
  * Creates a partial fork cassette containing only entries strictly before forkFromSpanId.
  * Synchronizes to both .aerograph/cassettes/ and .agent-replay/runs/ so replay-core uses it.
@@ -124,18 +146,31 @@ export function writeForkCassette(
   childRunId: string,
   baseCassetteRunId: string,
   forkFromSpanId: string,
-  projectRoot: string
+  projectRoot: string,
+  targetPromptText?: string
 ): Cassette {
   const baseCassette = readCassette(baseCassetteRunId, projectRoot);
+
+  const cleanTarget = targetPromptText
+    ? targetPromptText.replace(/^(human|user|system|assistant):\s*/i, "").trim()
+    : "";
 
   // Filter entries strictly prior to the fork span so the fork point executes live
   const preForkEntries: CassetteEntry[] = [];
   let foundForkSpan = false;
 
   for (const entry of baseCassette.entries) {
-    if (entry.correlatedSpanId === forkFromSpanId) {
+    const rawEntry = entry as any;
+    if (rawEntry.correlatedSpanId && rawEntry.correlatedSpanId === forkFromSpanId) {
       foundForkSpan = true;
       break;
+    }
+    if (cleanTarget && rawEntry.request?.body) {
+      const bodyStr = getRequestBodyString(rawEntry.request.body);
+      if (bodyStr.includes(cleanTarget.slice(0, 50))) {
+        foundForkSpan = true;
+        break;
+      }
     }
     preForkEntries.push(entry);
   }
@@ -146,7 +181,7 @@ export function writeForkCassette(
     traceId: baseCassette.traceId,
     command: baseCassette.command,
     recordedAt: new Date().toISOString(),
-    entries: foundForkSpan ? preForkEntries : []
+    entries: foundForkSpan ? preForkEntries : baseCassette.entries
   };
 
   writeCassette(childRunId, projectRoot, forkCassette);
@@ -158,12 +193,15 @@ export function writeForkCassette(
       fs.mkdirSync(runsDir, { recursive: true });
     }
     const runFilePath = path.join(runsDir, `${childRunId}.json`);
-    const nativeSteps = forkCassette.entries.map((entry) => ({
-      type: "http",
-      correlated_span_id: entry.correlatedSpanId,
-      request: entry.request,
-      response: entry.response
-    }));
+    const nativeSteps = forkCassette.entries.map((entry) => {
+      const raw = entry as any;
+      return {
+        type: "http",
+        correlated_span_id: raw.correlatedSpanId,
+        request: raw.request,
+        response: raw.response
+      };
+    });
     fs.writeFileSync(
       runFilePath,
       JSON.stringify(

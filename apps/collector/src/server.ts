@@ -14,7 +14,8 @@ import {
   validateTraceStats,
   replayTraceRequestSchema,
   forkAndResumeRequestSchema,
-  validateRuntimeMetadata
+  validateRuntimeMetadata,
+  type RunMode
 } from "@aerograph/contracts";
 import { getDatabase } from "./sqlite/db";
 import { runMigrations } from "./sqlite/migrate";
@@ -130,8 +131,12 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.get("/v1/traces/:traceId/runtime-metadata", (req, res) => {
     const traceId = req.params.traceId;
     const meta = store.getTraceRuntimeMetadata(traceId);
+    const run = store.getRunByTraceId(traceId);
+    const projectRoot = meta?.projectRoot || run?.projectRoot || process.cwd();
+    const candidateCassetteId = (run?.mode === "record" ? run.runId : (run?.cassetteRunId || run?.runId));
+    const hasCassette = candidateCassetteId ? cassetteExists(candidateCassetteId, projectRoot) : false;
+
     if (!meta) {
-      const run = store.getRunByTraceId(traceId);
       if (run) {
         return res.json({
           traceId,
@@ -139,12 +144,18 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
           virtualEnv: run.virtualEnv,
           executablePath: run.executablePath,
           entrypoint: run.entrypoint,
-          command: run.command
+          command: run.command,
+          cassetteRunId: candidateCassetteId || null,
+          hasCassette
         });
       }
       return res.status(404).json({ error: `No runtime metadata for trace ${traceId}` });
     }
-    res.json(meta);
+    res.json({
+      ...meta,
+      cassetteRunId: candidateCassetteId || null,
+      hasCassette
+    });
   });
 
   app.post("/v1/otlp/traces", createOtlpIngestHandler(store));
@@ -351,9 +362,13 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       // Non-blocking auto-persist
     }
 
+    const executionMode: RunMode = parseResult.data.mode === "record" ? "record" : "fork";
+
     let cassetteRunId = parseResult.data.cassetteRunId || (req.body.cassetteRunId as string | undefined);
-    if (!cassetteRunId && linkedRun) {
-      cassetteRunId = linkedRun.cassetteRunId || linkedRun.runId;
+    if (executionMode === "record") {
+      cassetteRunId = undefined;
+    } else if (!cassetteRunId && linkedRun) {
+      cassetteRunId = (linkedRun.mode === "record" ? linkedRun.runId : linkedRun.cassetteRunId) || linkedRun.runId;
     }
 
     const virtualEnv = parseResult.data.virtualEnv ?? linkedRun?.virtualEnv ?? null;
@@ -373,7 +388,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
 
     const runId = store.createRun({
       traceId: childTraceId,
-      mode: "fork",
+      mode: executionMode,
       command,
       projectRoot,
       cassetteRunId,
@@ -386,7 +401,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     runner.spawnRun({
       runId,
       traceId: childTraceId,
-      mode: "fork",
+      mode: executionMode,
       command,
       projectRoot,
       cassetteRunId,
@@ -396,7 +411,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       virtualEnv,
       executablePath
     }).catch((err) => {
-      console.error(`[Server] Background fork run ${runId} failed:`, err);
+      console.error(`[Server] Background ${executionMode} run ${runId} failed:`, err);
     });
 
     res.status(201).json({

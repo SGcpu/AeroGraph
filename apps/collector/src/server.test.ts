@@ -418,6 +418,33 @@ describe("collector: API", () => {
 
       db.close();
     });
+
+    it("POST /v1/traces/:id/fork-and-resume creates run with mode record when requested", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+      const store = app.locals.store as SqliteTraceStore;
+
+      const baseEvents = loadPhase2FixtureTrace("base");
+      await request(app).post("/v1/events").send(baseEvents).expect(201);
+
+      const res = await request(app)
+        .post("/v1/traces/t_base/fork-and-resume")
+        .send({
+          forkFromSpanId: "s1",
+          command: ["node", "-e", "console.log('hello')"],
+          mode: "record"
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.childTraceId).toBeDefined();
+      expect(res.body.runId).toBeDefined();
+
+      const run = store.getRunById(res.body.runId);
+      expect(run).toBeDefined();
+      expect(run?.mode).toBe("record");
+
+      db.close();
+    });
   });
 });
 

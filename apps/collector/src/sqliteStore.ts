@@ -53,6 +53,7 @@ export type ReplayAnnotationInput = {
   decision?: string | null;
   matchedPattern?: string | null;
   effectiveClass?: string | null;
+  payloadText?: string | null;
 };
 
 export type ForkTraceInput = {
@@ -331,6 +332,11 @@ export class SqliteTraceStore {
       rootRow.environment
     );
   }
+
+  clearTraceEvents(traceId: string): void {
+    this.db.prepare("DELETE FROM events WHERE trace_id = ?").run(traceId);
+  }
+
 
   appendDerivation(input: AppendDerivationInput): void {
     const childTraceId = input.childTraceId;
@@ -872,6 +878,10 @@ export class SqliteTraceStore {
     if (annotation.decision !== undefined) event.decision = annotation.decision;
     if (annotation.matchedPattern !== undefined) event.matchedPattern = annotation.matchedPattern;
     if (annotation.effectiveClass !== undefined) event.effectiveClass = annotation.effectiveClass;
+    if (annotation.payloadText !== undefined && annotation.payloadText !== null) {
+      if (!event.payload) event.payload = {};
+      event.payload.text = annotation.payloadText;
+    }
 
     this.db.prepare(`
       UPDATE events SET
