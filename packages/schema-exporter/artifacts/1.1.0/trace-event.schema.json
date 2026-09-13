@@ -3,7 +3,7 @@
   "title": "AeroGraph TraceEvent Schema",
   "description": "Language-neutral JSON Schema artifact exported from @aerograph/contracts. Used to generate and validate non-TypeScript runtime bindings.",
   "schemaVersion": "1.1.0",
-  "generatedAt": "2026-09-13T14:42:38.302Z",
+  "generatedAt": "2026-09-13T16:14:57.234Z",
   "traceEventSchema": {
     "$ref": "#/definitions/TraceEvent",
     "definitions": {

@@ -551,6 +551,87 @@ describe("collector: SqliteTraceStore", () => {
         expect(ev.replaySource).toBeUndefined();
       }
     });
+
+    it("computes scenario-aware token accounting for record, strict replay, and fork modes", () => {
+      // 1. Record mode trace: 100% live tokens
+      const recTraceId = "t_record_scenario";
+      store.appendEvent({
+        schemaVersion: "1.1.0",
+        traceId: recTraceId,
+        spanId: "s1",
+        parentSpanId: null,
+        occurredAt: "2026-06-01T12:00:00.000Z",
+        actor: { kind: "agent", id: "agent" },
+        kind: "response",
+        status: "ok",
+        payload: {
+          model: { name: "gpt-4o", provider: "openai" },
+          usage: { inputTokens: 500, outputTokens: 200, totalTokens: 700 }
+        },
+        links: []
+      });
+
+      const recStats = store.getTraceStats(recTraceId);
+      expect(recStats.executionMode).toBe("record");
+      expect(recStats.totalTokens).toBe(700);
+      expect(recStats.liveTotalTokens).toBe(700);
+      expect(recStats.cachedTotalTokens).toBe(0);
+      expect(recStats.savingsPercentage).toBe(0);
+
+      // 2. Strict Replay trace: 100% cached tokens ($0.00 live)
+      const repTraceId = "t_replay_scenario";
+      store.createRun({
+        runId: "run_strict_rep",
+        traceId: repTraceId,
+        parentTraceId: recTraceId,
+        mode: "replay",
+        command: ["python", "agent.py"],
+        projectRoot: "/tmp"
+      });
+      store.appendEvent({
+        schemaVersion: "1.1.0",
+        traceId: repTraceId,
+        spanId: "s1",
+        parentSpanId: null,
+        occurredAt: "2026-06-01T12:05:00.000Z",
+        actor: { kind: "agent", id: "agent" },
+        kind: "response",
+        status: "ok",
+        payload: {
+          model: { name: "gpt-4o", provider: "openai" },
+          usage: { inputTokens: 500, outputTokens: 200, totalTokens: 700 }
+        },
+        links: []
+      });
+      store.appendReplayAnnotation(repTraceId, "s1", {
+        replaySource: "cache",
+        decision: "cache_hit",
+        effectiveClass: "replay_safe"
+      });
+
+      const repStats = store.getTraceStats(repTraceId);
+      expect(repStats.executionMode).toBe("replay");
+      expect(repStats.totalTokens).toBe(700);
+      expect(repStats.liveTotalTokens).toBe(0);
+      expect(repStats.cachedTotalTokens).toBe(700);
+      expect(repStats.savingsPercentage).toBe(100);
+
+      // Verify routingSummary in analyzeTrace
+      const repAnalysis = store.analyzeTrace(repTraceId);
+      expect(repAnalysis.routingSummary).toEqual({
+        cacheHits: 1,
+        liveCalls: 0,
+        unclassifiedWarnings: 0
+      });
+
+      // 3. Diffing record vs replay: returns statsDelta and loopDelta
+      const diff = store.diffTraces(recTraceId, repTraceId);
+      expect(diff.statsDelta).toBeDefined();
+      expect(diff.statsDelta?.totalTokensDelta).toBe(0);
+      expect(diff.statsDelta?.liveTokensB).toBe(0);
+      expect(diff.statsDelta?.savingsPercentageB).toBe(100);
+      expect(diff.loopDelta).toBeDefined();
+    });
   });
 });
 

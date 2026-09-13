@@ -1766,20 +1766,68 @@ export default function App() {
               {diffResult && (
                 <div
                   style={{
-                    marginTop: 8,
-                    fontSize: 11,
-                    color: "var(--text-secondary)",
+                    marginTop: 10,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    background: "rgba(99,130,255,0.04)",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: 6,
+                    padding: "8px 10px",
                   }}
                 >
-                  {diffResult.changed.length === 0
-                    ? "✓ No differences"
-                    : `${diffResult.changed.length} change${diffResult.changed.length !== 1 ? "s" : ""}`}
-                  {diffResult.divergence?.forkPointSpanId && (
-                    <div style={{ marginTop: 4 }}>
-                      Diverges at:{" "}
-                      <code style={{ fontSize: 10 }}>
-                        {diffResult.divergence.forkPointSpanId}
-                      </code>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: diffResult.changed.length === 0 ? "#4ade80" : "var(--text-primary)" }}>
+                      {diffResult.changed.length === 0
+                        ? "✓ Identical Traces"
+                        : `${diffResult.changed.length} span change${diffResult.changed.length !== 1 ? "s" : ""}`}
+                    </span>
+                    {diffResult.divergence?.forkPointSpanId && (
+                      <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                        Diverges at {diffResult.divergence.forkPointSpanId.slice(0, 8)}…
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Token & Duration Deltas */}
+                  {diffResult.statsDelta && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                      <div style={{ background: "rgba(255,255,255,0.03)", padding: "4px 6px", borderRadius: 4 }}>
+                        <div style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>Tokens Delta</div>
+                        <div style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: "var(--font-mono)",
+                          color: diffResult.statsDelta.totalTokensDelta < 0 ? "#4ade80" : diffResult.statsDelta.totalTokensDelta > 0 ? "#f87171" : "var(--text-secondary)",
+                        }}>
+                          {diffResult.statsDelta.totalTokensDelta > 0 ? `+${diffResult.statsDelta.totalTokensDelta}` : diffResult.statsDelta.totalTokensDelta}
+                        </div>
+                      </div>
+                      <div style={{ background: "rgba(255,255,255,0.03)", padding: "4px 6px", borderRadius: 4 }}>
+                        <div style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>Duration Delta</div>
+                        <div style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: "var(--font-mono)",
+                          color: diffResult.statsDelta.durationDeltaMs < 0 ? "#4ade80" : "var(--text-secondary)",
+                        }}>
+                          {diffResult.statsDelta.durationDeltaMs > 0
+                            ? `+${(diffResult.statsDelta.durationDeltaMs / 1000).toFixed(2)}s`
+                            : `${(diffResult.statsDelta.durationDeltaMs / 1000).toFixed(2)}s`}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Loop resolution pill */}
+                  {diffResult.loopDelta && diffResult.loopDelta.resolved && (
+                    <div style={{ fontSize: 10, color: "#4ade80", background: "rgba(34,197,94,0.1)", padding: "3px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                      ✓ {diffResult.loopDelta.aLoopCount} loop{diffResult.loopDelta.aLoopCount > 1 ? "s" : ""} resolved in this run!
+                    </div>
+                  )}
+                  {diffResult.loopDelta && diffResult.loopDelta.bLoopCount > diffResult.loopDelta.aLoopCount && (
+                    <div style={{ fontSize: 10, color: "#f87171", background: "rgba(239,68,68,0.1)", padding: "3px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                      ⚠ Introduced {diffResult.loopDelta.bLoopCount - diffResult.loopDelta.aLoopCount} new loop(s)
                     </div>
                   )}
                 </div>
@@ -1805,7 +1853,16 @@ export default function App() {
             style={{ borderBottom: analyticsOpen ? "1px solid var(--border-subtle)" : "none" }}
           >
             <div className="accordion-inner">
-              <TraceAnalyticsPanel stats={traceStats} loading={statsLoading} />
+              <TraceAnalyticsPanel 
+                stats={traceStats} 
+                routingSummary={analysis?.routingSummary}
+                parentTraceId={activeMeta?.derivedFrom?.baseTraceId ?? activeMeta?.replayRun?.sourceTraceId ?? null}
+                onCompareWithParent={(parentId) => {
+                  setCompareTargetId(parentId);
+                  loadDiff(parentId);
+                }}
+                loading={statsLoading} 
+              />
             </div>
           </div>
 
