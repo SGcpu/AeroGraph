@@ -50,6 +50,7 @@
 - [Repository structure](#repository-structure)
 - [Deterministic Replay & `aerorepl`](#deterministic-replay--aerorepl)
   - [How it works](#how-it-works)
+  - [Scenario-Aware Analytics & Dual Token Accounting](#scenario-aware-analytics--dual-token-accounting)
   - [Tool Safety Policy](#tool-safety-policy)
   - [CLI Quickstart (`aerorepl`)](#cli-quickstart-aerorepl)
 - [Development & Running Components](#development--running-components)
@@ -77,15 +78,17 @@
 ### Core Capabilities
 
 - **Normalized Agent Tracing**: Captures **prompts**, **responses**, **tool calls**, **tool results**, **retrievers**, **handoffs**, **checkpoints**, and **errors** as 10 canonical event types across a replay-safe, append-only SQLite store.
-- **Interactive Trace Graph & Playback**: Visualizes execution flow as a dynamic ReactFlow graph with step-by-step playback, payload inspection, and failure highlighting.
-- **Trace Branching & Lineage Navigation**: "Fork" alternate timelines from any span (`derivedFrom`), navigate full lineage breadcrumbs, and perform Myers diff comparisons to see exact points of divergence.
+- **Interactive Trace Graph & Playback**: Visualizes execution flow as a dynamic ReactFlow graph with dual-edge layout (dashed hierarchy tree vs solid state machine transitions), step-by-step playback, payload inspection, and failure highlighting.
+- **Trace Branching & Lineage Navigation**: "Fork" alternate timelines from any span (`derivedFrom`), navigate full lineage breadcrumbs, and perform Myers diff comparisons with instant delta metric cards for tokens, latency, and loop resolution.
 - **Deterministic Zero-Cost Replay & Fork-and-Resume**: Intercepts model and tool network traffic into deterministic, content-addressed cassettes (`.aerograph/cassettes/`). Replay past agent executions with zero token cost (<5ms per step), or one-click "Fork and Resume" directly from any span in the Web UI or via the interactive `aerorepl` CLI.
-- **LangGraph & Framework Observability**: Automatic LangGraph node boundary detection, side-by-side Input/Output (`state_before` vs `state_update`) state views, human-in-the-loop interrupt handling, and deterministic state hashing (`stateHash`).
+- **Dual-Accounting Token Analytics**: Distinguishes **Live Billed Tokens** ($ spend) from **Cached / Replayed Tokens** ($0.00 saved). Tracks scenario savings percentages across Record, Strict Replay, and Fork & Resume runs with per-model source attribution (`🟢 Cached`, `⚡ Live`, `Mixed`) and wire-level proxy routing summaries.
+- **LangGraph & Cyclic State Observability**: Automatic LangGraph node boundary detection, state loop tripwires with purple halo highlights, side-by-side Input/Output (`state_before` vs `state_update`) state views, human-in-the-loop interrupt handling, and deterministic state hashing (`stateHash`).
 - **Streaming Telemetry & RAG Inspection**: Live Time-to-First-Token (TTFT), tokens/sec metrics, and first-class retrieval query & document inspection.
-- **Multi-Language Support (TypeScript & Python)**: Native SDKs (`@aerograph/sdk` and `aerograph-sdk`) and LangChain adapters (`@aerograph/adapter-langchain` and `aerograph-langchain`) with zero contract drift.
+- **Multi-Language Support (TypeScript & Python)**: Native SDKs (`@aerograph/sdk` and `aerograph-sdk`) and LangChain adapters (`@aerograph/adapter-langchain` and `aerograph-langchain`) with zero contract drift and verified cross-language parity.
+- **Ephemeral Security & Credential Hygiene (Principle VI)**: Zero private key persistence for MITM proxy CAs, strict redaction of authentication headers (`Authorization`, `X-Api-Key`, `Cookie`) and secret query parameters in cassettes, and automated pre-push security scanning.
 - **OpenTelemetry (OTel) Bridge**: Bidirectional export & import between AeroGraph events and standard OTLP JSON spans via `@aerograph/otel` and `aerograph-otel`, plus native `/v1/otlp/traces` ingestion.
-- **Telemetry, Analytics & Isolation**: Track token counts, total & span durations, per-model breakdowns, and isolate workspaces natively by `projectId` and `environment`.
 - **Contract-Driven Guarantee**: All backend, UI, adapter, and bridge payloads are validated strictly through shared `@aerograph/contracts` schemas.
+
 
 ## Terminology & Concepts
 
@@ -137,6 +140,22 @@ AeroGraph includes a local-first **Deterministic Replay** engine backed by `aero
 3. **Fork and Resume**: Diverge from any point in the execution trace. Pre-fork steps are served from cache; post-fork steps run live.
 4. **Tool Safety Policy**: `aerograph.replay.yaml` configures which URLs are `replay_safe` (cache) versus `must_execute` (live side effects like payments).
 
+### Scenario-Aware Analytics & Dual Token Accounting
+
+AeroGraph's analytics engine provides transparent financial and performance accounting across different execution topologies:
+
+| Execution Mode | Behavior | Token Cost ($) | Wall-Clock Latency |
+| :--- | :--- | :--- | :--- |
+| **`⏺ RECORD RUN`** | Live execution against LLM and tool providers | 100% Live Billed | Provider latency (~10–35s) |
+| **`▶ STRICT REPLAY`** | Replays 100% deterministically from local cassette | **$0.00 (0 live tokens)** | Local cache (~300ms, 80–100x speedup) |
+| **`🌿 FORK & RESUME`** | Pre-fork steps replayed from cassette; post-fork runs live | Only post-fork billed | Hybrid savings proportional to fork depth |
+
+- **Dual Token Grid**: The analytics panel segregates **Live Billed Tokens** ($ spend) from **Cached / Saved Tokens** ($0.00) and displays the calculated savings percentage (e.g. `100% saved` on strict replay, `26% saved` on partial fork).
+- **Per-Model Source Attribution**: The model breakdown table categorizes every model row with visual status pills: `🟢 Cached`, `⚡ Live`, or `Mixed`.
+- **Wire-Level Routing Summary**: Displays proxy intercept decisions directly in the telemetry header (`✓ X Cache Hits`, `⚡ Y Live Calls`, `⚠ Z Unclassified`).
+- **1-Click Base Comparison**: Any derived trace displays a `[ ⚖ Compare with Base ]` button that immediately opens the Myers diff comparison against its parent run.
+- **Diff Metric Cards**: The visual diff panel highlights **Tokens Delta**, **Duration Delta**, and flags whether an execution resolved a previous infinite loop (`✓ Loop resolved!`).
+
 ### CLI Quickstart (`aerorepl`)
 ```bash
 # View active configuration and safety rules:
@@ -176,9 +195,13 @@ See [Deterministic Replay Quickstart](specs/006-deterministic-replay/quickstart.
 - **Go**: ≥ 1.21 (required for building `aerograph-replay-core`)
 - **Python**: ≥ 3.10 with [`uv`](https://github.com/astral-sh/uv) (for Python SDK/adapter workflows)
 
-Install Node dependencies across all workspaces:
+Install Node dependencies across all workspaces and compile packages:
 ```sh
+# 1. Install dependencies
 npm install
+
+# 2. Build contracts and workspace packages (generates dist/ outputs)
+npm run build
 ```
 
 ### 1. Building Replay Core (Go MITM Proxy)
@@ -1054,16 +1077,41 @@ If your new convenience method wraps an existing event kind, no codegen is neede
 
 ### CI gates and what breaks them
 
-Every PR runs four CI workflows. Here is what each one checks and the most common reason it fails:
+Every pull request runs automated CI checks across multiple runtimes and security verifications. Here is what each workflow checks and how to resolve failures:
 
-| Workflow | What it checks | Common failure cause |
-|---|---|---|
-| `schema-governance.yml` | JSON Schema artifacts in `packages/schema-exporter/artifacts/` match the current Zod definitions in `packages/contracts/src/index.ts` | You edited `index.ts` but forgot to run `npm run schema:export` |
-| `python.yml` | `generated.py` matches the JSON Schema artifacts | You ran `schema:export` but forgot to run `generate_contracts.py`, or you edited `generated.py` by hand |
-| `parity.yml` | Python hashing and event ordering produce the same output as TypeScript for the shared fixture inputs | You changed `compareTraceEvents` or `get_deterministic_state_hash` in one language but not the other, or the parity fixtures are stale |
-| (standard) `npm test` | All TypeScript unit and integration tests pass | Normal test failure - fix the code or test |
+| Workflow | What it checks | Command to verify locally | Common failure cause & fix |
+|---|---|---|---|
+| **`ci.yml`** (Monorepo Multi-Runtime CI) | • Node.js 18 & 20 linting, builds, and 250+ unit tests across all workspaces<br>• Cross-workspace integration tests<br>• Python 3.10, 3.11, 3.12 matrix test suites<br>• Principle VI security scanner | `npm run lint`<br>`npm run build`<br>`npm test`<br>`npm run test:integration`<br>`npm run security:check` | TypeScript build errors, unhandled test regressions, or unredacted secrets in code/cassettes. |
+| **`schema-governance.yml`** (Principle I & Checklist) | • JSON Schema artifacts in `packages/schema-exporter/artifacts/` match the Zod definitions in `packages/contracts/src/index.ts`<br>• Public web schemas are valid JSON<br>• SQLite migrations are additive & backward compatible | `npm run drift:check` | You modified contracts or schemas but forgot to run `npm run schema:export` and commit the updated artifacts. |
+| **`parity.yml`** (Principle VII) | Python hashing and event ordering produce exact byte-for-byte parity with TypeScript fixtures | `npx vitest run tests/integration/cross_lang.test.ts`<br>`pytest python/aerograph-sdk/tests/test_state_hash_parity.py` | Changed `compareTraceEvents` or state hashing in TypeScript or Python without updating the counterpart SDK. |
+| **`python.yml`** (Python Matrix) | Python SDK, LangChain adapter, and OTel bridge test suites pass across Python 3.10, 3.11, 3.12 | `uv run pytest python/aerograph-sdk/tests python/aerograph-langchain/tests` | Python unit test failures or unhandled exception propagation. |
+| **`pr-lint.yml`** (PR Hygiene) | Validates that Pull Request titles strictly follow [Conventional Commits](https://www.conventionalcommits.org/) | e.g. `feat: add model cache tags`, `fix: sanitize forked span ids` | Title lacks a valid type prefix (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`, `ci:`). |
 
-All four must be green for a PR to be mergeable.
+All CI workflows must pass green before a PR can be merged.
+
+---
+
+### Pre-Push & Release Hygiene Checklist
+
+Before pushing commits or opening a PR, run the local verification suite:
+
+```sh
+# 1. Verify zero schema drift (Constitution Principle I)
+npm run drift:check
+
+# 2. Run Constitution Principle VI Security & Credential Hygiene Scanner
+npm run security:check
+
+# 3. Lint all TypeScript workspaces
+npm run lint
+
+# 4. Build contracts, packages, and apps
+npm run build
+
+# 5. Run all unit and integration tests
+npm test
+npm run test:integration
+```
 
 ---
 
@@ -1071,10 +1119,11 @@ All four must be green for a PR to be mergeable.
 
 - **Branch naming**: `feat/<short-description>`, `fix/<short-description>`, `docs/<short-description>`
 - **Commit messages**: use [Conventional Commits](https://www.conventionalcommits.org/) - `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`
-- **One concern per PR**: keep schema changes, implementation changes, and doc changes in separate PRs when possible
-- **Generated files**: always commit `generated.py` and the `.schema.json` artifacts in the same commit as the `index.ts` change that produced them - never in a separate PR
-- **Tests**: every new event kind, method, or adapter callback must have at least one unit test
-- **CHANGELOG**: not required for PRs, but maintainers will tag releases and note changes
+- **PR Template**: All pull requests load with the [Constitution v1.1.0 Checklist](.github/PULL_REQUEST_TEMPLATE.md) to ensure schema governance, parity, and security compliance.
+- **One concern per PR**: keep schema changes, implementation changes, and doc changes in separate PRs when possible.
+- **Generated files**: always commit `generated.py` and the `.schema.json` artifacts in the same commit as the `index.ts` change that produced them - never in a separate PR.
+- **Tests**: every new event kind, method, or adapter callback must have automated tests.
+- **CHANGELOG**: not required for PRs, but maintainers will tag releases and note changes.
 
 ---
 
@@ -1086,9 +1135,8 @@ Full local setup from a clean clone:
 # 1. Install Node dependencies (root + all workspaces)
 npm install
 
-# 2. Build contracts & packages
-npm run build -w packages/contracts
-npm run build -w packages/aerorepl
+# 2. Build contracts, packages, and applications (generates dist/ outputs)
+npm run build
 
 # 3. Build Go Replay Core (MITM proxy)
 cd packages/replay-core && go build -o bin/aerograph-replay-core main.go && cd ../..
@@ -1099,22 +1147,24 @@ npm run dev -w apps/collector
 # 5. In a second terminal, start the web UI (terminal 2)
 npm run dev -w apps/web
 
-# 6. Install Python SDK in editable mode
+# 6. Install Python SDK & adapters in editable mode
 pip install -e python/aerograph-sdk
-
-# 7. Install Python LangChain adapter in editable mode
 pip install -e python/aerograph-langchain
 
-# 8. Run all TypeScript tests
+# 7. Run all TypeScript tests
 npm test
+npm run test:integration
 
-# 9. Run Python SDK tests
+# 8. Run Python SDK and adapter tests
 cd python/aerograph-sdk && pytest
+cd ../aerograph-langchain && pytest
+cd ../..
 
-# 10. Run Python adapter tests
-cd python/aerograph-langchain && pytest
+# 9. Verify zero schema drift and security hygiene
+npm run drift:check
+npm run security:check
 
-# 11. Emit a demo trace (requires collector running)
+# 10. Emit a demo trace (requires collector running)
 npx tsx apps/demo/src/demo.ts
 ```
 
