@@ -32,6 +32,7 @@
 
   <p>
     <a href="#what-it-does"><b>What it does</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
+    <a href="docs/INTEGRATION_MANUAL.md"><b>Integration Manual</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
     <a href="#cli-quickstart-aerorepl"><b>Quick Start</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
     <a href="#architecture"><b>Architecture</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
     <a href="#contributing"><b>Contributing</b></a>
@@ -43,6 +44,7 @@
 ## Table of Contents
 
 - [What it does](#what-it-does)
+- [Developer Integration Manual (Complete Guide)](docs/INTEGRATION_MANUAL.md)
 - [Terminology & Concepts](#terminology--concepts)
   - [Fork-and-Resume ("Fork from here")](#fork-and-resume-fork-from-here)
   - [Lineage & Navigation](#lineage--navigation)
