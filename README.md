@@ -32,7 +32,7 @@
 
   <p>
     <a href="#what-it-does"><b>What it does</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
-    <a href="#phase-2-quick-start"><b>Quick Start</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
+    <a href="#cli-quickstart-aerorepl"><b>Quick Start</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
     <a href="#architecture"><b>Architecture</b></a> &nbsp;&nbsp;✦&nbsp;&nbsp;
     <a href="#contributing"><b>Contributing</b></a>
   </p>
@@ -68,8 +68,17 @@
 - [TypeScript / Node.js Packages](#typescript--nodejs-packages)
 - [Go Core Proxy](#go-core-proxy)
 - [Applications](#applications)
-- [Python Packages](#python-packages)
 - [Contributing](#contributing)
+  - [The contract-first architecture](#the-contract-first-architecture)
+  - [Do I need to write code in both TypeScript and Python?](#do-i-need-to-write-code-in-both-typescript-and-python)
+  - [Workflow A - Adding or changing an event field](#workflow-a)
+  - [Workflow B - Adding a new adapter (new framework)](#workflow-b)
+  - [Workflow C - Fixing a bug or adding a feature in the collector or web UI](#workflow-c)
+  - [Workflow D - Python-only changes (recorder logic, helpers)](#workflow-d)
+  - [CI gates and what breaks them](#ci-gates-and-what-breaks-them)
+  - [Pre-Push & Release Hygiene Checklist](#pre-push--release-hygiene-checklist)
+  - [Commit and PR conventions](#commit-and-pr-conventions)
+  - [Running everything locally](#running-everything-locally)
 
 ---
 
@@ -987,6 +996,7 @@ This depends entirely on what you are changing. Here is the exact rule:
 
 ---
 
+<a id="workflow-a"></a>
 ### Workflow A - Adding or changing an event field
 
 This is the most common schema-level contribution. Example: adding a `tokenCount` field to `ResponseEvent`.
@@ -1037,6 +1047,7 @@ Commit `index.ts`, the exported `.schema.json` files, and `generated.py` in the 
 
 ---
 
+<a id="workflow-b"></a>
 ### Workflow B - Adding a new adapter (new framework)
 
 Example: adding AutoGen support.
@@ -1044,13 +1055,14 @@ Example: adding AutoGen support.
 1. **Create `packages/adapter-autogen`** (TypeScript) following the same structure as `packages/adapter-langchain`. Use the TypeScript SDK (`packages/sdk`) to emit events via `FlightRecorder`.
 2. **Create `python/aerograph-autogen`** (Python) following the same structure as `python/aerograph-langchain`. Use `aerograph-sdk`'s `FlightRecorder` to emit events.
 3. Both adapters must emit the **same event kinds** for the same observable framework signals. Write integration tests in both.
-4. No changes to `packages/contracts` are needed unless you need a new event kind (in which case follow Workflow A first).
+4. No changes to `packages/contracts` are needed unless you need a new event kind (in which case follow [Workflow A](#workflow-a) first).
 5. Add entries for both packages to the **Repository structure** table in this README.
 
 Adapters do **not** need to be feature-identical on day one - ship the TypeScript version first if you are more comfortable there, or Python first if you are a Python developer. Just open the PR clearly marked as partial and document which side is missing.
 
 ---
 
+<a id="workflow-c"></a>
 ### Workflow C - Fixing a bug or adding a feature in the collector or web UI
 
 The collector (`apps/collector`) and web UI (`apps/web`) are TypeScript/Node only. Python plays no role.
@@ -1062,6 +1074,7 @@ The collector (`apps/collector`) and web UI (`apps/web`) are TypeScript/Node onl
 
 ---
 
+<a id="workflow-d"></a>
 ### Workflow D - Python-only changes (recorder logic, helpers)
 
 If you are only changing Python code that does **not** touch event schemas - for example, adding a new convenience method to `FlightRecorder`, fixing a bug in `streaming.py`, or improving error messages:
@@ -1071,7 +1084,7 @@ If you are only changing Python code that does **not** touch event schemas - for
 3. Run `uv run pytest` in the package directory.
 4. No TypeScript steps required.
 
-If your new convenience method wraps an existing event kind, no codegen is needed. If it exposes a **new** event kind or field, do Workflow A first.
+If your new convenience method wraps an existing event kind, no codegen is needed. If it exposes a **new** event kind or field, do [Workflow A](#workflow-a) first.
 
 ---
 
