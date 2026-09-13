@@ -74,7 +74,13 @@ export type AppendDerivationInput = {
 };
 
 export class SqliteTraceStore {
-  constructor(private db: Database) {}
+  constructor(private db: Database) {
+    try {
+      this.db.exec("UPDATE trace_derivations SET forked_from_span_id = 'root' WHERE forked_from_span_id = '' OR forked_from_span_id IS NULL");
+    } catch {
+      // Non-blocking if table not yet initialized
+    }
+  }
 
   appendEvent(event: TraceEvent): void {
     // Extract telemetry columns from the event for indexed storage.
@@ -182,17 +188,22 @@ export class SqliteTraceStore {
         )
         .get(r.trace_id) as any;
 
+      const parentTraceId = derivation?.parent_trace_id || runRow?.parent_trace_id || null;
+      const forkedFromSpanId = (derivation?.forked_from_span_id && derivation.forked_from_span_id.length > 0)
+        ? derivation.forked_from_span_id
+        : (parentTraceId ? "root" : undefined);
+
       return {
         traceId: r.trace_id,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
         eventCount: r.event_count,
         rootSpanId: rootRow ? rootRow.span_id : null,
-        ...(derivation
+        ...(parentTraceId
           ? {
               derivedFrom: {
-                baseTraceId: derivation.parent_trace_id,
-                forkedFromSpanId: derivation.forked_from_span_id
+                baseTraceId: parentTraceId,
+                forkedFromSpanId
               }
             }
           : {}),
@@ -261,6 +272,11 @@ export class SqliteTraceStore {
       )
       .get(traceId) as any;
 
+    const parentTraceId = derivation?.parent_trace_id || runRow?.parent_trace_id || null;
+    const forkedFromSpanId = (derivation?.forked_from_span_id && derivation.forked_from_span_id.length > 0)
+      ? derivation.forked_from_span_id
+      : (parentTraceId ? "root" : undefined);
+
     return {
       meta: {
         traceId,
@@ -268,11 +284,11 @@ export class SqliteTraceStore {
         updatedAt,
         eventCount: events.length,
         rootSpanId,
-        ...(derivation
+        ...(parentTraceId
           ? {
               derivedFrom: {
-                baseTraceId: derivation.parent_trace_id,
-                forkedFromSpanId: derivation.forked_from_span_id
+                baseTraceId: parentTraceId,
+                forkedFromSpanId
               }
             }
           : {}),
@@ -399,8 +415,15 @@ export class SqliteTraceStore {
       const row = this.db
         .prepare("SELECT parent_trace_id FROM trace_derivations WHERE child_trace_id = ?")
         .get(rootTraceId) as any;
-      if (!row?.parent_trace_id) break;
-      rootTraceId = row.parent_trace_id;
+      let pId = row?.parent_trace_id;
+      if (!pId) {
+        const runRow = this.db
+          .prepare("SELECT parent_trace_id FROM replay_runs WHERE trace_id = ? AND parent_trace_id IS NOT NULL ORDER BY created_at DESC LIMIT 1")
+          .get(rootTraceId) as any;
+        pId = runRow?.parent_trace_id;
+      }
+      if (!pId || pId === rootTraceId) break;
+      rootTraceId = pId;
     }
 
     const edges: TraceLineageEdge[] = [];
@@ -427,6 +450,27 @@ export class SqliteTraceStore {
         `
         )
         .all(current) as any[];
+
+      const replayChildren = this.db
+        .prepare(
+          `
+          SELECT trace_id as child_trace_id, parent_trace_id, created_at
+          FROM replay_runs
+          WHERE parent_trace_id = ? AND trace_id NOT IN (SELECT child_trace_id FROM trace_derivations)
+          ORDER BY created_at ASC, trace_id ASC
+        `
+        )
+        .all(current) as any[];
+
+      for (const r of replayChildren) {
+        childRows.push({
+          child_trace_id: r.child_trace_id,
+          parent_trace_id: r.parent_trace_id,
+          forked_from_span_id: "root",
+          created_at: r.created_at,
+          overrides_json: "{}"
+        });
+      }
 
       for (const r of childRows) {
         const overrides = (() => {
@@ -697,6 +741,20 @@ export class SqliteTraceStore {
       input.executablePath ?? null,
       input.entrypoint ?? null
     );
+
+    if (input.parentTraceId && input.traceId && input.parentTraceId !== input.traceId) {
+      try {
+        const forkedSpan = (input as any).forkFromSpanId || "root";
+        this.db.prepare(`
+          INSERT OR IGNORE INTO trace_derivations (
+            child_trace_id, parent_trace_id, forked_from_span_id, created_at, overrides_json
+          ) VALUES (?, ?, ?, datetime('now'), ?)
+        `).run(input.traceId, input.parentTraceId, forkedSpan, "{}");
+      } catch {
+        // Non-blocking
+      }
+    }
+
     return runId;
   }
 

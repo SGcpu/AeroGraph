@@ -139,6 +139,9 @@ export function runMigrations(db: Database): void {
   `);
 
   db.exec(`INSERT OR IGNORE INTO schema_migrations (version) VALUES ('007_runtime_environment');`);
+
+  // Ensure any legacy or replay derivations have valid forked_from_span_id (min(1) in contracts)
+  db.exec(`UPDATE trace_derivations SET forked_from_span_id = 'root' WHERE forked_from_span_id = '' OR forked_from_span_id IS NULL;`);
 }
 
 
