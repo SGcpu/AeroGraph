@@ -6,6 +6,8 @@ coverage/
 *.log
 .env*
 apps/collector/data/
+data/
+*.sqlite*
 
 # Python
 __pycache__/
