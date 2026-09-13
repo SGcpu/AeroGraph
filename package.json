@@ -28,7 +28,8 @@
     "lint": "npm run --workspaces --if-present lint",
     "schema:export": "npm run build -w @aerograph/contracts -w @aerograph/schema-exporter && npm run schema:export -w @aerograph/schema-exporter",
     "schema:check": "npm run build -w @aerograph/contracts -w @aerograph/schema-exporter && npm run schema:check -w @aerograph/schema-exporter",
-    "drift:check": "npm run schema:check && echo 'Schema drift check passed.'"
+    "drift:check": "npm run schema:check && echo 'Schema drift check passed.'",
+    "security:check": "python tools/check_security_hygiene.py"
   },
   "devDependencies": {
     "@langchain/core": "^1.2.2"

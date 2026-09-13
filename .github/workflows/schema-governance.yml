@@ -1,25 +1,60 @@
-name: Schema Governance
+name: Schema Governance & Drift Prevention
 
 on:
   push:
-    branches: [main]
+    branches: [main, '00*']
   pull_request:
     paths:
       - "packages/contracts/**"
       - "packages/schema-exporter/**"
+      - "apps/collector/src/sqliteStore.ts"
+      - "apps/collector/src/sqlite/migrate.ts"
+      - "apps/web/public/schemas/**"
+      - ".specify/memory/constitution.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  check-drift:
+  check-schema-drift:
+    name: Continuous Schema Governance (Principle I & Checklist)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 18
-      - run: npm ci
-      - name: Build contracts
-        run: npm run build -w packages/contracts
-      - name: Build schema-exporter
-        run: npm run build -w packages/schema-exporter
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build contracts & schema-exporter
+        run: |
+          npm run build -w @aerograph/contracts
+          npm run build -w @aerograph/schema-exporter
+
       - name: Check Schema Drift
-        run: npm run schema:check -w packages/schema-exporter
+        run: |
+          npm run drift:check || {
+            echo "::error::Schema drift detected! Run 'npm run schema:export' locally and commit the updated schema artifacts."
+            exit 1
+          }
+
+      - name: Validate Public Web Configuration Schemas
+        run: |
+          node -e '
+            const fs = require("fs");
+            const files = fs.readdirSync("apps/web/public/schemas");
+            for (const f of files) {
+              if (f.endsWith(".json")) {
+                JSON.parse(fs.readFileSync("apps/web/public/schemas/" + f, "utf8"));
+                console.log("✓ Valid JSON schema:", f);
+              }
+            }
+          '
+
+      - name: Validate SQLite Additive Migrations & Historical Compatibility
+        run: npx vitest run apps/collector/tests/migration.test.ts apps/collector/tests/backward_compatibility.test.ts
