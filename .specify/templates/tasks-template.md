@@ -157,6 +157,7 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
 - [ ] TXXX Security hardening
 - [ ] TXXX Run quickstart.md validation
+- [ ] TXXX [P] Run pre-push release hygiene checks (`npm run schema:export`, `npm run drift:check`, clean temp artifacts)
 
 ---
 

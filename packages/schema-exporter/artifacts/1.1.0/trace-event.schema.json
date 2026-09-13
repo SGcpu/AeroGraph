@@ -3,7 +3,7 @@
   "title": "AeroGraph TraceEvent Schema",
   "description": "Language-neutral JSON Schema artifact exported from @aerograph/contracts. Used to generate and validate non-TypeScript runtime bindings.",
   "schemaVersion": "1.1.0",
-  "generatedAt": "2026-09-04T21:21:32.930Z",
+  "generatedAt": "2026-09-13T14:42:38.302Z",
   "traceEventSchema": {
     "$ref": "#/definitions/TraceEvent",
     "definitions": {
@@ -170,6 +170,24 @@
               "overridden": {
                 "type": [
                   "boolean",
+                  "null"
+                ]
+              },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
                   "null"
                 ]
               },
@@ -385,6 +403,24 @@
               "overridden": {
                 "type": [
                   "boolean",
+                  "null"
+                ]
+              },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
                   "null"
                 ]
               },
@@ -649,6 +685,24 @@
                   "null"
                 ]
               },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "tool_call"
@@ -844,6 +898,24 @@
                   "null"
                 ]
               },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "tool_result"
@@ -1036,6 +1108,24 @@
               "overridden": {
                 "type": [
                   "boolean",
+                  "null"
+                ]
+              },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
                   "null"
                 ]
               },
@@ -1246,6 +1336,24 @@
                   "null"
                 ]
               },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "error"
@@ -1450,6 +1558,24 @@
                   "null"
                 ]
               },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "note"
@@ -1633,6 +1759,24 @@
               "overridden": {
                 "type": [
                   "boolean",
+                  "null"
+                ]
+              },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
                   "null"
                 ]
               },
@@ -1847,6 +1991,24 @@
               "overridden": {
                 "type": [
                   "boolean",
+                  "null"
+                ]
+              },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
                   "null"
                 ]
               },
@@ -2065,6 +2227,24 @@
               "overridden": {
                 "type": [
                   "boolean",
+                  "null"
+                ]
+              },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
                   "null"
                 ]
               },
@@ -2305,6 +2485,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "prompt"
@@ -2517,6 +2715,24 @@
                     "overridden": {
                       "type": [
                         "boolean",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
                         "null"
                       ]
                     },
@@ -2781,6 +2997,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "tool_call"
@@ -2976,6 +3210,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "tool_result"
@@ -3168,6 +3420,24 @@
                     "overridden": {
                       "type": [
                         "boolean",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
                         "null"
                       ]
                     },
@@ -3378,6 +3648,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "error"
@@ -3582,6 +3870,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "note"
@@ -3765,6 +4071,24 @@
                     "overridden": {
                       "type": [
                         "boolean",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
                         "null"
                       ]
                     },
@@ -3979,6 +4303,24 @@
                     "overridden": {
                       "type": [
                         "boolean",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
                         "null"
                       ]
                     },
@@ -4200,6 +4542,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "checkpoint"
@@ -4315,6 +4675,40 @@
           },
           "isDeleted": {
             "type": "boolean"
+          },
+          "replayRun": {
+            "type": "object",
+            "properties": {
+              "runId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "record",
+                  "replay",
+                  "fork"
+                ]
+              },
+              "cassetteRunId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sourceTraceId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "runId",
+              "mode"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -4393,6 +4787,40 @@
               },
               "isDeleted": {
                 "type": "boolean"
+              },
+              "replayRun": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "record",
+                      "replay",
+                      "fork"
+                    ]
+                  },
+                  "cassetteRunId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "sourceTraceId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "runId",
+                  "mode"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -4572,6 +5000,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "prompt"
@@ -4784,6 +5230,24 @@
                     "overridden": {
                       "type": [
                         "boolean",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
                         "null"
                       ]
                     },
@@ -5048,6 +5512,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "tool_call"
@@ -5243,6 +5725,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "tool_result"
@@ -5435,6 +5935,24 @@
                     "overridden": {
                       "type": [
                         "boolean",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
                         "null"
                       ]
                     },
@@ -5645,6 +6163,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "error"
@@ -5849,6 +6385,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "note"
@@ -6032,6 +6586,24 @@
                     "overridden": {
                       "type": [
                         "boolean",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
                         "null"
                       ]
                     },
@@ -6246,6 +6818,24 @@
                     "overridden": {
                       "type": [
                         "boolean",
+                        "null"
+                      ]
+                    },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
                         "null"
                       ]
                     },
@@ -6467,6 +7057,24 @@
                         "null"
                       ]
                     },
+                    "decision": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "matchedPattern": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "effectiveClass": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
                     "kind": {
                       "type": "string",
                       "const": "checkpoint"
@@ -6585,6 +7193,40 @@
                 },
                 "isDeleted": {
                   "type": "boolean"
+                },
+                "replayRun": {
+                  "type": "object",
+                  "properties": {
+                    "runId": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": [
+                        "record",
+                        "replay",
+                        "fork"
+                      ]
+                    },
+                    "cassetteRunId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "sourceTraceId": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "runId",
+                    "mode"
+                  ],
+                  "additionalProperties": false
                 }
               },
               "required": [
@@ -7130,6 +7772,24 @@
                   "null"
                 ]
               },
+              "decision": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "matchedPattern": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "effectiveClass": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "kind": {
                 "type": "string",
                 "const": "prompt"
@@ -7210,6 +7870,15 @@
               },
               "overridden": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
+              },
+              "decision": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/decision"
+              },
+              "matchedPattern": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/matchedPattern"
+              },
+              "effectiveClass": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/effectiveClass"
               },
               "kind": {
                 "type": "string",
@@ -7292,6 +7961,15 @@
               "overridden": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
               },
+              "decision": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/decision"
+              },
+              "matchedPattern": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/matchedPattern"
+              },
+              "effectiveClass": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/effectiveClass"
+              },
               "kind": {
                 "type": "string",
                 "const": "tool_call"
@@ -7372,6 +8050,15 @@
               },
               "overridden": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
+              },
+              "decision": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/decision"
+              },
+              "matchedPattern": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/matchedPattern"
+              },
+              "effectiveClass": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/effectiveClass"
               },
               "kind": {
                 "type": "string",
@@ -7454,6 +8141,15 @@
               "overridden": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
               },
+              "decision": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/decision"
+              },
+              "matchedPattern": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/matchedPattern"
+              },
+              "effectiveClass": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/effectiveClass"
+              },
               "kind": {
                 "type": "string",
                 "const": "handoff"
@@ -7535,6 +8231,15 @@
               "overridden": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
               },
+              "decision": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/decision"
+              },
+              "matchedPattern": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/matchedPattern"
+              },
+              "effectiveClass": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/effectiveClass"
+              },
               "kind": {
                 "type": "string",
                 "const": "error"
@@ -7615,6 +8320,15 @@
               },
               "overridden": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
+              },
+              "decision": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/decision"
+              },
+              "matchedPattern": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/matchedPattern"
+              },
+              "effectiveClass": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/effectiveClass"
               },
               "kind": {
                 "type": "string",
@@ -7698,6 +8412,15 @@
               "overridden": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
               },
+              "decision": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/decision"
+              },
+              "matchedPattern": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/matchedPattern"
+              },
+              "effectiveClass": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/effectiveClass"
+              },
               "kind": {
                 "type": "string",
                 "const": "state_snapshot"
@@ -7779,6 +8502,15 @@
               "overridden": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
               },
+              "decision": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/decision"
+              },
+              "matchedPattern": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/matchedPattern"
+              },
+              "effectiveClass": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/effectiveClass"
+              },
               "kind": {
                 "type": "string",
                 "const": "retriever"
@@ -7859,6 +8591,15 @@
               },
               "overridden": {
                 "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/overridden"
+              },
+              "decision": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/decision"
+              },
+              "matchedPattern": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/matchedPattern"
+              },
+              "effectiveClass": {
+                "$ref": "#/definitions/AeroGraph/properties/PromptEvent/properties/effectiveClass"
               },
               "kind": {
                 "type": "string",
@@ -8010,6 +8751,40 @@
               },
               "isDeleted": {
                 "type": "boolean"
+              },
+              "replayRun": {
+                "type": "object",
+                "properties": {
+                  "runId": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "record",
+                      "replay",
+                      "fork"
+                    ]
+                  },
+                  "cassetteRunId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "sourceTraceId": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "runId",
+                  "mode"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [

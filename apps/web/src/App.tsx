@@ -1213,6 +1213,7 @@ export default function App() {
             <ReplayControlPanel
               api={api}
               activeTraceId={traceId}
+              hasCassette={Boolean(activeMeta?.replayRun)}
               onTraceReplayed={(newId) => {
                 refreshTraces();
                 setTraceId(newId);
