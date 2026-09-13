@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -22,6 +23,7 @@ import (
 
 var fallback bool
 var summary bool
+var realtimePlayback bool
 
 var replayCmd = &cobra.Command{
 	Use:   "replay <run-id> <command> [args...]",
@@ -75,6 +77,7 @@ No CA key material persists after the process ends (FR-037).`,
 
 		httpInterceptor := interceptor.NewHTTPInterceptor(interceptor.ModeReplay, s, run)
 		httpInterceptor.Fallback = fallback
+		httpInterceptor.RealtimePlayback = realtimePlayback
 
 		// Apply live-hosts from --live-hosts flag (must_execute patterns)
 		if liveHostsStr, _ := cmd.Flags().GetString("live-hosts"); liveHostsStr != "" {
@@ -122,7 +125,19 @@ No CA key material persists after the process ends (FR-037).`,
 		execCmd.Stderr = os.Stderr
 		execCmd.Stdin = os.Stdin
 
-		execCmd.Env = os.Environ()
+		cleanEnv := make([]string, 0, len(os.Environ()))
+		for _, e := range os.Environ() {
+			k := strings.ToUpper(strings.SplitN(e, "=", 2)[0])
+			switch k {
+			case "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+				"SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "NODE_EXTRA_CA_CERTS",
+				"AEROREPL_MODE", "AEROREPL_RUN_ID", "AFR_RUN_ID":
+				continue
+			default:
+				cleanEnv = append(cleanEnv, e)
+			}
+		}
+		execCmd.Env = cleanEnv
 		proxyURL := "http://" + proxyAddr
 		execCmd.Env = append(execCmd.Env, "HTTP_PROXY="+proxyURL)
 		execCmd.Env = append(execCmd.Env, "HTTPS_PROXY="+proxyURL)
@@ -155,6 +170,24 @@ No CA key material persists after the process ends (FR-037).`,
 			}
 		}
 
+		// If live network steps occurred during replay (override, must_execute, or fallback),
+		// export the complete updated run to .aerograph/cassettes/<runID>.json so the fork
+		// has its own complete, zero-cost-replayable cassette.
+		if httpInterceptor.NetworkCallCount > 0 {
+			finalRun, loadErr := s.LoadRun(runID)
+			if loadErr != nil {
+				finalRun = run
+			}
+			cassetteDir := filepath.Join(".aerograph", "cassettes")
+			if mkErr := os.MkdirAll(cassetteDir, 0755); mkErr == nil {
+				cassettePath := filepath.Join(cassetteDir, runID+".json")
+				if cassetteData, marshalErr := encodeCassette(finalRun); marshalErr == nil {
+					os.WriteFile(cassettePath, cassetteData, 0644) //nolint:errcheck
+					fmt.Printf("\033[36m[REPLAY] Saved updated fork cassette with %d steps to %s\033[0m\n", len(finalRun.Steps), cassettePath)
+				}
+			}
+		}
+
 		if summary {
 			fmt.Printf("\n\033[32m✓ Replay complete\033[0m\n")
 			fmt.Printf("Steps: %d\n", len(run.Steps))
@@ -179,6 +212,7 @@ func init() {
 	replayCmd.Flags().SetInterspersed(false)
 	replayCmd.Flags().BoolVarP(&fallback, "fallback", "f", false, "Hit real network if recorded request is not found")
 	replayCmd.Flags().BoolVarP(&summary, "summary", "s", false, "Show concise summary of replay results")
+	replayCmd.Flags().BoolVar(&realtimePlayback, "realtime-playback", false, "Reconstruct recorded inter-chunk timing during streaming replay")
 	replayCmd.Flags().String("live-hosts", "", "Comma-separated host glob patterns to always forward live (must_execute)")
 	replayCmd.Flags().String("annotation-log", "", "Path to write per-request annotation log (JSON array)")
 	replayCmd.Flags().String("override-file", "", "Path to JSON file containing prompt/span overrides")
@@ -186,7 +220,7 @@ func init() {
 }
 
 // encodeCassette marshals a Run to the AeroGraph cassette JSON format.
-// This is used by record.go to copy the cassette to .aerograph/cassettes/.
+// This is used by record.go and replay.go to copy the cassette to .aerograph/cassettes/.
 func encodeCassette(run *core.Run) ([]byte, error) {
 	return json.MarshalIndent(run, "", "  ")
 }

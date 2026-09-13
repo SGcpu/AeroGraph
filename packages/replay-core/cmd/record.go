@@ -118,7 +118,19 @@ No CA key material persists after the process ends (FR-037).`,
 		execCmd.Stderr = os.Stderr
 		execCmd.Stdin = os.Stdin
 
-		execCmd.Env = os.Environ()
+		cleanEnv := make([]string, 0, len(os.Environ()))
+		for _, e := range os.Environ() {
+			k := strings.ToUpper(strings.SplitN(e, "=", 2)[0])
+			switch k {
+			case "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+				"SSL_CERT_FILE", "REQUESTS_CA_BUNDLE", "NODE_EXTRA_CA_CERTS",
+				"AEROREPL_MODE", "AEROREPL_RUN_ID", "AFR_RUN_ID":
+				continue
+			default:
+				cleanEnv = append(cleanEnv, e)
+			}
+		}
+		execCmd.Env = cleanEnv
 		proxyURL := "http://" + proxyAddr
 		execCmd.Env = append(execCmd.Env, "HTTP_PROXY="+proxyURL)
 		execCmd.Env = append(execCmd.Env, "HTTPS_PROXY="+proxyURL)

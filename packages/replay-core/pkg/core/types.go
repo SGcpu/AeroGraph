@@ -51,6 +51,8 @@ type HTTPResponse struct {
 	// When StreamingPreserved is true, Chunks is the authoritative source for replay.
 	// Present only for streaming responses; nil for non-streaming.
 	Chunks [][]byte `json:"chunks,omitempty"`
+	// ChunkDelaysMs stores relative elapsed ms between consecutive chunks for timing reconstruction.
+	ChunkDelaysMs []int64 `json:"chunkDelaysMs,omitempty"`
 	// StreamingPreserved indicates whether individual chunks were captured.
 	// If false, the response was buffered (non-streaming or fallback) and streaming
 	// telemetry (TTFT, tokens/sec) from replay is not representative.

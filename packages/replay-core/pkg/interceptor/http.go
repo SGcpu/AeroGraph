@@ -2,8 +2,8 @@ package interceptor
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
-	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -42,15 +42,15 @@ const (
 // AnnotationEntry is emitted to the annotation log for each intercepted request.
 // It is consumed by the AeroGraph Orchestrator to produce span annotations.
 type AnnotationEntry struct {
-	RequestKey        string  `json:"requestKey"`
-	CorrelatedSpanId  string  `json:"correlatedSpanId,omitempty"`
-	ReplaySource      string  `json:"replaySource"` // "cache" | "live"
-	ReplayLatencyMs   float64 `json:"replayLatencyMs,omitempty"`
-	StreamingPreserved bool   `json:"streamingPreserved"`
-	Decision          string  `json:"decision"` // "cache_hit" | "cache_miss" | "must_execute" | "fallback"
-	MatchedPattern    string  `json:"matchedPattern,omitempty"`
-	EffectiveClass    string  `json:"effectiveClass,omitempty"` // "replay_safe" | "must_execute"
-	Overridden        bool    `json:"overridden,omitempty"`
+	RequestKey         string  `json:"requestKey"`
+	CorrelatedSpanId   string  `json:"correlatedSpanId,omitempty"`
+	ReplaySource       string  `json:"replaySource"` // "cache" | "live"
+	ReplayLatencyMs    float64 `json:"replayLatencyMs,omitempty"`
+	StreamingPreserved bool    `json:"streamingPreserved"`
+	Decision           string  `json:"decision"` // "cache_hit" | "cache_miss_error" | "must_execute" | "fallback" | "live_record"
+	MatchedPattern     string  `json:"matchedPattern,omitempty"`
+	EffectiveClass     string  `json:"effectiveClass,omitempty"` // "replay_safe" | "must_execute"
+	Overridden         bool    `json:"overridden,omitempty"`
 }
 
 // OverrideConfig represents prompt/span substitutions supplied via --override-file.
@@ -61,8 +61,7 @@ type OverrideConfig struct {
 	Overrides          map[string]string `json:"overrides,omitempty"`
 }
 
-
-// requestKey computes K(s) = SHA256(method ‖ normalizedUrl ‖ SHA256(body))
+// RequestKey computes K(s) = SHA256(method ‖ normalizedUrl ‖ SHA256(body))
 // This is the canonical deterministic request key per spec FR-009.
 func RequestKey(method, normalizedURL string, body []byte) string {
 	// SHA256 of body first (empty body → SHA256 of empty bytes, not empty string SHA256)
@@ -126,7 +125,8 @@ func NewCassetteIndexExported(steps []core.Step) *cassetteIndex {
 	return newCassetteIndex(steps, func(u string) string { return u })
 }
 
-// LookupWithoutMarking performs a key lookup without marking the index used.
+// LookupWithoutMarking inspects the cassette index for a matching step index without consuming the FIFO entry.
+// Useful for pre-flight cache probing and tests.
 func (ci *cassetteIndex) LookupWithoutMarking(key string) int {
 	ci.mu.Lock()
 	defer ci.mu.Unlock()
@@ -137,7 +137,6 @@ func (ci *cassetteIndex) LookupWithoutMarking(key string) int {
 	return indices[0]
 }
 
-
 // HTTPInterceptor is an http.RoundTripper that can intercept and record/replay HTTP requests.
 // In replay mode it uses an O(1) SHA-256 hashed cassette index (not the upstream linear scan).
 type HTTPInterceptor struct {
@@ -145,7 +144,8 @@ type HTTPInterceptor struct {
 	Mode              Mode
 	Storage           storage.Storage
 	CurrentRun        *core.Run
-	Fallback          bool     // If true, call real network when no match is found
+	Fallback          bool // If true, call real network when no match is found
+	RealtimePlayback  bool // If true, chunked replay reader reconstructs recorded chunk timings
 	IgnoreHeaders     []string
 	IgnoreQueryParams []string
 	LiveHosts         []string // Host glob patterns that always go live (must_execute)
@@ -153,18 +153,35 @@ type HTTPInterceptor struct {
 	OverrideConfig    *OverrideConfig
 	overrideApplied   bool
 	// hashed index — populated on first replay RoundTrip from CurrentRun.Steps
-	cassetteIdx *cassetteIndex
-	idxOnce     sync.Once
+	cassetteIdx      *cassetteIndex
+	idxOnce          sync.Once
 	NetworkCallCount int
-	mu              sync.Mutex
+	mu               sync.Mutex
 }
 
 // NewHTTPInterceptor creates a new HTTPInterceptor.
 func NewHTTPInterceptor(mode Mode, s storage.Storage, currentRun *core.Run) *HTTPInterceptor {
+	var transport http.RoundTripper = http.DefaultTransport
+	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
+		cloned := dt.Clone()
+		if cloned.Proxy != nil {
+			origProxy := cloned.Proxy
+			cloned.Proxy = func(req *http.Request) (*url.URL, error) {
+				proxyURL, err := origProxy(req)
+				if err != nil || proxyURL == nil {
+					return nil, err
+				}
+				h := proxyURL.Hostname()
+				if h == "localhost" || h == "127.0.0.1" || h == "::1" {
+					return nil, nil // bypass loopback proxy for outbound requests
+				}
+				return proxyURL, nil
+			}
+		}
+		transport = cloned
+	}
 	return &HTTPInterceptor{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
+		Transport:         transport,
 		Mode:              mode,
 		Storage:           s,
 		CurrentRun:        currentRun,
@@ -172,6 +189,150 @@ func NewHTTPInterceptor(mode Mode, s storage.Storage, currentRun *core.Run) *HTT
 		IgnoreQueryParams: []string{"timestamp", "nonce", "api_key"},
 		AnnotationLog:     []AnnotationEntry{},
 	}
+}
+
+// isSensitiveHeader returns true if the header name indicates auth or secret credentials.
+func isSensitiveHeader(name string) bool {
+	lower := strings.ToLower(strings.TrimSpace(name))
+	switch lower {
+	case "authorization", "proxy-authorization", "x-api-key", "x-goog-api-key", "api-key", "openai-api-key", "anthropic-api-key", "set-cookie", "cookie":
+		return true
+	}
+	return strings.Contains(lower, "token") || strings.Contains(lower, "secret") || strings.Contains(lower, "auth") || strings.Contains(lower, "api-key") || strings.Contains(lower, "cookie")
+}
+
+// sanitizeHeaders redacts sensitive headers to "[REDACTED]" and removes ignored transient headers.
+func sanitizeHeaders(headers http.Header, ignoreList []string) http.Header {
+	if headers == nil {
+		return nil
+	}
+	sanitized := headers.Clone()
+	// 1. Redact sensitive headers
+	for k := range sanitized {
+		if isSensitiveHeader(k) {
+			sanitized.Set(k, "[REDACTED]")
+		}
+	}
+	// 2. Remove transient ignored headers
+	for _, ign := range ignoreList {
+		for k := range sanitized {
+			if strings.EqualFold(k, ign) && !isSensitiveHeader(k) {
+				sanitized.Del(k)
+			}
+		}
+	}
+	return sanitized
+}
+
+// isSensitiveQueryParam returns true if the query parameter key indicates auth/secrets.
+func isSensitiveQueryParam(param string) bool {
+	lower := strings.ToLower(strings.TrimSpace(param))
+	switch lower {
+	case "key", "api_key", "apikey", "token", "access_token", "auth", "secret", "signature", "sig":
+		return true
+	}
+	return strings.Contains(lower, "token") || strings.Contains(lower, "secret") || strings.Contains(lower, "key")
+}
+
+// sanitizeURL redacts sensitive query parameters (e.g. ?key=AIza...) for cassette storage.
+func sanitizeURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	q := u.Query()
+	modified := false
+	for k := range q {
+		if isSensitiveQueryParam(k) {
+			q.Set(k, "[REDACTED]")
+			modified = true
+		}
+	}
+	if modified {
+		u.RawQuery = q.Encode()
+	}
+	return u.String()
+}
+
+// recordingBody wraps an upstream body during live execution to stream chunks in real-time
+// to the caller while simultaneously capturing chunks and timing for the cassette.
+type recordingBody struct {
+	underlying  io.ReadCloser
+	fullBody    bytes.Buffer
+	chunks      [][]byte
+	chunkDelays []int64
+	lastChunkAt time.Time
+	isStreaming bool
+	onSuccess   func(body []byte, chunks [][]byte, delays []int64)
+	onError     func(err error)
+	finishOnce  sync.Once
+	hasCleanEOF bool
+}
+
+func newRecordingBody(
+	underlying io.ReadCloser,
+	startTime time.Time,
+	isStreaming bool,
+	onSuccess func(body []byte, chunks [][]byte, delays []int64),
+	onError func(err error),
+) *recordingBody {
+	return &recordingBody{
+		underlying:  underlying,
+		lastChunkAt: startTime,
+		isStreaming: isStreaming,
+		onSuccess:   onSuccess,
+		onError:     onError,
+	}
+}
+
+func (r *recordingBody) Read(p []byte) (int, error) {
+	n, err := r.underlying.Read(p)
+	if n > 0 {
+		now := time.Now()
+		delayMs := now.Sub(r.lastChunkAt).Milliseconds()
+		r.lastChunkAt = now
+
+		chunk := make([]byte, n)
+		copy(chunk, p[:n])
+		r.chunks = append(r.chunks, chunk)
+		r.chunkDelays = append(r.chunkDelays, delayMs)
+		r.fullBody.Write(chunk)
+	}
+
+	if err == io.EOF {
+		r.hasCleanEOF = true
+		r.finish(nil)
+	} else if err != nil {
+		r.finish(err)
+	}
+
+	return n, err
+}
+
+func (r *recordingBody) finish(err error) {
+	r.finishOnce.Do(func() {
+		if r.hasCleanEOF && err == nil {
+			if r.onSuccess != nil {
+				r.onSuccess(r.fullBody.Bytes(), r.chunks, r.chunkDelays)
+			}
+		} else {
+			if r.onError != nil {
+				r.onError(err)
+			}
+		}
+	})
+}
+
+func (r *recordingBody) Close() error {
+	var closeErr error
+	if r.underlying != nil {
+		closeErr = r.underlying.Close()
+	}
+	// If closed without hitting clean io.EOF, treat as premature disconnect
+	if !r.hasCleanEOF {
+		r.finish(fmt.Errorf("stream closed prematurely before EOF"))
+	}
+	return closeErr
 }
 
 // RoundTrip implements the http.RoundTripper interface.
@@ -212,6 +373,150 @@ func matchHostGlob(pattern, host string) bool {
 	return pattern == host
 }
 
+// executeAndRecordLive executes an outbound live HTTP request, streaming chunks through to
+// the caller in real-time, while capturing, sanitizing, and persisting the step to the cassette.
+func (i *HTTPInterceptor) executeAndRecordLive(
+	req *http.Request,
+	reqBodyBytes []byte,
+	normalizedURL string,
+	correlatedSpanId string,
+	decision string,
+	effectiveClass string,
+	isOverridden bool,
+) (*http.Response, error) {
+	startTime := time.Now()
+
+	resp, err := i.Transport.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	i.mu.Lock()
+	i.NetworkCallCount++
+	i.mu.Unlock()
+
+	reqKey := RequestKey(req.Method, normalizedURL, reqBodyBytes)
+
+	contentType := resp.Header.Get("Content-Type")
+	isSSE := strings.Contains(contentType, "text/event-stream")
+	isChunked := false
+	for _, te := range resp.TransferEncoding {
+		if strings.ToLower(te) == "chunked" {
+			isChunked = true
+			break
+		}
+	}
+	isStreaming := isSSE || isChunked
+
+	onSuccess := func(respBody []byte, chunks [][]byte, chunkDelays []int64) {
+		latencyMs := float64(time.Since(startTime).Microseconds()) / 1000.0
+		streamingPreserved := isStreaming && len(chunks) > 1
+
+		httpStep := core.Step{
+			Type: core.StepTypeHTTP,
+			Request: &core.HTTPRequest{
+				Method:  req.Method,
+				URL:     sanitizeURL(req.URL.String()),
+				Headers: sanitizeHeaders(req.Header, i.IgnoreHeaders),
+				Body:    reqBodyBytes,
+			},
+			Response: &core.HTTPResponse{
+				Status:             resp.Status,
+				StatusCode:         resp.StatusCode,
+				Headers:            sanitizeHeaders(resp.Header, i.IgnoreHeaders),
+				Body:               respBody,
+				Chunks:             chunks,
+				ChunkDelaysMs:      chunkDelays,
+				StreamingPreserved: streamingPreserved,
+				RequestKey:         reqKey,
+				CorrelatedSpanId:   correlatedSpanId,
+				RecordedAt:         time.Now().UTC().Format(time.RFC3339Nano),
+				RecordLatencyMs:    latencyMs,
+			},
+		}
+
+		i.mu.Lock()
+		defer i.mu.Unlock()
+
+		if i.CurrentRun != nil {
+			i.CurrentRun.Steps = append(i.CurrentRun.Steps, httpStep)
+			if i.Storage != nil {
+				i.Storage.AppendStep(i.CurrentRun.RunID, httpStep)
+			}
+		}
+
+		i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
+			RequestKey:         reqKey,
+			CorrelatedSpanId:   correlatedSpanId,
+			ReplaySource:       "live",
+			ReplayLatencyMs:    latencyMs,
+			StreamingPreserved: streamingPreserved,
+			Decision:           decision,
+			EffectiveClass:     effectiveClass,
+			Overridden:         isOverridden,
+		})
+	}
+
+	onError := func(err error) {
+		fmt.Printf("%s[INTERCEPTOR] Warning: Discarded incomplete step for %s %s due to error: %v%s\n",
+			colorYellow, req.Method, req.URL.String(), err, colorReset)
+	}
+
+	if !isStreaming {
+		var respBody []byte
+		if resp.Body != nil {
+			var readErr error
+			respBody, readErr = io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if readErr != nil {
+				return nil, readErr
+			}
+		}
+
+		// If upstream returned gzip, decompress it so cassette and downstream client get clean plain UTF-8 JSON
+		if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") && len(respBody) > 0 {
+			if gzReader, err := gzip.NewReader(bytes.NewReader(respBody)); err == nil {
+				if uncompressed, err := io.ReadAll(gzReader); err == nil {
+					respBody = uncompressed
+					resp.Header.Del("Content-Encoding")
+				}
+				gzReader.Close()
+			}
+		}
+
+		resp.Header.Del("Transfer-Encoding")
+		resp.Header.Del("Content-Encoding")
+		resp.Header.Set("Content-Length", strconv.Itoa(len(respBody)))
+
+		onSuccess(respBody, nil, nil)
+
+		outHeader := resp.Header.Clone()
+		if outHeader == nil {
+			outHeader = make(http.Header)
+		}
+
+		return &http.Response{
+			StatusCode:    resp.StatusCode,
+			Status:        resp.Status,
+			Proto:         resp.Proto,
+			ProtoMajor:    resp.ProtoMajor,
+			ProtoMinor:    resp.ProtoMinor,
+			Header:        outHeader,
+			Body:          io.NopCloser(bytes.NewBuffer(respBody)),
+			ContentLength: int64(len(respBody)),
+			Request:       req,
+		}, nil
+	}
+
+	if resp.Body != nil {
+		resp.Body = newRecordingBody(resp.Body, startTime, isStreaming, onSuccess, onError)
+	} else {
+		onSuccess(nil, nil, nil)
+	}
+
+	return resp, nil
+}
+
 func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, error) {
 	// Read the request body
 	var reqBodyBytes []byte
@@ -241,10 +546,6 @@ func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, er
 			if cleanOrig != "" && bytes.Contains(reqBodyBytes, []byte(cleanOrig[:prefixLen])) {
 				shouldOverride = true
 			}
-		} else if i.OverrideConfig.ForkFromSpanId != "" {
-			if strings.Contains(normalizedURL, "chat/completions") || strings.Contains(normalizedURL, "completions") {
-				shouldOverride = true
-			}
 		}
 
 		if shouldOverride {
@@ -261,88 +562,10 @@ func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, er
 		}
 	}
 
-	startTime := time.Now()
+	fmt.Printf("%s[RECORD]%s Proxying HTTP: %s %s\n",
+		colorCyan, colorReset, req.Method, req.URL.String())
 
-	// Perform actual call — for streaming responses we pass chunks through
-	resp, err := i.Transport.RoundTrip(req)
-	if err != nil {
-		return nil, err
-	}
-
-	// Read response body (streaming support in Phase 0.5 wraps this with chunk capture)
-	respBody, chunks, streamingPreserved, err := captureResponse(resp)
-	if err != nil {
-		return nil, err
-	}
-
-	latencyMs := float64(time.Since(startTime).Microseconds()) / 1000.0
-
-	i.mu.Lock()
-	i.NetworkCallCount++
-
-	reqKey := RequestKey(req.Method, normalizedURL, reqBodyBytes)
-
-	httpStep := core.Step{
-		Type: core.StepTypeHTTP,
-		Request: &core.HTTPRequest{
-			Method:  req.Method,
-			URL:     req.URL.String(),
-			Headers: req.Header,
-			Body:    reqBodyBytes,
-		},
-		Response: &core.HTTPResponse{
-			Status:             resp.Status,
-			StatusCode:         resp.StatusCode,
-			Headers:            resp.Header,
-			Body:               respBody,
-			Chunks:             chunks,
-			StreamingPreserved: streamingPreserved,
-			RequestKey:         reqKey,
-			CorrelatedSpanId:   correlatedSpanId,
-			RecordedAt:         time.Now().UTC().Format(time.RFC3339Nano),
-			RecordLatencyMs:    latencyMs,
-		},
-	}
-
-	i.CurrentRun.Steps = append(i.CurrentRun.Steps, httpStep)
-	if i.Storage != nil {
-		i.Storage.AppendStep(i.CurrentRun.RunID, httpStep)
-	}
-
-	// Emit annotation
-	i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
-		RequestKey:         reqKey,
-		CorrelatedSpanId:   correlatedSpanId,
-		ReplaySource:       "live",
-		StreamingPreserved: streamingPreserved,
-		Decision:           "live_record",
-		Overridden:         isOverridden,
-	})
-
-	i.mu.Unlock()
-
-	fmt.Printf("%s[RECORD]%s Captured HTTP: %s %s (key: %s...)\n",
-		colorCyan, colorReset, req.Method, req.URL.String(), reqKey[:8])
-
-	// Return a fresh response body to the caller
-	outHeader := resp.Header.Clone()
-	if outHeader == nil {
-		outHeader = make(http.Header)
-	}
-	outHeader.Del("Transfer-Encoding")
-	outHeader.Set("Content-Length", strconv.Itoa(len(respBody)))
-
-	return &http.Response{
-		StatusCode:    resp.StatusCode,
-		Status:        resp.Status,
-		Proto:         resp.Proto,
-		ProtoMajor:    resp.ProtoMajor,
-		ProtoMinor:    resp.ProtoMinor,
-		Header:        outHeader,
-		Body:          io.NopCloser(bytes.NewBuffer(respBody)),
-		ContentLength: int64(len(respBody)),
-		Request:       req,
-	}, nil
+	return i.executeAndRecordLive(req, reqBodyBytes, normalizedURL, correlatedSpanId, "live_record", "", isOverridden)
 }
 
 // stripRolePrefix removes leading role tags like "human: ", "user: ", "system: ", "assistant: "
@@ -463,12 +686,6 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 			}
 		}
 
-		if !shouldOverride && (strings.Contains(normalizedURL, "chat/completions") || strings.Contains(normalizedURL, "completions")) {
-			if i.cassetteIdx != nil && i.cassetteIdx.LookupWithoutMarking(reqKey) == -1 {
-				shouldOverride = true
-			}
-		}
-
 		if shouldOverride {
 			if rewritten, ok := RewriteRequestBodyPrompt(incomingReqBodyBytes, i.OverrideConfig.OriginalPromptText, i.OverrideConfig.PromptText); ok {
 				incomingReqBodyBytes = rewritten
@@ -485,43 +702,16 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 	}
 
 	if isOverridden {
-		i.mu.Lock()
-		i.NetworkCallCount++
-		i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
-			RequestKey:       reqKey,
-			CorrelatedSpanId: correlatedSpanId,
-			ReplaySource:     "live",
-			Decision:         "fallback",
-			EffectiveClass:   "replay_safe",
-			Overridden:       true,
-		})
-		i.mu.Unlock()
-
 		fmt.Printf("%s[REPLAY] Executing overridden prompt live: %s %s%s\n",
 			colorCyan, req.Method, req.URL.String(), colorReset)
-		return i.Transport.RoundTrip(req)
+		return i.executeAndRecordLive(req, incomingReqBodyBytes, normalizedURL, correlatedSpanId, "fallback", "replay_safe", true)
 	}
 
 	// must_execute: if host is in live-hosts list, always forward live
 	if i.isLiveHost(req.URL.Host) {
-		i.mu.Lock()
-		i.NetworkCallCount++
-		i.mu.Unlock()
 		fmt.Printf("%s[REPLAY] must_execute: %s %s (matches live-host pattern)%s\n",
 			colorYellow, req.Method, req.URL.String(), colorReset)
-
-		i.mu.Lock()
-		i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
-			RequestKey:       reqKey,
-			CorrelatedSpanId: correlatedSpanId,
-			ReplaySource:     "live",
-			Decision:         "must_execute",
-			EffectiveClass:   "must_execute",
-			Overridden:       isOverridden,
-		})
-		i.mu.Unlock()
-
-		return i.Transport.RoundTrip(req)
+		return i.executeAndRecordLive(req, incomingReqBodyBytes, normalizedURL, correlatedSpanId, "must_execute", "must_execute", false)
 	}
 
 	// O(1) hash-map lookup
@@ -537,21 +727,21 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 
 		i.mu.Lock()
 		i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
-			RequestKey:        reqKey,
-			CorrelatedSpanId:  correlatedSpanId,
-			ReplaySource:      "cache",
-			ReplayLatencyMs:   lookupMs,
+			RequestKey:         reqKey,
+			CorrelatedSpanId:   correlatedSpanId,
+			ReplaySource:       "cache",
+			ReplayLatencyMs:    lookupMs,
 			StreamingPreserved: recordedResp.StreamingPreserved,
-			Decision:          "cache_hit",
-			EffectiveClass:    "replay_safe",
-			Overridden:        isOverridden,
+			Decision:           "cache_hit",
+			EffectiveClass:     "replay_safe",
+			Overridden:         isOverridden,
 		})
 		i.mu.Unlock()
 
 		// Reconstruct streaming response if chunks were preserved
 		var body io.ReadCloser
 		if recordedResp.StreamingPreserved && len(recordedResp.Chunks) > 0 {
-			body = newChunkedReplayReader(recordedResp.Chunks)
+			body = newChunkedReplayReader(recordedResp.Chunks, recordedResp.ChunkDelaysMs, i.RealtimePlayback)
 		} else {
 			body = io.NopCloser(bytes.NewBuffer(recordedResp.Body))
 		}
@@ -561,6 +751,7 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 			outHeader = make(http.Header)
 		}
 		outHeader.Del("Transfer-Encoding")
+		outHeader.Del("Content-Encoding")
 		outHeader.Set("Content-Length", strconv.Itoa(len(recordedResp.Body)))
 
 		return &http.Response{
@@ -580,17 +771,7 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 	if i.Fallback {
 		fmt.Printf("%s[REPLAY] Cache miss — fallback to live: %s %s%s\n",
 			colorYellow, req.Method, req.URL.String(), colorReset)
-		i.mu.Lock()
-		i.NetworkCallCount++
-		i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
-			RequestKey:       reqKey,
-			CorrelatedSpanId: correlatedSpanId,
-			ReplaySource:     "live",
-			Decision:         "fallback",
-			EffectiveClass:   "replay_safe",
-		})
-		i.mu.Unlock()
-		return i.Transport.RoundTrip(req)
+		return i.executeAndRecordLive(req, incomingReqBodyBytes, normalizedURL, correlatedSpanId, "fallback", "replay_safe", false)
 	}
 
 	fmt.Printf("%s[REPLAY] ERROR: No cache entry for %s %s (key: %s...)%s\n",
@@ -608,108 +789,82 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 }
 
 func (i *HTTPInterceptor) normalizeURL(uStr string) string {
-	u, err := url.Parse(uStr)
-	if err != nil {
-		return uStr
-	}
-
-	// Sort query params for determinism (params with same key are sorted by value)
-	q := u.Query()
-	for _, param := range i.IgnoreQueryParams {
-		q.Del(param)
-	}
-
-	// Sort keys for canonical order
-	keys := make([]string, 0, len(q))
-	for k := range q {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	sorted := url.Values{}
-	for _, k := range keys {
-		vals := q[k]
-		sort.Strings(vals)
-		sorted[k] = vals
-	}
-	u.RawQuery = sorted.Encode()
-
-	// Lowercase scheme and host for canonicalization
-	u.Scheme = strings.ToLower(u.Scheme)
-	u.Host = strings.ToLower(u.Host)
-
-	return u.String()
+	return NormalizeURLForKey(uStr, i.IgnoreQueryParams)
 }
 
-// captureResponse reads the response body, preserving SSE/chunked chunks if present.
-// Returns: (fullBody []byte, chunks [][]byte, streamingPreserved bool, err error)
-func captureResponse(resp *http.Response) ([]byte, [][]byte, bool, error) {
-	if resp.Body == nil {
-		return nil, nil, false, nil
-	}
-
-	contentType := resp.Header.Get("Content-Type")
-	transferEncoding := resp.TransferEncoding
-
-	isSSE := strings.Contains(contentType, "text/event-stream")
-	isChunked := false
-	for _, te := range transferEncoding {
-		if strings.ToLower(te) == "chunked" {
-			isChunked = true
-			break
-		}
-	}
-
-	if isSSE || isChunked {
-		// Streaming: read in chunks, preserve each
-		return captureStreamingResponse(resp.Body)
-	}
-
-	// Non-streaming: read full body
-	body, err := io.ReadAll(resp.Body)
-	resp.Body.Close()
-	return body, nil, false, err
-}
-
-// captureStreamingResponse reads SSE/chunked response body preserving individual chunks.
-func captureStreamingResponse(body io.ReadCloser) ([]byte, [][]byte, bool, error) {
-	defer body.Close()
-	var allChunks [][]byte
-	var fullBody bytes.Buffer
-	buf := make([]byte, 4096)
-
-	for {
-		n, err := body.Read(buf)
-		if n > 0 {
-			chunk := make([]byte, n)
-			copy(chunk, buf[:n])
-			allChunks = append(allChunks, chunk)
-			fullBody.Write(chunk)
-		}
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return fullBody.Bytes(), allChunks, len(allChunks) > 0, err
-		}
-	}
-
-	return fullBody.Bytes(), allChunks, len(allChunks) > 1, nil
-}
-
-// chunkedReplayReader replays chunk bytes in order with appropriate timing simulation.
+// chunkedReplayReader replays chunk bytes in order with discrete chunk boundaries and optional timing reconstruction.
 type chunkedReplayReader struct {
-	chunks [][]byte
-	pos    int
-	buf    *bytes.Buffer
+	chunks      [][]byte
+	chunkDelays []int64
+	chunkIdx    int
+	chunkOff    int
+	realtime    bool
 }
 
-func newChunkedReplayReader(chunks [][]byte) io.ReadCloser {
-	var b bytes.Buffer
-	for _, c := range chunks {
-		b.Write(c)
+// NewChunkedReplayReader creates an io.ReadCloser that emits chunks one by one.
+func NewChunkedReplayReader(chunks [][]byte, chunkDelays []int64, realtime bool) io.ReadCloser {
+	return &chunkedReplayReader{
+		chunks:      chunks,
+		chunkDelays: chunkDelays,
+		chunkIdx:    0,
+		chunkOff:    0,
+		realtime:    realtime,
 	}
-	return io.NopCloser(&b)
+}
+
+func newChunkedReplayReader(chunks [][]byte, chunkDelays []int64, realtime bool) io.ReadCloser {
+	return NewChunkedReplayReader(chunks, chunkDelays, realtime)
+}
+
+func (r *chunkedReplayReader) Read(p []byte) (int, error) {
+	if r.chunkIdx >= len(r.chunks) {
+		return 0, io.EOF
+	}
+
+	currentChunk := r.chunks[r.chunkIdx]
+
+	// When entering a new chunk (chunkOff == 0), apply its recorded timing delay (TTFT for chunk 0, inter-chunk delay for subsequent chunks)
+	if r.chunkOff == 0 && r.realtime {
+		delay := time.Duration(0)
+		if r.chunkIdx < len(r.chunkDelays) && r.chunkDelays[r.chunkIdx] > 0 {
+			delay = time.Duration(r.chunkDelays[r.chunkIdx]) * time.Millisecond
+		} else {
+			delay = 5 * time.Millisecond
+		}
+		if delay > 0 {
+			time.Sleep(delay)
+		}
+	}
+
+	remaining := len(currentChunk) - r.chunkOff
+	if remaining <= 0 {
+		r.chunkIdx++
+		r.chunkOff = 0
+		if r.chunkIdx >= len(r.chunks) {
+			return 0, io.EOF
+		}
+		return r.Read(p)
+	}
+
+	toCopy := len(p)
+	if toCopy > remaining {
+		toCopy = remaining
+	}
+	copy(p, currentChunk[r.chunkOff:r.chunkOff+toCopy])
+	r.chunkOff += toCopy
+
+	// If we reached the end of this chunk, advance to the next chunk for the subsequent Read call
+	if r.chunkOff >= len(currentChunk) {
+		r.chunkIdx++
+		r.chunkOff = 0
+	}
+
+	return toCopy, nil
+}
+
+func (r *chunkedReplayReader) Close() error {
+	r.chunkIdx = len(r.chunks)
+	return nil
 }
 
 // NormalizeURLForKey is exported for use in tests and benchmarks.
@@ -752,7 +907,6 @@ func (i *HTTPInterceptor) LoadOverrideFile(filePath string) error {
 	i.OverrideConfig = &cfg
 	return nil
 }
-
 
 // WriteAnnotationLog serializes the annotation log to JSON. Called by the Orchestrator
 // via --annotation-log flag after a run completes.
