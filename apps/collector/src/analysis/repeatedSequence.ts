@@ -9,58 +9,121 @@ export type LoopWarning = {
 
 /**
  * Stable key for repeated-sequence windowing.
- * Uses kind:actorId (no spanId) — the window heuristic detects structural patterns
+ * Uses kind:actorId / tool / node — detects structural patterns
  * of repeated execution flow, not exact span identity.
  */
 function patternKey(event: TraceEvent): string {
+  const payload = (event as any).payload ?? {};
+  if (payload.kind === "langgraph_node" && payload.node) {
+    return `langgraph_node:${payload.node}`;
+  }
+  const toolName = payload.name || payload.tool || payload.toolName;
+  if (toolName) {
+    return `tool_call:${toolName}`;
+  }
   return `${event.kind}:${event.actor.id}`;
 }
 
 /**
- * Detect repeated event-sequence windows in a sorted trace.
+ * Determine if an event represents an active execution step rather than passive telemetry.
+ */
+function isActionStep(event: TraceEvent): boolean {
+  if (event.kind === "prompt" || event.kind === "response" || event.kind === "tool_call" || event.kind === "handoff") {
+    return true;
+  }
+  const payload = (event as any).payload ?? {};
+  if (payload.kind === "langgraph_node" || payload.agent_name || payload.action) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Detect repeated event-sequence windows (motifs & oscillations) in a sorted trace.
  *
  * Algorithm:
- * - For each window size W in [2, 5]:
- *   - Scan the stable-key sequence with a sliding window.
- *   - If two consecutive windows of size W produce the same key sequence,
- *     record a warning for those spans.
- * - Output is deduplicated and deterministically ordered by first-span occurredAt.
+ * 1. Analyzes both raw trace and action-filtered trace (to bypass interleaved passive noise).
+ * 2. Scans for repeating sub-sequence motifs of length W in [1, 8] with repetition factor K >= 2.
+ * 3. Deduplicates overlapping windows into maximal periodic runs.
+ * 4. Outputs deterministic warnings sorted by first span occurredAt.
  */
 export function detectRepeatedSequences(events: readonly TraceEvent[]): LoopWarning[] {
   const sorted = sortTraceEventsDeterministic([...events]);
-  const keys = sorted.map(patternKey);
-  const n = sorted.length;
+  if (sorted.length < 4) return [];
 
   const warnings: LoopWarning[] = [];
-  const seen = new Set<string>();
+  const reportedSpanSets = new Set<string>();
 
-  for (let w = 2; w <= 5; w++) {
-    for (let i = 0; i + 3 * w <= n; i++) {
-      const windowA = keys.slice(i, i + w).join(",");
-      const windowB = keys.slice(i + w, i + 2 * w).join(",");
-      const windowC = keys.slice(i + 2 * w, i + 3 * w).join(",");
+  // Helper to scan a sequence for periodic repeats
+  function scanSequence(items: TraceEvent[], isFiltered: boolean) {
+    const keys = items.map(patternKey);
+    const n = items.length;
+    const coveredIndices = new Set<number>();
 
-      if (windowA === windowB && windowB === windowC) {
-        const dedupKey = `${windowA}@${i}`;
-        if (seen.has(dedupKey)) continue;
-        seen.add(dedupKey);
+    // Scan window sizes from 2 up to 8 (and 1 for single-action hammering)
+    for (let w = 2; w <= Math.min(8, Math.floor(n / 2)); w++) {
+      for (let i = 0; i + 2 * w <= n; i++) {
+        if (coveredIndices.has(i)) continue;
 
-        const spanIds = [
-          ...sorted.slice(i, i + w).map((e) => e.spanId),
-          ...sorted.slice(i + w, i + 2 * w).map((e) => e.spanId),
-          ...sorted.slice(i + 2 * w, i + 3 * w).map((e) => e.spanId)
-        ];
+        const motif = keys.slice(i, i + w).join(",");
+        let k = 1;
 
-        const severity: "low" | "medium" | "high" = w >= 4 ? "high" : "medium";
+        while (i + (k + 1) * w <= n) {
+          const nextWindow = keys.slice(i + k * w, i + (k + 1) * w).join(",");
+          if (nextWindow === motif) {
+            k++;
+          } else {
+            break;
+          }
+        }
 
-        warnings.push({
-          kind: "repeated_sequence",
-          severity,
-          reason: `Repeated ${w}-event sequence detected 3 times starting at index ${i}`,
-          spanIds
-        });
+        // Require at least 3 repeats for small patterns (w <= 2), or 2 repeats for larger motifs (w >= 3)
+        const minRepeats = w <= 2 ? 3 : 2;
+        if (k >= minRepeats) {
+          const matchedEvents = items.slice(i, i + k * w);
+          const spanIds = matchedEvents.map((e) => e.spanId);
+          const spanSetKey = spanIds.join(",");
+
+          if (!reportedSpanSets.has(spanSetKey)) {
+            reportedSpanSets.add(spanSetKey);
+
+            // Mark indices covered
+            for (let idx = i; idx < i + k * w; idx++) {
+              coveredIndices.add(idx);
+            }
+
+            const motifLabels = items
+              .slice(i, i + w)
+              .map((e) => {
+                const pk = patternKey(e);
+                return pk.includes(":") ? pk.split(":")[1] : pk;
+              })
+              .join(" → ");
+
+            const severity: "low" | "medium" | "high" =
+              k >= 4 || w >= 4 ? "high" : k >= 3 || w >= 3 ? "medium" : "low";
+
+            warnings.push({
+              kind: "repeated_sequence",
+              severity,
+              reason: isFiltered
+                ? `Oscillatory sequence (${motifLabels}) repeated ${k} times (with interleaved telemetry)`
+                : `Repeated ${w}-event sequence (${motifLabels}) detected ${k} times starting at index ${i}`,
+              spanIds
+            });
+          }
+        }
       }
     }
+  }
+
+  // Pass 1: Raw sequence (strict consecutive repeats)
+  scanSequence(sorted, false);
+
+  // Pass 2: Action-filtered sequence (noise-resilient repeats across interleaved telemetry)
+  const actionEvents = sorted.filter(isActionStep);
+  if (actionEvents.length >= 4 && actionEvents.length < sorted.length) {
+    scanSequence(actionEvents, true);
   }
 
   // Deterministic ordering: by first spanId's occurredAt, then spanId

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { detectRepeatedSequences } from "../analysis/repeatedSequence";
 import { detectRecursiveTools } from "../analysis/recursiveTool";
 import { detectHandoffCycles } from "../analysis/handoffCycle";
+import { analyzeTrace } from "../analysis/index";
 import type { TraceEvent } from "@aerograph/contracts";
 
 const BASE = {
@@ -202,5 +203,184 @@ describe("analysis: edge cases (T051)", () => {
     ];
     const warnings = detectRecursiveTools(events);
     expect(warnings.length).toBe(0);
+  });
+});
+
+// Tests for Intelligent Loop & Failure Detection Upgrades
+describe("analysis: smart loop & failure detection upgrades", () => {
+  it("detects oscillatory multi-step motif (LLM -> search -> scrape repeating 3 times)", () => {
+    const events: TraceEvent[] = [
+      // Iteration 1
+      mkPrompt("s1", "2026-05-20T00:00:00.000Z"),
+      mkToolCall("s2", "2026-05-20T00:00:01.000Z", "search", { q: "query" }),
+      mkToolCall("s3", "2026-05-20T00:00:02.000Z", "scrape", { url: "http://example.com" }),
+      // Iteration 2
+      mkPrompt("s4", "2026-05-20T00:00:03.000Z"),
+      mkToolCall("s5", "2026-05-20T00:00:04.000Z", "search", { q: "query" }),
+      mkToolCall("s6", "2026-05-20T00:00:05.000Z", "scrape", { url: "http://example.com" }),
+      // Iteration 3
+      mkPrompt("s7", "2026-05-20T00:00:06.000Z"),
+      mkToolCall("s8", "2026-05-20T00:00:07.000Z", "search", { q: "query" }),
+      mkToolCall("s9", "2026-05-20T00:00:08.000Z", "scrape", { url: "http://example.com" })
+    ];
+
+    const warnings = detectRepeatedSequences(events);
+    expect(warnings.length).toBeGreaterThan(0);
+    expect(warnings[0].kind).toBe("repeated_sequence");
+    expect(warnings[0].spanIds.length).toBe(9);
+    expect(warnings[0].reason).toContain("search");
+    expect(warnings[0].reason).toContain("scrape");
+  });
+
+  it("detects repeated sequence across interleaved passive telemetry notes", () => {
+    const mkNote = (spanId: string, occurredAt: string): TraceEvent => ({
+      ...BASE,
+      spanId,
+      occurredAt,
+      actor: { kind: "system", id: "system" },
+      kind: "note",
+      payload: { message: "state checkpoint" }
+    });
+
+    const events: TraceEvent[] = [
+      mkPrompt("s1", "2026-05-20T00:00:00.000Z"),
+      mkToolCall("s2", "2026-05-20T00:00:01.000Z", "search", { q: "a" }),
+      mkNote("n1", "2026-05-20T00:00:01.500Z"),
+      mkPrompt("s3", "2026-05-20T00:00:02.000Z"),
+      mkToolCall("s4", "2026-05-20T00:00:03.000Z", "search", { q: "a" }),
+      mkNote("n2", "2026-05-20T00:00:03.500Z"),
+      mkPrompt("s5", "2026-05-20T00:00:04.000Z"),
+      mkToolCall("s6", "2026-05-20T00:00:05.000Z", "search", { q: "a" })
+    ];
+
+    const warnings = detectRepeatedSequences(events);
+    expect(warnings.length).toBeGreaterThan(0);
+    expect(warnings.some((w) => w.reason.includes("telemetry") || w.reason.includes("sequence"))).toBe(true);
+  });
+
+  it("detects fuzzy recursive tool when queries are rephrased and produce empty results", () => {
+    const events: TraceEvent[] = [
+      {
+        ...BASE,
+        spanId: "s1",
+        occurredAt: "2026-05-20T00:00:00.000Z",
+        actor: { kind: "tool", id: "web_search" },
+        kind: "tool_call",
+        payload: {
+          name: "web_search",
+          input: { query: "weather forecast in Seattle today" },
+          output: []
+        }
+      },
+      {
+        ...BASE,
+        spanId: "s2",
+        occurredAt: "2026-05-20T00:00:01.000Z",
+        actor: { kind: "tool", id: "web_search" },
+        kind: "tool_call",
+        payload: {
+          name: "web_search",
+          input: { query: "weather forecast Seattle today" },
+          output: []
+        }
+      },
+      {
+        ...BASE,
+        spanId: "s3",
+        occurredAt: "2026-05-20T00:00:02.000Z",
+        actor: { kind: "tool", id: "web_search" },
+        kind: "tool_call",
+        payload: {
+          name: "web_search",
+          input: { query: "Seattle weather forecast today" },
+          output: []
+        }
+      }
+    ];
+
+    const warnings = detectRecursiveTools(events);
+    expect(warnings.length).toBeGreaterThan(0);
+    expect(warnings[0].kind).toBe("recursive_tool");
+    expect(warnings[0].reason).toContain("without progress");
+    expect(warnings[0].reason).toContain("empty/null result");
+  });
+
+  it("detects multi-agent ping-pong via framework actor shifts (no explicit handoff event)", () => {
+    const events: TraceEvent[] = [
+      {
+        ...BASE,
+        spanId: "s1",
+        occurredAt: "2026-05-20T00:00:00.000Z",
+        actor: { kind: "agent", id: "researcher" },
+        kind: "prompt",
+        payload: { text: "Investigate query" }
+      },
+      {
+        ...BASE,
+        spanId: "s2",
+        occurredAt: "2026-05-20T00:00:01.000Z",
+        actor: { kind: "agent", id: "critic" },
+        kind: "prompt",
+        payload: { text: "Review investigation" }
+      },
+      {
+        ...BASE,
+        spanId: "s3",
+        occurredAt: "2026-05-20T00:00:02.000Z",
+        actor: { kind: "agent", id: "researcher" },
+        kind: "prompt",
+        payload: { text: "Re-investigate" }
+      },
+      {
+        ...BASE,
+        spanId: "s4",
+        occurredAt: "2026-05-20T00:00:03.000Z",
+        actor: { kind: "agent", id: "critic" },
+        kind: "prompt",
+        payload: { text: "Review again" }
+      }
+    ];
+
+    const warnings = detectHandoffCycles(events);
+    expect(warnings.length).toBeGreaterThan(0);
+    expect(warnings[0].kind).toBe("handoff_cycle");
+    expect(warnings[0].reason).toContain("ping-pong");
+    expect(warnings[0].reason).toContain("researcher");
+    expect(warnings[0].reason).toContain("critic");
+  });
+
+  it("classifies error taxonomies and identifies root cause span", () => {
+    const events: TraceEvent[] = [
+      {
+        ...BASE,
+        spanId: "s1",
+        occurredAt: "2026-05-20T00:00:00.000Z",
+        actor: { kind: "tool", id: "fetch_api" },
+        kind: "tool_call",
+        status: "error",
+        payload: { error: "HTTP 429 Too Many Requests: Rate limit exceeded" }
+      },
+      {
+        ...BASE,
+        spanId: "s2",
+        occurredAt: "2026-05-20T00:00:01.000Z",
+        actor: { kind: "agent", id: "supervisor" },
+        kind: "prompt",
+        status: "error",
+        payload: { error: "ValidationError: missing required response field" }
+      }
+    ];
+
+    const analysis = analyzeTrace(events);
+    expect(analysis.failures.length).toBe(2);
+    // Root cause is the first error (rate limit)
+    expect(analysis.failures[0].spanId).toBe("s1");
+    expect(analysis.failures[0].title).toContain("[RATE_LIMIT_OR_TIMEOUT]");
+    expect(analysis.failures[0].title).toContain("[Root Cause]");
+
+    // Cascaded secondary error
+    expect(analysis.failures[1].spanId).toBe("s2");
+    expect(analysis.failures[1].title).toContain("[SCHEMA_VALIDATION]");
+    expect(analysis.failures[1].title).toContain("[Cascaded]");
   });
 });

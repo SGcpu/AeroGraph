@@ -7,59 +7,145 @@ export type HandoffCycleWarning = {
   spanIds: string[];
 };
 
+interface AgentTransition {
+  from: string;
+  to: string;
+  spanId: string;
+  occurredAt: string;
+}
+
 /**
- * Detect handoff cycles: graph cycles in the agent-to-agent handoff chain.
+ * Detect handoff cycles and multi-agent ping-pong patterns across frameworks.
  *
  * Algorithm:
- * 1. Build a directed graph of handoff edges: fromAgentId → toAgentId.
- * 2. Run DFS cycle detection on the graph.
- * 3. For each cycle, collect the spanIds of the handoff events that form it.
- *
- * Also detect repeated handoff sequences (same edge appearing 2+ times).
+ * 1. Extract agent transitions from:
+ *    a. Explicit `handoff` events (fromAgentId → toAgentId).
+ *    b. Implicit framework actor shifts (consecutive agent spans with differing actor.id).
+ *    c. Delegation tool calls (delegate_to_*, transfer_to_*).
+ * 2. Detect direct ping-pong oscillations (A ↔ B >= 2 transitions).
+ * 3. Detect transitive directed cycles (A → B → C → A) via DFS path search.
+ * 4. Deduplicate and order deterministically.
  */
 export function detectHandoffCycles(events: readonly TraceEvent[]): HandoffCycleWarning[] {
   const sorted = sortTraceEventsDeterministic([...events]);
+  if (sorted.length < 2) return [];
 
-  // Collect handoff events
-  const handoffEvents = sorted.filter(
-    (e): e is Extract<TraceEvent, { kind: "handoff" }> => e.kind === "handoff"
-  );
+  const transitions: AgentTransition[] = [];
 
-  if (handoffEvents.length < 2) return [];
-
-  // Build adjacency list: fromAgentId -> [(toAgentId, spanId)]
-  const adjacency = new Map<string, Array<{ to: string; spanId: string }>>();
-  for (const e of handoffEvents) {
-    const from = e.payload.fromAgentId;
-    const to = e.payload.toAgentId;
-    if (!adjacency.has(from)) adjacency.set(from, []);
-    adjacency.get(from)!.push({ to, spanId: e.spanId });
+  // 1a. Explicit handoff events
+  for (const e of sorted) {
+    if (e.kind === "handoff") {
+      const h = e as Extract<TraceEvent, { kind: "handoff" }>;
+      transitions.push({
+        from: h.payload.fromAgentId,
+        to: h.payload.toAgentId,
+        spanId: h.spanId,
+        occurredAt: h.occurredAt
+      });
+    }
   }
+
+  // 1b. If no explicit handoff events, extract transitions from agent actor shifts & delegation tools
+  if (transitions.length < 2) {
+    let lastAgent: { id: string; spanId: string } | null = null;
+
+    for (const e of sorted) {
+      // Check delegation tool call
+      if (e.kind === "tool_call") {
+        const payload = (e as any).payload ?? {};
+        const toolName = String(payload.name || payload.tool || e.actor.id || "");
+        const match = toolName.match(/(?:delegate|transfer|handoff)[_-]to[_-]([a-zA-Z0-9_-]+)/i);
+        if (match && match[1]) {
+          const target = match[1];
+          const from = e.actor.id || "agent";
+          if (from !== target) {
+            transitions.push({
+              from,
+              to: target,
+              spanId: e.spanId,
+              occurredAt: e.occurredAt
+            });
+          }
+        }
+      }
+
+      // Check agent actor shift
+      if (e.actor.kind === "agent" && e.actor.id && e.actor.id !== "system" && e.actor.id !== "user") {
+        if (lastAgent && lastAgent.id !== e.actor.id) {
+          transitions.push({
+            from: lastAgent.id,
+            to: e.actor.id,
+            spanId: e.spanId,
+            occurredAt: e.occurredAt
+          });
+        }
+        lastAgent = { id: e.actor.id, spanId: e.spanId };
+      }
+    }
+  }
+
+  if (transitions.length < 2) return [];
 
   const warnings: HandoffCycleWarning[] = [];
   const seenCycles = new Set<string>();
 
-  // DFS cycle detection
+  // 2. Direct Ping-Pong Detection (A ↔ B)
+  const pingPongEdges = new Map<string, string[]>();
+  for (let i = 0; i < transitions.length - 1; i++) {
+    const t1 = transitions[i];
+    const t2 = transitions[i + 1];
+    if (t1.from === t2.to && t1.to === t2.from && t1.from !== t1.to) {
+      const pairKey = [t1.from, t1.to].sort().join("↔");
+      if (!pingPongEdges.has(pairKey)) pingPongEdges.set(pairKey, []);
+      pingPongEdges.get(pairKey)!.push(t1.spanId, t2.spanId);
+    }
+  }
+
+  for (const [pairKey, spanIds] of pingPongEdges) {
+    const uniqueSpans = Array.from(new Set(spanIds));
+    const [agentA, agentB] = pairKey.split("↔");
+    seenCycles.add(pairKey);
+    seenCycles.add(`${agentA}→${agentB}`);
+    seenCycles.add(`${agentB}→${agentA}`);
+
+    warnings.push({
+      kind: "handoff_cycle",
+      severity: uniqueSpans.length >= 4 ? "high" : "medium",
+      reason: `Multi-agent ping-pong cycle detected between ${agentA} ↔ ${agentB} (${uniqueSpans.length} handoffs)`,
+      spanIds: uniqueSpans
+    });
+  }
+
+  // 3. Build Adjacency List for DFS Cycle Detection
+  const adjacency = new Map<string, Array<{ to: string; spanId: string }>>();
+  for (const t of transitions) {
+    if (!adjacency.has(t.from)) adjacency.set(t.from, []);
+    adjacency.get(t.from)!.push({ to: t.to, spanId: t.spanId });
+  }
+
   const visited = new Set<string>();
   const inStack = new Set<string>();
   const stackPath: Array<{ agent: string; spanId: string }> = [];
 
   function dfs(agent: string): void {
     if (inStack.has(agent)) {
-      // Found a cycle — collect the cycle segment
       const cycleStart = stackPath.findIndex((s) => s.agent === agent);
       if (cycleStart >= 0) {
         const cycleSegment = stackPath.slice(cycleStart);
         const cycleKey = cycleSegment.map((s) => s.agent).join("→");
-        if (!seenCycles.has(cycleKey)) {
+        const reverseKey = [...cycleSegment.map((s) => s.agent)].reverse().join("→");
+
+        if (!seenCycles.has(cycleKey) && !seenCycles.has(reverseKey)) {
           seenCycles.add(cycleKey);
-          const spanIds = cycleSegment.map((s) => s.spanId).filter(Boolean);
-          warnings.push({
-            kind: "handoff_cycle",
-            severity: cycleSegment.length >= 4 ? "high" : "medium",
-            reason: `Handoff cycle detected: ${cycleKey}`,
-            spanIds
-          });
+          const spanIds = Array.from(new Set(cycleSegment.map((s) => s.spanId).filter(Boolean)));
+          if (spanIds.length > 0) {
+            warnings.push({
+              kind: "handoff_cycle",
+              severity: cycleSegment.length >= 4 ? "high" : "medium",
+              reason: `Handoff cycle detected: ${cycleKey}`,
+              spanIds
+            });
+          }
         }
       }
       return;
@@ -78,19 +164,18 @@ export function detectHandoffCycles(events: readonly TraceEvent[]): HandoffCycle
     inStack.delete(agent);
   }
 
-  // Start DFS from every node
   for (const from of adjacency.keys()) {
     stackPath.push({ agent: from, spanId: "" });
     dfs(from);
     stackPath.pop();
   }
 
-  // Also detect repeated handoff edges (same pair of agents, 2+ times)
+  // 4. Repeated Handoff Edges (same directed edge A → B occurring 2+ times)
   const edgeCounts = new Map<string, string[]>();
-  for (const e of handoffEvents) {
-    const edgeKey = `${e.payload.fromAgentId}→${e.payload.toAgentId}`;
+  for (const t of transitions) {
+    const edgeKey = `${t.from}→${t.to}`;
     if (!edgeCounts.has(edgeKey)) edgeCounts.set(edgeKey, []);
-    edgeCounts.get(edgeKey)!.push(e.spanId);
+    edgeCounts.get(edgeKey)!.push(t.spanId);
   }
 
   for (const [edgeKey, spanIds] of edgeCounts) {
@@ -100,12 +185,12 @@ export function detectHandoffCycles(events: readonly TraceEvent[]): HandoffCycle
         kind: "handoff_cycle",
         severity: spanIds.length >= 4 ? "high" : "low",
         reason: `Repeated handoff edge (${edgeKey}) occurred ${spanIds.length} times`,
-        spanIds
+        spanIds: Array.from(new Set(spanIds))
       });
     }
   }
 
-  // Deterministic ordering: by first spanId's occurredAt then spanId
+  // Deterministic ordering: by first spanId's occurredAt, then spanId
   warnings.sort((a, b) => {
     const aSpan = sorted.find((e) => e.spanId === a.spanIds[0]);
     const bSpan = sorted.find((e) => e.spanId === b.spanIds[0]);
