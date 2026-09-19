@@ -41,9 +41,18 @@ import { JsonView } from "./JsonView";
 import { TraceAnalyticsPanel } from "./TraceAnalyticsPanel";
 import { GlobalFilterBar } from "./GlobalFilterBar";
 import { ProjectLineageView } from "./ProjectLineageView";
+import { WorkflowTopologyView } from "./WorkflowTopologyView";
 import { ReplayControlPanel } from "./ReplayControlPanel";
 import { ForkResumeModal } from "./ForkResumeModal";
 import { ProjectConfigModal } from "./ProjectConfigModal";
+import {
+  SettingsIcon,
+  SunIcon,
+  MoonIcon,
+  AlertTriangleIcon,
+  CheckIcon,
+  EventKindIcon
+} from "./icons";
 import type { TraceStats } from "@aerograph/contracts";
 
 export function generateAlias(id: string, prefix = "ID") {
@@ -52,17 +61,17 @@ export function generateAlias(id: string, prefix = "ID") {
 }
 
 // ─── Kind icons + colors ───────────────────────────────────────────────────────
-const KIND_META: Record<string, { icon: string; label: string }> = {
-  prompt: { icon: "💬", label: "Prompt" },
-  response: { icon: "✨", label: "Response" },
-  tool_call: { icon: "🔧", label: "Tool Call" },
-  tool_result: { icon: "📦", label: "Tool Result" },
-  error: { icon: "⚠️", label: "Error" },
-  handoff: { icon: "🔀", label: "Handoff" },
-  note: { icon: "📝", label: "Note" },
-  state_snapshot: { icon: "💾", label: "State" },
-  retriever: { icon: "🔎", label: "Retriever" },
-  checkpoint: { icon: "⏸️", label: "Checkpoint" },
+const KIND_META: Record<string, { label: string }> = {
+  prompt: { label: "Prompt" },
+  response: { label: "Response" },
+  tool_call: { label: "Tool Call" },
+  tool_result: { label: "Tool Result" },
+  error: { label: "Error" },
+  handoff: { label: "Handoff" },
+  note: { label: "Note" },
+  state_snapshot: { label: "State" },
+  retriever: { label: "Retriever" },
+  checkpoint: { label: "Checkpoint" },
 };
 
 // ─── LangGraph node kind classifiers ──────────────────────────────────────────
@@ -102,7 +111,7 @@ function TraceNode({
   data: { event: TraceEvent; selected?: boolean };
 }) {
   const { event } = data;
-  const meta = KIND_META[event.kind] ?? { icon: "◉", label: event.kind };
+  const meta = KIND_META[event.kind] ?? { label: event.kind };
   const isError = event.status === "error";
   const lgKind = getLangGraphKind(event);
   const lgMeta = lgKind ? LG_KIND_META[lgKind] : null;
@@ -181,8 +190,8 @@ function TraceNode({
           marginBottom: lgKind === "langgraph_node" ? 4 : 6,
         }}
       >
-        <span style={{ fontSize: lgKind === "langgraph_node" ? 15 : 13 }}>
-          {lgMeta ? lgMeta.icon : meta.icon}
+        <span style={{ fontSize: lgKind === "langgraph_node" ? 15 : 13, display: "inline-flex", alignItems: "center" }}>
+          {lgMeta ? lgMeta.icon : <EventKindIcon kind={event.kind} size={13} />}
         </span>
         <span
           className={`kind-badge kind-${event.kind}`}
@@ -210,7 +219,7 @@ function TraceNode({
               border: `1px solid ${event.replaySource === "cache" ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.3)"}`,
             }}
           >
-            {event.replaySource === "cache" ? "⚡ CACHE" : "🌐 LIVE"}
+            {event.replaySource === "cache" ? "CACHE" : "LIVE"}
           </span>
         )}
         {(event as any).effectiveClass && (
@@ -521,7 +530,7 @@ export default function App() {
     if (filterProjectId) localStorage.setItem("aero_filterProjectId", filterProjectId);
     else localStorage.removeItem("aero_filterProjectId");
   }, [filterProjectId]);
-  const [viewMode, setViewMode] = useState<"projects" | "trace" | "lineage">("projects");
+  const [viewMode, setViewMode] = useState<"projects" | "trace" | "topology" | "lineage">("projects");
 
   useEffect(() => {
     if (filterProjectId) setViewMode("trace");
@@ -746,8 +755,9 @@ export default function App() {
         {/* Meta strip */}
         <div className="trace-meta-strip">
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span className={`kind-badge kind-${e.kind}`}>
-              {KIND_META[e.kind]?.icon} {KIND_META[e.kind]?.label ?? e.kind}
+            <span className={`kind-badge kind-${e.kind}`} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <EventKindIcon kind={e.kind} size={12} />
+              <span>{KIND_META[e.kind]?.label ?? e.kind}</span>
             </span>
             <span className={`status-badge status-${e.status}`}>
               {e.status}
@@ -940,8 +950,9 @@ export default function App() {
                 ) : (e as any).decision === "must_execute" ? (
                   <div className="kv-row">
                     <span className="kv-key">rule match</span>
-                    <span className="kv-val" style={{ color: "#f59e0b", fontSize: "10px" }}>
-                      ⚠️ No match (defaulted to must_execute)
+                    <span className="kv-val" style={{ color: "#f59e0b", fontSize: "10px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <AlertTriangleIcon size={12} color="#f59e0b" />
+                      <span>No match (defaulted to must_execute)</span>
                     </span>
                   </div>
                 ) : null}
@@ -980,24 +991,28 @@ export default function App() {
                     <span className="kv-key">streaming</span>
                     <span className="kv-val">
                       {e.streamingPreserved ? (
-                        <span style={{ color: "#22c55e", fontSize: "11px" }}>✓ Chunks Preserved</span>
+                        <span style={{ color: "#22c55e", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <CheckIcon size={12} color="#22c55e" />
+                          <span>Chunks Preserved</span>
+                        </span>
                       ) : (
                         <span
                           style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "4px",
+                            fontSize: 9,
                             padding: "2px 6px",
-                            borderRadius: "4px",
-                            fontSize: "10px",
+                            borderRadius: 4,
                             fontWeight: 600,
                             background: "rgba(245,158,11,0.2)",
                             color: "#f59e0b",
                             border: "1px solid rgba(245,158,11,0.3)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4
                           }}
                           title="SSE/chunked response was flattened into a single body during replay"
                         >
-                          ⚠️ Flattened (Chunks not preserved)
+                          <AlertTriangleIcon size={11} color="#f59e0b" />
+                          <span>Flattened (Chunks not preserved)</span>
                         </span>
                       )}
                     </span>
@@ -1181,6 +1196,12 @@ export default function App() {
                 Trace Graph
               </button>
               <button
+                className={`btn ${viewMode === "topology" ? "btn-primary" : ""}`}
+                onClick={() => setViewMode("topology")}
+              >
+                Workflow Topology
+              </button>
+              <button
                 className={`btn ${viewMode === "lineage" ? "btn-primary" : ""}`}
                 onClick={() => setViewMode("lineage")}
               >
@@ -1196,7 +1217,8 @@ export default function App() {
             onClick={() => setProjectConfigOpen(true)}
             title="Project Agent Configuration"
           >
-            ⚙️ Config
+            <SettingsIcon size={13} />
+            <span>Config</span>
           </button>
 
           {/* Theme toggle */}
@@ -1204,12 +1226,13 @@ export default function App() {
             className="theme-toggle btn"
             onClick={() => setIsDark(!isDark)}
             title="Toggle theme"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
           >
-            {isDark ? "☀️" : "🌙"}
+            {isDark ? <SunIcon size={14} /> : <MoonIcon size={14} />}
           </button>
 
           {/* Replay Control Panel */}
-          {traceId && viewMode === "trace" && (
+          {traceId && (viewMode === "trace" || viewMode === "topology") && (
             <ReplayControlPanel
               api={api}
               activeTraceId={traceId}
@@ -1222,7 +1245,7 @@ export default function App() {
           )}
 
           {/* Delete Trace */}
-          {traceId && viewMode === "trace" && (
+          {traceId && (viewMode === "trace" || viewMode === "topology") && (
             <button
               className="btn btn-danger"
               style={{ background: "var(--bg-error, #ef4444)", color: "#fff", borderColor: "var(--border-error, #dc2626)" }}
@@ -1256,7 +1279,12 @@ export default function App() {
         </div>
       </header>
       {/* Error bar */}
-      {error && <div className="error">⚠ {error}</div>}
+      {error && (
+        <div className="error" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <AlertTriangleIcon size={14} color="#ef4444" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Body */}
       {viewMode === "projects" ? (
@@ -1504,59 +1532,73 @@ export default function App() {
                 </div>
               )}
 
-              {/* Playback controls */}
-              <div className="playback-controls">
-                <button
-                  className="playback-btn"
-                  disabled={currentStep <= 1}
-                  onClick={() =>
-                    setPlaybackCursor((p) => (p === -1 ? events.length - 2 : p - 1))
-                  }
-                  title="Step backward"
-                >
-                  ‹
-                </button>
-                <div className="playback-counter">
-                  <span>{currentStep}</span> / {totalSteps}
-                </div>
-                <button
-                  className="playback-btn"
-                  disabled={
-                    playbackCursor === -1 || playbackCursor >= events.length - 1
-                  }
-                  onClick={() =>
-                    setPlaybackCursor((p) => (p >= events.length - 1 ? -1 : p + 1))
-                  }
-                  title="Step forward"
-                >
-                  ›
-                </button>
-                <button
-                  className="playback-live"
-                  onClick={() => setPlaybackCursor(-1)}
-                >
-                  LIVE
-                </button>
-              </div>
+              {viewMode === "topology" ? (
+                <WorkflowTopologyView
+                  events={visibleEvents}
+                  traceId={traceId}
+                  isDark={isDark}
+                  onSelectSpanId={(spanId) => {
+                    const ev = events.find((e) => e.spanId === spanId);
+                    if (ev) setSelected({ event: ev });
+                  }}
+                />
+              ) : (
+                <>
+                  {/* Playback controls */}
+                  <div className="playback-controls">
+                    <button
+                      className="playback-btn"
+                      disabled={currentStep <= 1}
+                      onClick={() =>
+                        setPlaybackCursor((p) => (p === -1 ? events.length - 2 : p - 1))
+                      }
+                      title="Step backward"
+                    >
+                      ‹
+                    </button>
+                    <div className="playback-counter">
+                      <span>{currentStep}</span> / {totalSteps}
+                    </div>
+                    <button
+                      className="playback-btn"
+                      disabled={
+                        playbackCursor === -1 || playbackCursor >= events.length - 1
+                      }
+                      onClick={() =>
+                        setPlaybackCursor((p) => (p >= events.length - 1 ? -1 : p + 1))
+                      }
+                      title="Step forward"
+                    >
+                      ›
+                    </button>
+                    <button
+                      className="playback-live"
+                      onClick={() => setPlaybackCursor(-1)}
+                    >
+                      LIVE
+                    </button>
+                  </div>
 
-              <ReactFlow
-                nodes={graph.nodes}
-                edges={graph.edges}
-                nodeTypes={nodeTypes}
-                onNodeClick={(_, node) => {
-                  const event = events.find((e) => e.spanId === node.id);
-                  if (event) setSelected({ event });
-                }}
-                fitView
-                fitViewOptions={{ padding: 0.15 }}
-                minZoom={0.2}
-                maxZoom={2}
-                proOptions={{ hideAttribution: true }}
-              >
-                <FitViewOnUpdate traceId={traceId} />
-                <Background color={isDark ? "#334155" : "#e2e8f0"} variant={BackgroundVariant.Dots} gap={24} size={1} />
-                <Controls showInteractive={false} />
-              </ReactFlow>
+                  <ReactFlow
+                    nodes={graph.nodes}
+                    edges={graph.edges}
+                    nodeTypes={nodeTypes}
+                    onNodeClick={(_, node) => {
+                      const event = events.find((e) => e.spanId === node.id);
+                      if (event) setSelected({ event });
+                    }}
+                    fitView
+                    fitViewOptions={{ padding: 0.15 }}
+                    minZoom={0.2}
+                    maxZoom={2}
+                    proOptions={{ hideAttribution: true }}
+                  >
+                    <FitViewOnUpdate traceId={traceId} />
+                    <Background color={isDark ? "#334155" : "#e2e8f0"} variant={BackgroundVariant.Dots} gap={24} size={1} />
+                    <Controls showInteractive={false} />
+                  </ReactFlow>
+                </>
+              )}
             </>
           )}
 
@@ -1822,12 +1864,14 @@ export default function App() {
                   {/* Loop resolution pill */}
                   {diffResult.loopDelta && diffResult.loopDelta.resolved && (
                     <div style={{ fontSize: 10, color: "#4ade80", background: "rgba(34,197,94,0.1)", padding: "3px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                      ✓ {diffResult.loopDelta.aLoopCount} loop{diffResult.loopDelta.aLoopCount > 1 ? "s" : ""} resolved in this run!
+                      <CheckIcon size={12} color="#4ade80" />
+                      <span>{diffResult.loopDelta.aLoopCount} loop{diffResult.loopDelta.aLoopCount > 1 ? "s" : ""} resolved in this run!</span>
                     </div>
                   )}
                   {diffResult.loopDelta && diffResult.loopDelta.bLoopCount > diffResult.loopDelta.aLoopCount && (
                     <div style={{ fontSize: 10, color: "#f87171", background: "rgba(239,68,68,0.1)", padding: "3px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                      ⚠ Introduced {diffResult.loopDelta.bLoopCount - diffResult.loopDelta.aLoopCount} new loop(s)
+                      <AlertTriangleIcon size={12} color="#f87171" />
+                      <span>Introduced {diffResult.loopDelta.bLoopCount - diffResult.loopDelta.aLoopCount} new loop(s)</span>
                     </div>
                   )}
                 </div>
