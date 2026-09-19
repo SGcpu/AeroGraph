@@ -154,6 +154,8 @@ No CA key material persists after the process ends (FR-037).`,
 		execCmd.Env = append(execCmd.Env, "REQUESTS_CA_BUNDLE="+caPath)
 		execCmd.Env = append(execCmd.Env, "NODE_EXTRA_CA_CERTS="+caPath)
 
+		execCmd.Env = append(execCmd.Env, "PYTHONIOENCODING=utf-8")
+		execCmd.Env = append(execCmd.Env, "PYTHONUTF8=1")
 		execCmd.Env = append(execCmd.Env, "AEROREPL_MODE=replay")
 		execCmd.Env = append(execCmd.Env, "AEROREPL_RUN_ID="+runID)
 		execCmd.Env = append(execCmd.Env, "AFR_RUN_ID="+runID)

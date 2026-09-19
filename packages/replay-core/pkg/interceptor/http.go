@@ -498,15 +498,19 @@ func (i *HTTPInterceptor) executeAndRecordLive(
 		return &http.Response{
 			StatusCode:    resp.StatusCode,
 			Status:        resp.Status,
-			Proto:         resp.Proto,
-			ProtoMajor:    resp.ProtoMajor,
-			ProtoMinor:    resp.ProtoMinor,
+			Proto:         "HTTP/1.1",
+			ProtoMajor:    1,
+			ProtoMinor:    1,
 			Header:        outHeader,
 			Body:          io.NopCloser(bytes.NewBuffer(respBody)),
 			ContentLength: int64(len(respBody)),
 			Request:       req,
 		}, nil
 	}
+
+	resp.Proto = "HTTP/1.1"
+	resp.ProtoMajor = 1
+	resp.ProtoMinor = 1
 
 	if resp.Body != nil {
 		resp.Body = newRecordingBody(resp.Body, startTime, isStreaming, onSuccess, onError)

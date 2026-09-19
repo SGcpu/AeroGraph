@@ -282,7 +282,9 @@ export class Runner {
       https_proxy: process.env.https_proxy || "",
       PATH: effectivePath,
       Path: effectivePath,
-      PYTHONUNBUFFERED: "1"
+      PYTHONUNBUFFERED: "1",
+      PYTHONIOENCODING: "utf-8",
+      PYTHONUTF8: "1"
     };
 
     if (virtualEnv) {
