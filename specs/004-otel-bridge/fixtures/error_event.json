@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0.0",
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "fff19b7ec3c1b180",
+  "parentSpanId": "bbb19b7ec3c1b176",
+  "occurredAt": "2026-06-09T18:00:05.000Z",
+  "actor": {
+    "kind": "system",
+    "id": "error-handler",
+    "name": "ErrorHandler"
+  },
+  "kind": "error",
+  "status": "error",
+  "title": "Tool execution failed",
+  "links": [],
+  "payload": {
+    "message": "Network timeout while calling external API",
+    "details": {
+      "code": "ETIMEDOUT",
+      "retryable": true,
+      "attemptCount": 3
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "aae19b7ec3c1b175",
+  "parentSpanId": "eee19b7ec3c1b174",
+  "name": "gen_ai.response",
+  "kind": 3,
+  "startTimeUnixNano": "1781028001000000000",
+  "endTimeUnixNano": "1781028001001000000",
+  "status": { "code": 1 },
+  "attributes": [
+    { "key": "aerograph.schema_version", "value": { "stringValue": "1.0.0" } },
+    { "key": "aerograph.kind", "value": { "stringValue": "response" } },
+    { "key": "aerograph.actor.id", "value": { "stringValue": "agent-001" } },
+    { "key": "aerograph.actor.kind", "value": { "stringValue": "agent" } },
+    { "key": "aerograph.actor.name", "value": { "stringValue": "PrimaryAgent" } },
+    { "key": "aerograph.status", "value": { "stringValue": "ok" } },
+    { "key": "aerograph.title", "value": { "stringValue": "Agent response" } },
+    { "key": "aerograph.response.text", "value": { "stringValue": "The capital of France is Paris." } },
+    { "key": "aerograph.response.time_to_first_token_ms", "value": { "doubleValue": 120.5 } },
+    { "key": "aerograph.response.total_duration_ms", "value": { "doubleValue": 450.0 } },
+    { "key": "aerograph.response.tokens_per_second", "value": { "doubleValue": 22.2 } },
+    { "key": "aerograph.response.token_count", "value": { "intValue": 10 } },
+    { "key": "gen_ai.operation.name", "value": { "stringValue": "chat" } }
+  ],
+  "links": [
+    {
+      "traceId": "5b8efff798038103d269b633813fc60c",
+      "spanId": "eee19b7ec3c1b174",
+      "attributes": [
+        { "key": "aerograph.link.rel", "value": { "stringValue": "follows" } }
+      ]
+    }
+  ]
+}

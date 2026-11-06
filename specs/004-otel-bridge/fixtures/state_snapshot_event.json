@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0.0",
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "dde19b7ec3c1b184",
+  "parentSpanId": "aae19b7ec3c1b175",
+  "occurredAt": "2026-06-09T18:00:09.000Z",
+  "actor": {
+    "kind": "system",
+    "id": "langgraph-runtime",
+    "name": "LangGraph"
+  },
+  "kind": "state_snapshot",
+  "status": "ok",
+  "title": "State: respond",
+  "links": [],
+  "payload": {
+    "nodeName": "respond",
+    "stateHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6",
+    "stateDiff": {
+      "messages": ["added: Paris is the capital of France."]
+    },
+    "removedKeys": [],
+    "fullState": {
+      "messages": [
+        "What is the capital of France?",
+        "Paris is the capital of France."
+      ],
+      "nextNode": null
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "dde19b7ec3c1b184",
+  "parentSpanId": "aae19b7ec3c1b175",
+  "name": "aerograph.state_snapshot",
+  "kind": 1,
+  "startTimeUnixNano": "1781028009000000000",
+  "endTimeUnixNano": "1781028009001000000",
+  "status": { "code": 1 },
+  "attributes": [
+    { "key": "aerograph.schema_version", "value": { "stringValue": "1.0.0" } },
+    { "key": "aerograph.kind", "value": { "stringValue": "state_snapshot" } },
+    { "key": "aerograph.actor.id", "value": { "stringValue": "langgraph-runtime" } },
+    { "key": "aerograph.actor.kind", "value": { "stringValue": "system" } },
+    { "key": "aerograph.actor.name", "value": { "stringValue": "LangGraph" } },
+    { "key": "aerograph.status", "value": { "stringValue": "ok" } },
+    { "key": "aerograph.title", "value": { "stringValue": "State: respond" } },
+    { "key": "aerograph.state_snapshot.node_name", "value": { "stringValue": "respond" } },
+    { "key": "aerograph.state_snapshot.state_hash", "value": { "stringValue": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6" } }
+  ],
+  "links": []
+}

@@ -1,0 +1,21 @@
+{
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "eee19b7ec3c1b174",
+  "name": "gen_ai.chat",
+  "kind": 3,
+  "startTimeUnixNano": "1781028000000000000",
+  "endTimeUnixNano": "1781028000001000000",
+  "status": { "code": 1 },
+  "attributes": [
+    { "key": "aerograph.schema_version", "value": { "stringValue": "1.0.0" } },
+    { "key": "aerograph.kind", "value": { "stringValue": "prompt" } },
+    { "key": "aerograph.actor.id", "value": { "stringValue": "agent-001" } },
+    { "key": "aerograph.actor.kind", "value": { "stringValue": "agent" } },
+    { "key": "aerograph.actor.name", "value": { "stringValue": "PrimaryAgent" } },
+    { "key": "aerograph.status", "value": { "stringValue": "ok" } },
+    { "key": "aerograph.title", "value": { "stringValue": "User prompt" } },
+    { "key": "aerograph.prompt.text", "value": { "stringValue": "What is the capital of France?" } },
+    { "key": "gen_ai.operation.name", "value": { "stringValue": "chat" } }
+  ],
+  "links": []
+}

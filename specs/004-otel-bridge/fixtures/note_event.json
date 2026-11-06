@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "aab19b7ec3c1b181",
+  "parentSpanId": "eee19b7ec3c1b174",
+  "occurredAt": "2026-06-09T18:00:06.000Z",
+  "actor": {
+    "kind": "system",
+    "id": "agent-001",
+    "name": "PrimaryAgent"
+  },
+  "kind": "note",
+  "status": "ok",
+  "title": "Observation note",
+  "links": [],
+  "payload": {
+    "observation": "User query detected as factual question",
+    "confidence": 0.95,
+    "strategy": "direct-lookup"
+  }
+}

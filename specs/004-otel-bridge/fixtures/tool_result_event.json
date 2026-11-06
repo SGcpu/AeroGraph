@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0.0",
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "ccc19b7ec3c1b177",
+  "parentSpanId": "bbb19b7ec3c1b176",
+  "occurredAt": "2026-06-09T18:00:03.000Z",
+  "actor": {
+    "kind": "tool",
+    "id": "web-search",
+    "name": "WebSearch"
+  },
+  "kind": "tool_result",
+  "status": "ok",
+  "title": "WebSearch result",
+  "links": [
+    { "rel": "caused_by", "spanId": "bbb19b7ec3c1b176" }
+  ],
+  "payload": {
+    "output": {
+      "results": ["Paris is the capital of France."],
+      "count": 1
+    }
+  }
+}

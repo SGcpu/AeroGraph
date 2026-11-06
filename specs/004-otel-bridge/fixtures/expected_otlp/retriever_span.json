@@ -1,0 +1,23 @@
+{
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "bbc19b7ec3c1b182",
+  "parentSpanId": "aae19b7ec3c1b175",
+  "name": "gen_ai.retrieve",
+  "kind": 3,
+  "startTimeUnixNano": "1781028007000000000",
+  "endTimeUnixNano": "1781028007001000000",
+  "status": { "code": 1 },
+  "attributes": [
+    { "key": "aerograph.schema_version", "value": { "stringValue": "1.0.0" } },
+    { "key": "aerograph.kind", "value": { "stringValue": "retriever" } },
+    { "key": "aerograph.actor.id", "value": { "stringValue": "vector-store" } },
+    { "key": "aerograph.actor.kind", "value": { "stringValue": "tool" } },
+    { "key": "aerograph.actor.name", "value": { "stringValue": "VectorStore" } },
+    { "key": "aerograph.status", "value": { "stringValue": "ok" } },
+    { "key": "aerograph.title", "value": { "stringValue": "VectorStore retrieval" } },
+    { "key": "aerograph.retriever.query", "value": { "stringValue": "capital of France" } },
+    { "key": "aerograph.retriever.document_count", "value": { "intValue": 2 } },
+    { "key": "gen_ai.operation.name", "value": { "stringValue": "retrieve" } }
+  ],
+  "links": []
+}

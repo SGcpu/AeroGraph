@@ -1,0 +1,22 @@
+{
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "ccd19b7ec3c1b183",
+  "parentSpanId": "aae19b7ec3c1b175",
+  "name": "aerograph.checkpoint",
+  "kind": 1,
+  "startTimeUnixNano": "1781028008000000000",
+  "endTimeUnixNano": "1781028008001000000",
+  "status": { "code": 1 },
+  "attributes": [
+    { "key": "aerograph.schema_version", "value": { "stringValue": "1.0.0" } },
+    { "key": "aerograph.kind", "value": { "stringValue": "checkpoint" } },
+    { "key": "aerograph.actor.id", "value": { "stringValue": "langgraph-runtime" } },
+    { "key": "aerograph.actor.kind", "value": { "stringValue": "system" } },
+    { "key": "aerograph.actor.name", "value": { "stringValue": "LangGraph" } },
+    { "key": "aerograph.status", "value": { "stringValue": "ok" } },
+    { "key": "aerograph.title", "value": { "stringValue": "Checkpoint: chk-001" } },
+    { "key": "aerograph.checkpoint.id", "value": { "stringValue": "chk-001" } },
+    { "key": "aerograph.checkpoint.reason", "value": { "stringValue": "Node transition complete" } }
+  ],
+  "links": []
+}

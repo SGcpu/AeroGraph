@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0.0",
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "ddd19b7ec3c1b178",
+  "parentSpanId": "aae19b7ec3c1b175",
+  "occurredAt": "2026-06-09T18:00:04.000Z",
+  "actor": {
+    "kind": "system",
+    "id": "handoff",
+    "name": "Orchestrator"
+  },
+  "kind": "handoff",
+  "status": "ok",
+  "title": "Handoff to SubAgent",
+  "links": [
+    { "rel": "handoff_to", "spanId": "eee19b7ec3c1b179" }
+  ],
+  "payload": {
+    "fromAgentId": "agent-001",
+    "toAgentId": "agent-002",
+    "reason": "Delegating specialized task"
+  }
+}

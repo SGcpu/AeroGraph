@@ -1,0 +1,23 @@
+{
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "fff19b7ec3c1b180",
+  "parentSpanId": "bbb19b7ec3c1b176",
+  "name": "aerograph.error",
+  "kind": 1,
+  "startTimeUnixNano": "1781028005000000000",
+  "endTimeUnixNano": "1781028005001000000",
+  "status": { "code": 2, "message": "Network timeout while calling external API" },
+  "attributes": [
+    { "key": "aerograph.schema_version", "value": { "stringValue": "1.0.0" } },
+    { "key": "aerograph.kind", "value": { "stringValue": "error" } },
+    { "key": "aerograph.actor.id", "value": { "stringValue": "error-handler" } },
+    { "key": "aerograph.actor.kind", "value": { "stringValue": "system" } },
+    { "key": "aerograph.actor.name", "value": { "stringValue": "ErrorHandler" } },
+    { "key": "aerograph.status", "value": { "stringValue": "error" } },
+    { "key": "aerograph.title", "value": { "stringValue": "Tool execution failed" } },
+    { "key": "aerograph.error.message", "value": { "stringValue": "Network timeout while calling external API" } },
+    { "key": "aerograph.error.details", "value": { "stringValue": "{\"code\":\"ETIMEDOUT\",\"retryable\":true,\"attemptCount\":3}" } },
+    { "key": "error.type", "value": { "stringValue": "aerograph.error" } }
+  ],
+  "links": []
+}

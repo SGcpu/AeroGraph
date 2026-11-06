@@ -1,0 +1,22 @@
+{
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "bbb19b7ec3c1b176",
+  "parentSpanId": "aae19b7ec3c1b175",
+  "name": "gen_ai.tool.call",
+  "kind": 3,
+  "startTimeUnixNano": "1781028002000000000",
+  "endTimeUnixNano": "1781028002001000000",
+  "status": { "code": 1 },
+  "attributes": [
+    { "key": "aerograph.schema_version", "value": { "stringValue": "1.0.0" } },
+    { "key": "aerograph.kind", "value": { "stringValue": "tool_call" } },
+    { "key": "aerograph.actor.id", "value": { "stringValue": "web-search" } },
+    { "key": "aerograph.actor.kind", "value": { "stringValue": "tool" } },
+    { "key": "aerograph.actor.name", "value": { "stringValue": "WebSearch" } },
+    { "key": "aerograph.status", "value": { "stringValue": "ok" } },
+    { "key": "aerograph.title", "value": { "stringValue": "WebSearch call" } },
+    { "key": "aerograph.tool_call.input", "value": { "stringValue": "{\"query\":\"Paris France capital\"}" } },
+    { "key": "gen_ai.tool.name", "value": { "stringValue": "web-search" } }
+  ],
+  "links": []
+}

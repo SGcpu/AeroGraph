@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0.0",
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "bbc19b7ec3c1b182",
+  "parentSpanId": "aae19b7ec3c1b175",
+  "occurredAt": "2026-06-09T18:00:07.000Z",
+  "actor": {
+    "kind": "tool",
+    "id": "vector-store",
+    "name": "VectorStore"
+  },
+  "kind": "retriever",
+  "status": "ok",
+  "title": "VectorStore retrieval",
+  "links": [],
+  "payload": {
+    "query": "capital of France",
+    "documents": [
+      {
+        "pageContent": "Paris is the capital and most populous city of France.",
+        "metadata": { "source": "geography-db", "score": 0.98 },
+        "score": 0.98
+      },
+      {
+        "pageContent": "France is a country in Western Europe with Paris as its capital.",
+        "metadata": { "source": "wiki", "score": 0.92 },
+        "score": 0.92
+      }
+    ]
+  }
+}

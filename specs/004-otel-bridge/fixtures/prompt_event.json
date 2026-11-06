@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0.0",
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "eee19b7ec3c1b174",
+  "parentSpanId": null,
+  "occurredAt": "2026-06-09T18:00:00.000Z",
+  "actor": {
+    "kind": "agent",
+    "id": "agent-001",
+    "name": "PrimaryAgent"
+  },
+  "kind": "prompt",
+  "status": "ok",
+  "title": "User prompt",
+  "links": [],
+  "payload": {
+    "text": "What is the capital of France?"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0.0",
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "bbb19b7ec3c1b176",
+  "parentSpanId": "aae19b7ec3c1b175",
+  "occurredAt": "2026-06-09T18:00:02.000Z",
+  "actor": {
+    "kind": "tool",
+    "id": "web-search",
+    "name": "WebSearch"
+  },
+  "kind": "tool_call",
+  "status": "ok",
+  "title": "WebSearch call",
+  "links": [],
+  "payload": {
+    "input": {
+      "query": "Paris France capital"
+    }
+  }
+}

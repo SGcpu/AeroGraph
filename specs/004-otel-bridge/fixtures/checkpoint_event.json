@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0.0",
+  "traceId": "5b8efff798038103d269b633813fc60c",
+  "spanId": "ccd19b7ec3c1b183",
+  "parentSpanId": "aae19b7ec3c1b175",
+  "occurredAt": "2026-06-09T18:00:08.000Z",
+  "actor": {
+    "kind": "system",
+    "id": "langgraph-runtime",
+    "name": "LangGraph"
+  },
+  "kind": "checkpoint",
+  "status": "ok",
+  "title": "Checkpoint: chk-001",
+  "links": [],
+  "payload": {
+    "checkpointId": "chk-001",
+    "reason": "Node transition complete",
+    "state": {
+      "messages": ["What is the capital of France?"],
+      "nextNode": "respond"
+    }
+  }
+}
+
