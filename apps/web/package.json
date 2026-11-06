@@ -1,6 +1,6 @@
 {
   "name": "apps-web",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@aerograph/contracts": "0.3.0",
+    "@aerograph/contracts": "^0.4.0",
     "@tailwindcss/vite": "^4.3.1",
     "@types/dagre": "^0.7.54",
     "dagre": "^0.8.5",
