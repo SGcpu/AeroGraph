@@ -10,7 +10,7 @@ from aerograph_sdk.state_hash import get_deterministic_state_hash, compute_state
 from aerograph_sdk.events import compare_trace_events, sort_trace_events_deterministic
 from aerograph_sdk.contracts import SCHEMA_VERSION
 
-__version__ = "0.2.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "FlightRecorder",

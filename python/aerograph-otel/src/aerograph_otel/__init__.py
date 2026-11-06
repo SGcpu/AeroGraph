@@ -4,7 +4,7 @@ aerograph_otel — OpenTelemetry bridge for AeroGraph.
 Public API re-exports.
 """
 
-__version__ = "0.1.1"
+__version__ = "0.4.0"
 
 from aerograph_otel.import_ import import_otlp_span_to_event, import_otlp_to_events
 from aerograph_otel.export import export_event_to_otlp_span, export_events_to_otlp

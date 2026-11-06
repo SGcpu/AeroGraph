@@ -1,6 +1,6 @@
 {
   "name": "@aerograph/aerorepl",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": false,
   "description": "Interactive CLI for AeroGraph deterministic replay, recording, and step inspection.",
   "type": "module",
@@ -28,7 +28,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@aerograph/contracts": "0.3.0",
+    "@aerograph/contracts": "^0.4.0",
     "commander": "^12.1.0",
     "js-yaml": "^4.1.0"
   },
