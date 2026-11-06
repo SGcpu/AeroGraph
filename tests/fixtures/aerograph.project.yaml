@@ -1,0 +1,6 @@
+version: "1"
+command:
+  - python
+  - simple-agent.py
+collector: "http://localhost:4317"
+orchestrator: "http://localhost:4318"

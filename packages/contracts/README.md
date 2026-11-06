@@ -40,12 +40,22 @@ const event: TraceEvent = validateTraceEvent(rawEvent);
 
 ## Available Schemas
 
+### Trace & Lineage Schemas
 - `traceEventSchema` (Supports v1.1.0 with canonical `model`, `usage`, `projectId`, and `environment`)
 - `traceLineageGraphSchema`
 - `traceForkRequestSchema`
 - `traceAnalysisSchema`
 - `traceDiffResultSchema`
 - `traceStatsSchema`
+
+### Deterministic Replay & Fork-and-Resume Schemas
+- `forkAndResumeRequestSchema` & `forkAndResumeResponseSchema`
+- `replaySessionSchema` & `replaySessionStateSchema`
+- `replayActionRequestSchema` & `replayActionResponseSchema`
+- `replayManifestSchema`
+- `cassetteSliceRequestSchema` & `cassetteSliceResponseSchema`
+- `replaySafetyPolicySchema`
+- `projectConfigSchema`
 
 ## License
 Apache-2.0

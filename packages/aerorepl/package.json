@@ -1,0 +1,42 @@
+{
+  "name": "@aerograph/aerorepl",
+  "version": "0.3.0",
+  "private": false,
+  "description": "Interactive CLI for AeroGraph deterministic replay, recording, and step inspection.",
+  "type": "module",
+  "bin": {
+    "aerorepl": "./dist/cli.js"
+  },
+  "main": "dist/cli.js",
+  "types": "dist/cli.d.ts",
+  "files": [
+    "dist"
+  ],
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SGcpu/AeroGraph.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@aerograph/contracts": "0.3.0",
+    "commander": "^12.1.0",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^20.14.10",
+    "eslint": "^9.9.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}

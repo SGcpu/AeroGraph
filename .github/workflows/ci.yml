@@ -1,35 +1,97 @@
-name: CI
+name: CI (Monorepo & Multi-Runtime)
 
 on:
   push:
-    branches:
-      - "**"
+    branches: [main, '00*']
   pull_request:
+    branches: [main, '00*']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build-and-test:
-    name: Build and Test
+  node-ci:
+    name: Node.js CI (${{ matrix.node-version }})
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     strategy:
-      fail-fast: true
-
+      fail-fast: false
+      matrix:
+        node-version: [18.x, 20.x]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build workspace
+      - name: Lint workspace packages
+        run: npm run lint
+
+      - name: Build all packages & applications
         run: npm run build
 
-      - name: Run tests
+      - name: Run unit test suites
         run: npm test
+
+      - name: Run cross-workspace integration tests
+        run: npm run test:integration
+
+  python-ci:
+    name: Python CI (${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv package installer
+        run: pip install uv
+
+      - name: Install Python SDK & Adapters
+        run: |
+          uv pip install --system -e python/aerograph-sdk[dev]
+          uv pip install --system -e python/aerograph-langchain[dev]
+          uv pip install --system -e python/aerograph-otel[dev]
+          uv pip install --system pytest pytest-asyncio
+
+      - name: Run aerograph-sdk tests
+        run: pytest python/aerograph-sdk/tests
+
+      - name: Run aerograph-langchain tests
+        run: pytest python/aerograph-langchain/tests
+
+      - name: Run aerograph-otel tests
+        run: pytest python/aerograph-otel/src/aerograph_otel/tests
+
+      - name: Run cross-language Python integration tests
+        run: pytest tests/integration/test_cross_lang.py
+
+      - name: Check Python Generated Contract Parity
+        run: python python/aerograph-sdk/tools/check_generated_contracts.py
+
+  security-hygiene:
+    name: Ephemeral Security & Credential Hygiene (Principle VI)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run Security & Credential Hygiene Scanner
+        run: python tools/check_security_hygiene.py

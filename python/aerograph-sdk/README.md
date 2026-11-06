@@ -71,5 +71,11 @@ The `FlightRecorder` supports 10 canonical event kinds:
 
 Every event acts as a "span" in the trace tree. To link a child event to a parent event, pass the parent's `spanId` via the `parent_span_id` parameter.
 
+## Deterministic Replay & Forking
+
+The Python SDK generates stable, deterministic span IDs and parent-child linkages compatible with AeroGraph's Deterministic Replay engine (`aerorepl` / `aerograph-replay-core`):
+- **Deterministic Cassette Slicing**: When triggering **⑂ Fork and Resume** in the Web UI or via `aerorepl /fork <spanId>`, the replay orchestrator slices the recorded cassette up to the target span.
+- **Zero Token Cost**: Pre-fork steps are served instantly from the local cassette cache with zero token cost, while post-fork Python code runs live.
+
 ## License
 Apache-2.0

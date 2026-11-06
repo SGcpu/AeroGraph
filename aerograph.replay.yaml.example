@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=./packages/contracts/schemas/aerograph-replay-yaml.schema.json
+# AeroGraph Tool Safety Policy Configuration Example
+# Place as 'aerograph.replay.yaml' in your agent application root directory.
+
+tools:
+  # LLM API calls are safe to replay from cassette (zero token cost)
+  - match: "https://api.openai.com/*"
+    toolName: "llm_completion"
+    class: "replay_safe"
+
+  - match: "https://api.anthropic.com/*"
+    toolName: "claude_completion"
+    class: "replay_safe"
+
+  - match: "https://generativelanguage.googleapis.com/*"
+    toolName: "gemini_completion"
+    class: "replay_safe"
+
+  # Read-only search APIs are safe to cache
+  - match: "https://api.tavily.com/*"
+    toolName: "web_search"
+    class: "replay_safe"
+
+  # Real-world side effects MUST execute live on every replay
+  - match: "https://api.stripe.com/*"
+    toolName: "stripe_charge"
+    class: "must_execute"
+
+  - match: "https://hooks.slack.com/*"
+    toolName: "slack_notification"
+    class: "must_execute"
+
+  - match: "https://api.sendgrid.com/*"
+    toolName: "send_email"
+    class: "must_execute"
+
+  # Any unclassified URL pattern automatically defaults to 'must_execute' (safe default)

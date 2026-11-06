@@ -1,29 +1,58 @@
-name: Cross-Language Parity
+name: Cross-Language Parity (Principle VII)
 
 on:
   push:
-    branches: [main]
+    branches: [main, '00*']
   pull_request:
     paths:
-      - "packages/contracts/src/__fixtures__/parity/**"
-      - "python/aerograph-sdk/src/aerograph_sdk/state_hash.py"
-      - "python/aerograph-sdk/src/aerograph_sdk/events.py"
-      - "packages/contracts/src/utils/hash.ts"
+      - "packages/contracts/**"
+      - "packages/sdk/**"
+      - "python/aerograph-sdk/**"
+      - "tests/integration/**"
+      - "tests/cross_language/**"
+      - ".specify/memory/constitution.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check-parity:
+    name: TypeScript & Python State & Event Parity
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 18
-      - uses: actions/setup-python@v5
+          cache: "npm"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
       - name: Install uv
         run: pip install uv
-      - run: npm ci
-      - run: npm test -w packages/contracts
-      - run: uv pip install --system -e python/aerograph-sdk[dev]
-      - run: pytest python/aerograph-sdk/tests/test_state_hash_parity.py python/aerograph-sdk/tests/test_event_ordering.py
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Build TypeScript Contracts & SDK
+        run: |
+          npm run build -w @aerograph/contracts
+          npm run build -w @aerograph/sdk
+
+      - name: Run TypeScript Contracts Parity Tests
+        run: npm test -w packages/contracts
+
+      - name: Run TypeScript Cross-Language Integration Tests
+        run: npx vitest run tests/integration/cross_lang.test.ts tests/integration/cross_language.test.ts
+
+      - name: Install Python SDK in editable mode
+        run: uv pip install --system -e python/aerograph-sdk[dev] pytest-asyncio
+
+      - name: Run Python State Hash & Event Parity Tests
+        run: pytest python/aerograph-sdk/tests/test_state_hash_parity.py python/aerograph-sdk/tests/test_event_ordering.py tests/integration/test_cross_lang.py

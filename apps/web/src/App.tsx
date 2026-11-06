@@ -41,6 +41,18 @@ import { JsonView } from "./JsonView";
 import { TraceAnalyticsPanel } from "./TraceAnalyticsPanel";
 import { GlobalFilterBar } from "./GlobalFilterBar";
 import { ProjectLineageView } from "./ProjectLineageView";
+import { WorkflowTopologyView } from "./WorkflowTopologyView";
+import { ReplayControlPanel } from "./ReplayControlPanel";
+import { ForkResumeModal } from "./ForkResumeModal";
+import { ProjectConfigModal } from "./ProjectConfigModal";
+import {
+  SettingsIcon,
+  SunIcon,
+  MoonIcon,
+  AlertTriangleIcon,
+  CheckIcon,
+  EventKindIcon
+} from "./icons";
 import type { TraceStats } from "@aerograph/contracts";
 
 export function generateAlias(id: string, prefix = "ID") {
@@ -49,17 +61,17 @@ export function generateAlias(id: string, prefix = "ID") {
 }
 
 // ─── Kind icons + colors ───────────────────────────────────────────────────────
-const KIND_META: Record<string, { icon: string; label: string }> = {
-  prompt: { icon: "💬", label: "Prompt" },
-  response: { icon: "✨", label: "Response" },
-  tool_call: { icon: "🔧", label: "Tool Call" },
-  tool_result: { icon: "📦", label: "Tool Result" },
-  error: { icon: "⚠️", label: "Error" },
-  handoff: { icon: "🔀", label: "Handoff" },
-  note: { icon: "📝", label: "Note" },
-  state_snapshot: { icon: "💾", label: "State" },
-  retriever: { icon: "🔎", label: "Retriever" },
-  checkpoint: { icon: "⏸️", label: "Checkpoint" },
+const KIND_META: Record<string, { label: string }> = {
+  prompt: { label: "Prompt" },
+  response: { label: "Response" },
+  tool_call: { label: "Tool Call" },
+  tool_result: { label: "Tool Result" },
+  error: { label: "Error" },
+  handoff: { label: "Handoff" },
+  note: { label: "Note" },
+  state_snapshot: { label: "State" },
+  retriever: { label: "Retriever" },
+  checkpoint: { label: "Checkpoint" },
 };
 
 // ─── LangGraph node kind classifiers ──────────────────────────────────────────
@@ -99,7 +111,7 @@ function TraceNode({
   data: { event: TraceEvent; selected?: boolean };
 }) {
   const { event } = data;
-  const meta = KIND_META[event.kind] ?? { icon: "◉", label: event.kind };
+  const meta = KIND_META[event.kind] ?? { label: event.kind };
   const isError = event.status === "error";
   const lgKind = getLangGraphKind(event);
   const lgMeta = lgKind ? LG_KIND_META[lgKind] : null;
@@ -178,8 +190,8 @@ function TraceNode({
           marginBottom: lgKind === "langgraph_node" ? 4 : 6,
         }}
       >
-        <span style={{ fontSize: lgKind === "langgraph_node" ? 15 : 13 }}>
-          {lgMeta ? lgMeta.icon : meta.icon}
+        <span style={{ fontSize: lgKind === "langgraph_node" ? 15 : 13, display: "inline-flex", alignItems: "center" }}>
+          {lgMeta ? lgMeta.icon : <EventKindIcon kind={event.kind} size={13} />}
         </span>
         <span
           className={`kind-badge kind-${event.kind}`}
@@ -194,6 +206,39 @@ function TraceNode({
         >
           {lgMeta ? lgMeta.label : meta.label}
         </span>
+        {event.replaySource && (
+          <span
+            style={{
+              fontSize: 8,
+              padding: "1px 5px",
+              borderRadius: 3,
+              fontWeight: 600,
+              fontFamily: "'JetBrains Mono', monospace",
+              background: event.replaySource === "cache" ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.15)",
+              color: event.replaySource === "cache" ? "#22c55e" : "#3b82f6",
+              border: `1px solid ${event.replaySource === "cache" ? "rgba(34,197,94,0.3)" : "rgba(59,130,246,0.3)"}`,
+            }}
+          >
+            {event.replaySource === "cache" ? "CACHE" : "LIVE"}
+          </span>
+        )}
+        {(event as any).effectiveClass && (
+          <span
+            style={{
+              fontSize: 8,
+              padding: "1px 5px",
+              borderRadius: 3,
+              fontWeight: 600,
+              fontFamily: "'JetBrains Mono', monospace",
+              background: (event as any).effectiveClass === "must_execute" ? "rgba(239,68,68,0.15)" : "rgba(34,197,94,0.15)",
+              color: (event as any).effectiveClass === "must_execute" ? "#ef4444" : "#22c55e",
+              border: `1px solid ${(event as any).effectiveClass === "must_execute" ? "rgba(239,68,68,0.3)" : "rgba(34,197,94,0.3)"}`,
+            }}
+            title={(event as any).matchedPattern ? `Pattern: ${(event as any).matchedPattern}` : undefined}
+          >
+            {(event as any).effectiveClass === "must_execute" ? "🔴 MUST EXECUTE" : "🟢 REPLAY SAFE"}
+          </span>
+        )}
         {step != null && (
           <span
             style={{
@@ -485,7 +530,7 @@ export default function App() {
     if (filterProjectId) localStorage.setItem("aero_filterProjectId", filterProjectId);
     else localStorage.removeItem("aero_filterProjectId");
   }, [filterProjectId]);
-  const [viewMode, setViewMode] = useState<"projects" | "trace" | "lineage">("projects");
+  const [viewMode, setViewMode] = useState<"projects" | "trace" | "topology" | "lineage">("projects");
 
   useEffect(() => {
     if (filterProjectId) setViewMode("trace");
@@ -510,6 +555,8 @@ export default function App() {
   const [traceStats, setTraceStats] = useState<TraceStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [forkInProgress, setForkInProgress] = useState(false);
+  const [forkModalSpanId, setForkModalSpanId] = useState<string | null>(null);
+  const [projectConfigOpen, setProjectConfigOpen] = useState(false);
 
   const diffSpanIds = useMemo(
     () => (diffResult ? getDiffChangedSpanIds(diffResult) : new Set<string>()),
@@ -657,24 +704,22 @@ export default function App() {
   }, [analysis, events]);
 
   // ── Fork from a specific span ─────────────────────────────────────────────
-  const doForkFromSpan = useCallback(
-    async (spanId: string) => {
-      if (!traceId || forkInProgress) return;
-      setForkInProgress(true);
+  const doForkFromSpan = useCallback((spanId: string) => {
+    setForkModalSpanId(spanId);
+  }, []);
+
+  const handleForkCompleted = useCallback(
+    async (childId: string, parentId: string) => {
+      await refreshTraces();
+      setTraceId(childId);
       try {
-        setError("");
-        const res = await api.forkTrace(traceId, { forkFromSpanId: spanId });
-        // Refresh trace list then switch to new child trace
-        await refreshTraces();
-        setTraceId(res.traceId);
-        alert(`Fork ID Generated!\n\nCopy this ID:\n${res.traceId}\n\nPaste it into your FlightRecorder initialization in your code to resume your agent from this point.`);
-      } catch (e: any) {
-        setError(`Fork failed: ${e?.message ?? String(e)}`);
-      } finally {
-        setForkInProgress(false);
+        const diff = await api.getDiff(parentId, childId);
+        setDiffResult(diff);
+      } catch (e) {
+        // non-blocking
       }
     },
-    [api, traceId, forkInProgress, refreshTraces],
+    [refreshTraces, api],
   );
 
   // ── Sidebar detail renderer ────────────────────────────────────────────────
@@ -710,8 +755,9 @@ export default function App() {
         {/* Meta strip */}
         <div className="trace-meta-strip">
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <span className={`kind-badge kind-${e.kind}`}>
-              {KIND_META[e.kind]?.icon} {KIND_META[e.kind]?.label ?? e.kind}
+            <span className={`kind-badge kind-${e.kind}`} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <EventKindIcon kind={e.kind} size={12} />
+              <span>{KIND_META[e.kind]?.label ?? e.kind}</span>
             </span>
             <span className={`status-badge status-${e.status}`}>
               {e.status}
@@ -783,7 +829,7 @@ export default function App() {
               onClick={() => doForkFromSpan(e.spanId)}
               title={`Fork trace from span ${e.spanId}`}
             >
-              {forkInProgress ? "Forking…" : "⑂ Generate Fork ID"}
+              {forkInProgress ? "Forking…" : e.kind === "prompt" ? "⑂ Fork & Override Prompt" : "⑂ Generate Fork ID"}
             </button>
           </div>
 
@@ -829,6 +875,153 @@ export default function App() {
                   <div className="kv-row">
                     <span className="kv-key">duration</span>
                     <span className="kv-val">{(e as any).durationMs} ms</span>
+                  </div>
+                )}
+              </div>
+            </CollapsibleSection>
+          )}
+
+          {/* Replay Metadata */}
+          {(e.replaySource || e.requestKey || e.replayLatencyMs != null || e.tokensSaved != null || e.streamingPreserved !== undefined || (e as any).decision) && (
+            <CollapsibleSection title="Replay Metadata" titleColor={e.replaySource === "cache" ? "#22c55e" : "#3b82f6"}>
+              <div className="kv-grid">
+                {e.replaySource && (
+                  <div className="kv-row">
+                    <span className="kv-key">replay source</span>
+                    <span className="kv-val">
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontSize: "11px",
+                          fontWeight: 600,
+                          background: e.replaySource === "cache" ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.15)",
+                          color: e.replaySource === "cache" ? "#22c55e" : "#3b82f6",
+                        }}
+                      >
+                        {e.replaySource === "cache" ? "⚡ CACHE" : "🌐 LIVE"}
+                      </span>
+                    </span>
+                  </div>
+                )}
+                {(e as any).decision && (
+                  <div className="kv-row">
+                    <span className="kv-key">decision</span>
+                    <span className="kv-val">
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontSize: "10px",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          background:
+                            (e as any).decision === "cache_hit"
+                              ? "rgba(34,197,94,0.15)"
+                              : (e as any).decision === "must_execute"
+                                ? "rgba(239,68,68,0.15)"
+                                : "rgba(245,158,11,0.15)",
+                          color:
+                            (e as any).decision === "cache_hit"
+                              ? "#22c55e"
+                              : (e as any).decision === "must_execute"
+                                ? "#ef4444"
+                                : "#f59e0b",
+                        }}
+                      >
+                        {(e as any).decision.replace(/_/g, " ")}
+                      </span>
+                    </span>
+                  </div>
+                )}
+                {(e as any).matchedPattern ? (
+                  <div className="kv-row">
+                    <span className="kv-key">rule match</span>
+                    <span className="kv-val" style={{ fontFamily: "var(--font-mono)", fontSize: "10px" }}>
+                      {(e as any).matchedPattern}
+                    </span>
+                  </div>
+                ) : (e as any).decision === "must_execute" ? (
+                  <div className="kv-row">
+                    <span className="kv-key">rule match</span>
+                    <span className="kv-val" style={{ color: "#f59e0b", fontSize: "10px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                      <AlertTriangleIcon size={12} color="#f59e0b" />
+                      <span>No match (defaulted to must_execute)</span>
+                    </span>
+                  </div>
+                ) : null}
+                {(e as any).effectiveClass && (
+                  <div className="kv-row">
+                    <span className="kv-key">safety class</span>
+                    <span className="kv-val" style={{ fontFamily: "var(--font-mono)", fontSize: "10px" }}>
+                      {(e as any).effectiveClass}
+                    </span>
+                  </div>
+                )}
+                {e.requestKey && (
+                  <div className="kv-row">
+                    <span className="kv-key">request key</span>
+                    <span className="kv-val" style={{ fontFamily: "var(--font-mono)", fontSize: "10px" }} title={e.requestKey}>
+                      {e.requestKey.slice(0, 16)}…
+                    </span>
+                  </div>
+                )}
+                {e.replayLatencyMs != null && (
+                  <div className="kv-row">
+                    <span className="kv-key">replay latency</span>
+                    <span className="kv-val">{e.replayLatencyMs} ms</span>
+                  </div>
+                )}
+                {e.tokensSaved != null && (
+                  <div className="kv-row">
+                    <span className="kv-key">tokens saved</span>
+                    <span className="kv-val" style={{ color: "#22c55e", fontWeight: 600 }}>
+                      {e.tokensSaved.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+                {e.streamingPreserved !== undefined && (
+                  <div className="kv-row">
+                    <span className="kv-key">streaming</span>
+                    <span className="kv-val">
+                      {e.streamingPreserved ? (
+                        <span style={{ color: "#22c55e", fontSize: "11px", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <CheckIcon size={12} color="#22c55e" />
+                          <span>Chunks Preserved</span>
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            fontSize: 9,
+                            padding: "2px 6px",
+                            borderRadius: 4,
+                            fontWeight: 600,
+                            background: "rgba(245,158,11,0.2)",
+                            color: "#f59e0b",
+                            border: "1px solid rgba(245,158,11,0.3)",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4
+                          }}
+                          title="SSE/chunked response was flattened into a single body during replay"
+                        >
+                          <AlertTriangleIcon size={11} color="#f59e0b" />
+                          <span>Flattened (Chunks not preserved)</span>
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                )}
+                {e.overridden && (
+                  <div className="kv-row">
+                    <span className="kv-key">overridden</span>
+                    <span className="kv-val" style={{ color: "#f59e0b" }}>true</span>
                   </div>
                 )}
               </div>
@@ -1003,6 +1196,12 @@ export default function App() {
                 Trace Graph
               </button>
               <button
+                className={`btn ${viewMode === "topology" ? "btn-primary" : ""}`}
+                onClick={() => setViewMode("topology")}
+              >
+                Workflow Topology
+              </button>
+              <button
                 className={`btn ${viewMode === "lineage" ? "btn-primary" : ""}`}
                 onClick={() => setViewMode("lineage")}
               >
@@ -1011,17 +1210,42 @@ export default function App() {
             </div>
           )}
 
+          {/* Project Config */}
+          <button
+            className="btn"
+            style={{ display: "flex", alignItems: "center", gap: "6px" }}
+            onClick={() => setProjectConfigOpen(true)}
+            title="Project Agent Configuration"
+          >
+            <SettingsIcon size={13} />
+            <span>Config</span>
+          </button>
+
           {/* Theme toggle */}
           <button
             className="theme-toggle btn"
             onClick={() => setIsDark(!isDark)}
             title="Toggle theme"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center" }}
           >
-            {isDark ? "☀️" : "🌙"}
+            {isDark ? <SunIcon size={14} /> : <MoonIcon size={14} />}
           </button>
 
+          {/* Replay Control Panel */}
+          {traceId && (viewMode === "trace" || viewMode === "topology") && (
+            <ReplayControlPanel
+              api={api}
+              activeTraceId={traceId}
+              hasCassette={Boolean(activeMeta?.replayRun)}
+              onTraceReplayed={(newId) => {
+                refreshTraces();
+                setTraceId(newId);
+              }}
+            />
+          )}
+
           {/* Delete Trace */}
-          {traceId && viewMode === "trace" && (
+          {traceId && (viewMode === "trace" || viewMode === "topology") && (
             <button
               className="btn btn-danger"
               style={{ background: "var(--bg-error, #ef4444)", color: "#fff", borderColor: "var(--border-error, #dc2626)" }}
@@ -1055,7 +1279,12 @@ export default function App() {
         </div>
       </header>
       {/* Error bar */}
-      {error && <div className="error">⚠ {error}</div>}
+      {error && (
+        <div className="error" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <AlertTriangleIcon size={14} color="#ef4444" />
+          <span>{error}</span>
+        </div>
+      )}
 
       {/* Body */}
       {viewMode === "projects" ? (
@@ -1134,13 +1363,31 @@ export default function App() {
                     <div 
                       className={`trace-list-item ${t.traceId === traceId ? "active" : ""}`}
                       onClick={() => setTraceId(t.traceId)}
-                      style={{ paddingLeft: `${12 + depth * 16}px`, display: matchesSearch || searchTerms === "" ? "flex" : "none", flexDirection: "column", alignItems: "flex-start" }}
+                      style={{ paddingLeft: `${12 + depth * 16}px`, display: matchesSearch || searchTerms === "" ? "flex" : "none", flexDirection: "column", alignItems: "flex-start", gap: 3 }}
                     >
-                      <div style={{ fontFamily: "var(--font-mono)", fontSize: "13px", color: "var(--text-primary)", fontWeight: depth === 0 ? "bold" : "normal" }}>
-                        {depth > 0 ? "↳ " : ""}{alias}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 6 }}>
+                        <div style={{ fontFamily: "var(--font-mono)", fontSize: "13px", color: "var(--text-primary)", fontWeight: depth === 0 ? "bold" : "normal" }}>
+                          {depth > 0 ? "↳ " : ""}{alias}
+                        </div>
+                        {t.replayRun?.mode === "replay" && (
+                          <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "3px", fontWeight: 700, background: "rgba(34,197,94,0.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.3)" }}>
+                            🔁 REPLAY
+                          </span>
+                        )}
+                        {t.replayRun?.mode === "fork" && (
+                          <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "3px", fontWeight: 700, background: "rgba(168,85,247,0.15)", color: "#c084fc", border: "1px solid rgba(168,85,247,0.3)" }}>
+                            ⑂ FORK
+                          </span>
+                        )}
+                        {t.replayRun?.mode === "record" && (
+                          <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "3px", fontWeight: 700, background: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)" }}>
+                            ⏺ RECORD
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: "11px", color: "var(--text-muted)" }}>
                         {t.eventCount} events {t.environment ? ` · ${t.environment}` : ""}
+                        {t.replayRun ? ` · ${t.replayRun.runId}` : ""}
                       </div>
                     </div>
                     {children.map(child => renderTrace(child, depth + 1))}
@@ -1179,59 +1426,179 @@ export default function App() {
                 {rightSidebarOpen ? '▶' : '◀'}
               </button>
 
-              {/* Playback controls */}
-              <div className="playback-controls">
-                <button
-                  className="playback-btn"
-                  disabled={currentStep <= 1}
-                  onClick={() =>
-                    setPlaybackCursor((p) => (p === -1 ? events.length - 2 : p - 1))
-                  }
-                  title="Step backward"
+              {/* Replay or Fork Notice Banner */}
+              {activeMeta?.replayRun?.mode === "replay" && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 14,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 25,
+                    background: "rgba(15, 23, 42, 0.92)",
+                    backdropFilter: "blur(8px)",
+                    border: "1px solid rgba(34, 197, 94, 0.4)",
+                    borderRadius: 8,
+                    padding: "6px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 12,
+                    color: "#f8fafc",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+                    pointerEvents: "auto"
+                  }}
                 >
-                  ‹
-                </button>
-                <div className="playback-counter">
-                  <span>{currentStep}</span> / {totalSteps}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(34, 197, 94, 0.2)", color: "#22c55e", padding: "2px 7px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                    🔁 REPLAY RUN
+                  </span>
+                  <span>
+                    Run <code style={{ fontFamily: "var(--font-mono)", color: "#38bdf8", fontWeight: 600 }}>{activeMeta.replayRun.runId}</code>
+                    {activeMeta.replayRun.cassetteRunId && (
+                      <> · Replayed from cassette <code style={{ fontFamily: "var(--font-mono)", color: "#a78bfa" }}>{activeMeta.replayRun.cassetteRunId}</code></>
+                    )}
+                    {activeMeta.replayRun.sourceTraceId && (
+                      <>
+                        {" "}· Source Trace:{" "}
+                        <button
+                          onClick={() => setTraceId(activeMeta.replayRun!.sourceTraceId!)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#38bdf8",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 11,
+                            padding: 0
+                          }}
+                        >
+                          {activeMeta.replayRun.sourceTraceId}
+                        </button>
+                      </>
+                    )}
+                  </span>
                 </div>
-                <button
-                  className="playback-btn"
-                  disabled={
-                    playbackCursor === -1 || playbackCursor >= events.length - 1
-                  }
-                  onClick={() =>
-                    setPlaybackCursor((p) => (p >= events.length - 1 ? -1 : p + 1))
-                  }
-                  title="Step forward"
-                >
-                  ›
-                </button>
-                <button
-                  className="playback-live"
-                  onClick={() => setPlaybackCursor(-1)}
-                >
-                  LIVE
-                </button>
-              </div>
+              )}
 
-              <ReactFlow
-                nodes={graph.nodes}
-                edges={graph.edges}
-                nodeTypes={nodeTypes}
-                onNodeClick={(_, node) => {
-                  const event = events.find((e) => e.spanId === node.id);
-                  if (event) setSelected({ event });
-                }}
-                fitView
-                fitViewOptions={{ padding: 0.15 }}
-                minZoom={0.2}
-                maxZoom={2}
-                proOptions={{ hideAttribution: true }}
-              >
-                <FitViewOnUpdate traceId={traceId} />
-                <Background color={isDark ? "#334155" : "#e2e8f0"} variant={BackgroundVariant.Dots} gap={24} size={1} />
-                <Controls showInteractive={false} />
-              </ReactFlow>
+              {activeMeta?.replayRun?.mode === "fork" && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 14,
+                    left: "50%",
+                    transform: "translateX(-50%)",
+                    zIndex: 25,
+                    background: "rgba(15, 23, 42, 0.92)",
+                    backdropFilter: "blur(8px)",
+                    border: "1px solid rgba(168, 85, 247, 0.4)",
+                    borderRadius: 8,
+                    padding: "6px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 12,
+                    color: "#f8fafc",
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+                    pointerEvents: "auto"
+                  }}
+                >
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "rgba(168, 85, 247, 0.2)", color: "#c084fc", padding: "2px 7px", borderRadius: 4, fontWeight: 700, fontSize: 11 }}>
+                    ⑂ FORKED RUN
+                  </span>
+                  <span>
+                    Run <code style={{ fontFamily: "var(--font-mono)", color: "#38bdf8", fontWeight: 600 }}>{activeMeta.replayRun.runId}</code>
+                    {activeMeta.replayRun.sourceTraceId && (
+                      <>
+                        {" "}· Forked from Trace:{" "}
+                        <button
+                          onClick={() => setTraceId(activeMeta.replayRun!.sourceTraceId!)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#38bdf8",
+                            cursor: "pointer",
+                            textDecoration: "underline",
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 11,
+                            padding: 0
+                          }}
+                        >
+                          {activeMeta.replayRun.sourceTraceId}
+                        </button>
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {viewMode === "topology" ? (
+                <WorkflowTopologyView
+                  events={visibleEvents}
+                  traceId={traceId}
+                  isDark={isDark}
+                  onSelectSpanId={(spanId) => {
+                    const ev = events.find((e) => e.spanId === spanId);
+                    if (ev) setSelected({ event: ev });
+                  }}
+                />
+              ) : (
+                <>
+                  {/* Playback controls */}
+                  <div className="playback-controls">
+                    <button
+                      className="playback-btn"
+                      disabled={currentStep <= 1}
+                      onClick={() =>
+                        setPlaybackCursor((p) => (p === -1 ? events.length - 2 : p - 1))
+                      }
+                      title="Step backward"
+                    >
+                      ‹
+                    </button>
+                    <div className="playback-counter">
+                      <span>{currentStep}</span> / {totalSteps}
+                    </div>
+                    <button
+                      className="playback-btn"
+                      disabled={
+                        playbackCursor === -1 || playbackCursor >= events.length - 1
+                      }
+                      onClick={() =>
+                        setPlaybackCursor((p) => (p >= events.length - 1 ? -1 : p + 1))
+                      }
+                      title="Step forward"
+                    >
+                      ›
+                    </button>
+                    <button
+                      className="playback-live"
+                      onClick={() => setPlaybackCursor(-1)}
+                    >
+                      LIVE
+                    </button>
+                  </div>
+
+                  <ReactFlow
+                    nodes={graph.nodes}
+                    edges={graph.edges}
+                    nodeTypes={nodeTypes}
+                    onNodeClick={(_, node) => {
+                      const event = events.find((e) => e.spanId === node.id);
+                      if (event) setSelected({ event });
+                    }}
+                    fitView
+                    fitViewOptions={{ padding: 0.15 }}
+                    minZoom={0.2}
+                    maxZoom={2}
+                    proOptions={{ hideAttribution: true }}
+                  >
+                    <FitViewOnUpdate traceId={traceId} />
+                    <Background color={isDark ? "#334155" : "#e2e8f0"} variant={BackgroundVariant.Dots} gap={24} size={1} />
+                    <Controls showInteractive={false} />
+                  </ReactFlow>
+                </>
+              )}
             </>
           )}
 
@@ -1441,20 +1808,70 @@ export default function App() {
               {diffResult && (
                 <div
                   style={{
-                    marginTop: 8,
-                    fontSize: 11,
-                    color: "var(--text-secondary)",
+                    marginTop: 10,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 8,
+                    background: "rgba(99,130,255,0.04)",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: 6,
+                    padding: "8px 10px",
                   }}
                 >
-                  {diffResult.changed.length === 0
-                    ? "✓ No differences"
-                    : `${diffResult.changed.length} change${diffResult.changed.length !== 1 ? "s" : ""}`}
-                  {diffResult.divergence?.forkPointSpanId && (
-                    <div style={{ marginTop: 4 }}>
-                      Diverges at:{" "}
-                      <code style={{ fontSize: 10 }}>
-                        {diffResult.divergence.forkPointSpanId}
-                      </code>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: diffResult.changed.length === 0 ? "#4ade80" : "var(--text-primary)" }}>
+                      {diffResult.changed.length === 0
+                        ? "✓ Identical Traces"
+                        : `${diffResult.changed.length} span change${diffResult.changed.length !== 1 ? "s" : ""}`}
+                    </span>
+                    {diffResult.divergence?.forkPointSpanId && (
+                      <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+                        Diverges at {diffResult.divergence.forkPointSpanId.slice(0, 8)}…
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Token & Duration Deltas */}
+                  {diffResult.statsDelta && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                      <div style={{ background: "rgba(255,255,255,0.03)", padding: "4px 6px", borderRadius: 4 }}>
+                        <div style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>Tokens Delta</div>
+                        <div style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: "var(--font-mono)",
+                          color: diffResult.statsDelta.totalTokensDelta < 0 ? "#4ade80" : diffResult.statsDelta.totalTokensDelta > 0 ? "#f87171" : "var(--text-secondary)",
+                        }}>
+                          {diffResult.statsDelta.totalTokensDelta > 0 ? `+${diffResult.statsDelta.totalTokensDelta}` : diffResult.statsDelta.totalTokensDelta}
+                        </div>
+                      </div>
+                      <div style={{ background: "rgba(255,255,255,0.03)", padding: "4px 6px", borderRadius: 4 }}>
+                        <div style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase" }}>Duration Delta</div>
+                        <div style={{
+                          fontSize: 12,
+                          fontWeight: 700,
+                          fontFamily: "var(--font-mono)",
+                          color: diffResult.statsDelta.durationDeltaMs < 0 ? "#4ade80" : "var(--text-secondary)",
+                        }}>
+                          {diffResult.statsDelta.durationDeltaMs > 0
+                            ? `+${(diffResult.statsDelta.durationDeltaMs / 1000).toFixed(2)}s`
+                            : `${(diffResult.statsDelta.durationDeltaMs / 1000).toFixed(2)}s`}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Loop resolution pill */}
+                  {diffResult.loopDelta && diffResult.loopDelta.resolved && (
+                    <div style={{ fontSize: 10, color: "#4ade80", background: "rgba(34,197,94,0.1)", padding: "3px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                      <CheckIcon size={12} color="#4ade80" />
+                      <span>{diffResult.loopDelta.aLoopCount} loop{diffResult.loopDelta.aLoopCount > 1 ? "s" : ""} resolved in this run!</span>
+                    </div>
+                  )}
+                  {diffResult.loopDelta && diffResult.loopDelta.bLoopCount > diffResult.loopDelta.aLoopCount && (
+                    <div style={{ fontSize: 10, color: "#f87171", background: "rgba(239,68,68,0.1)", padding: "3px 6px", borderRadius: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                      <AlertTriangleIcon size={12} color="#f87171" />
+                      <span>Introduced {diffResult.loopDelta.bLoopCount - diffResult.loopDelta.aLoopCount} new loop(s)</span>
                     </div>
                   )}
                 </div>
@@ -1480,7 +1897,16 @@ export default function App() {
             style={{ borderBottom: analyticsOpen ? "1px solid var(--border-subtle)" : "none" }}
           >
             <div className="accordion-inner">
-              <TraceAnalyticsPanel stats={traceStats} loading={statsLoading} />
+              <TraceAnalyticsPanel 
+                stats={traceStats} 
+                routingSummary={analysis?.routingSummary}
+                parentTraceId={activeMeta?.derivedFrom?.baseTraceId ?? activeMeta?.replayRun?.sourceTraceId ?? null}
+                onCompareWithParent={(parentId) => {
+                  setCompareTargetId(parentId);
+                  loadDiff(parentId);
+                }}
+                loading={statsLoading} 
+              />
             </div>
           </div>
 
@@ -1604,6 +2030,31 @@ export default function App() {
           {renderDetail()}
         </aside>
       </main>
+      )}
+
+      {forkModalSpanId && traceId && (() => {
+        const targetEvt = events.find((ev) => ev.spanId === forkModalSpanId);
+        const initialPrompt =
+          (targetEvt as any)?.payload?.text ||
+          (targetEvt as any)?.payload?.promptText ||
+          "";
+        return (
+          <ForkResumeModal
+            api={api}
+            baseTraceId={traceId}
+            forkFromSpanId={forkModalSpanId}
+            initialPromptText={initialPrompt}
+            onClose={() => setForkModalSpanId(null)}
+            onForkCompleted={handleForkCompleted}
+          />
+        );
+      })()}
+
+      {projectConfigOpen && (
+        <ProjectConfigModal
+          api={api}
+          onClose={() => setProjectConfigOpen(false)}
+        />
       )}
     </div>
   );

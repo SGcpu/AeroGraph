@@ -1,0 +1,9 @@
+# yaml-language-server: $schema=../../packages/contracts/schemas/aerograph-project-yaml.schema.json
+version: "1"
+command:
+  - "python"
+  - "travel_agent.py"
+
+collectorUrl: "http://localhost:4317"
+orchestratorUrl: "http://localhost:4318"
+

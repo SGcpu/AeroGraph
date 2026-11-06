@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=./packages/contracts/schemas/aerograph-project-yaml.schema.json
+# AeroGraph Project Configuration Example
+# Place as 'aerograph.project.yaml' in your agent application root directory.
+
+version: "1"
+
+# Command and arguments to execute your agent in array form
+command:
+  - "python"
+  - "agent.py"
+
+# (Optional) URL of the AeroGraph Collector service (default: http://localhost:4317)
+collectorUrl: "http://localhost:4317"
+
+# (Optional) URL of the Replay Orchestrator service (default: http://localhost:4318)
+orchestratorUrl: "http://localhost:4318"

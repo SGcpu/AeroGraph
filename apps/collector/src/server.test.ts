@@ -1,3 +1,5 @@
+import os from "os";
+import path from "path";
 import { describe, expect, it } from "vitest";
 import request from "supertest";
 import { createApp } from "./server";
@@ -306,4 +308,144 @@ describe("collector: API", () => {
       db.close();
     });
   });
+
+  describe("replay endpoint (T028)", () => {
+    it("POST /v1/traces/:id/replay returns 404 if trace does not exist", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      const res = await request(app).post("/v1/traces/non-existent/replay").send({});
+      expect(res.status).toBe(404);
+
+      db.close();
+    });
+
+    it("POST /v1/traces/:id/replay returns 409 if no cassette is linked", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      const event = {
+        schemaVersion: "1.1.0",
+        traceId: "t-no-cassette",
+        spanId: "s-1",
+        parentSpanId: null,
+        occurredAt: new Date().toISOString(),
+        actor: { kind: "agent", id: "agent-1" },
+        kind: "prompt",
+        status: "ok",
+        payload: { text: "Hello" },
+        links: []
+      };
+      await request(app).post("/v1/events").send(event).expect(201);
+
+      const res = await request(app).post("/v1/traces/t-no-cassette/replay").send({});
+      expect(res.status).toBe(409);
+      expect(res.body.error).toBe("No cassette linked. Re-record this run");
+
+      db.close();
+    });
+  });
+
+  describe("fork-and-resume endpoint (T049)", () => {
+    it("POST /v1/traces/:id/fork-and-resume returns 404 if trace does not exist", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      const res = await request(app)
+        .post("/v1/traces/non-existent-trace/fork-and-resume")
+        .send({ forkFromSpanId: "s-1" });
+      expect(res.status).toBe(404);
+
+      db.close();
+    });
+
+    it("POST /v1/traces/:id/fork-and-resume returns 400 if forkFromSpanId is missing", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      const baseEvents = loadPhase2FixtureTrace("base");
+      await request(app).post("/v1/events").send(baseEvents).expect(201);
+
+      const res = await request(app)
+        .post("/v1/traces/t_base/fork-and-resume")
+        .send({});
+      expect(res.status).toBe(400);
+
+      db.close();
+    });
+
+    it("POST /v1/traces/:id/fork-and-resume returns 409 if no project config exists", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      const baseEvents = loadPhase2FixtureTrace("base");
+      await request(app).post("/v1/events").send(baseEvents).expect(201);
+
+      const res = await request(app)
+        .post("/v1/traces/t_base/fork-and-resume")
+        .send({
+          forkFromSpanId: "s1",
+          projectRoot: path.join(os.tmpdir(), `afr-empty-test-${Date.now()}`)
+        });
+      expect(res.status).toBe(409);
+
+      db.close();
+    });
+
+    it("POST and GET /v1/traces/:id/runtime-metadata saves and retrieves environment metadata", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+
+      const postRes = await request(app)
+        .post("/v1/traces/t_test_runtime/runtime-metadata")
+        .send({
+          projectRoot: "/workspace/external-agent",
+          virtualEnv: "/workspace/external-agent/.venv",
+          executablePath: "/workspace/external-agent/.venv/bin/python",
+          entrypoint: "/workspace/external-agent/main.py",
+          command: ["python", "main.py"]
+        });
+      expect(postRes.status).toBe(201);
+      expect(postRes.body.ok).toBe(true);
+
+      const getRes = await request(app)
+        .get("/v1/traces/t_test_runtime/runtime-metadata");
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.projectRoot).toBe("/workspace/external-agent");
+      expect(getRes.body.virtualEnv).toBe("/workspace/external-agent/.venv");
+      expect(getRes.body.executablePath).toBe("/workspace/external-agent/.venv/bin/python");
+      expect(getRes.body.command).toEqual(["python", "main.py"]);
+
+      db.close();
+    });
+
+    it("POST /v1/traces/:id/fork-and-resume creates run with mode record when requested", async () => {
+      const app = createApp({ dbPath: ":memory:" });
+      const db = app.locals.db as Database;
+      const store = app.locals.store as SqliteTraceStore;
+
+      const baseEvents = loadPhase2FixtureTrace("base");
+      await request(app).post("/v1/events").send(baseEvents).expect(201);
+
+      const res = await request(app)
+        .post("/v1/traces/t_base/fork-and-resume")
+        .send({
+          forkFromSpanId: "s1",
+          command: ["node", "-e", "console.log('hello')"],
+          mode: "record"
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.childTraceId).toBeDefined();
+      expect(res.body.runId).toBeDefined();
+
+      const run = store.getRunById(res.body.runId);
+      expect(run).toBeDefined();
+      expect(run?.mode).toBe("record");
+
+      db.close();
+    });
+  });
 });
+
+

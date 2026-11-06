@@ -18,6 +18,8 @@ Usage (async):
 from __future__ import annotations
 
 import json
+import os
+import sys
 from contextlib import contextmanager, asynccontextmanager
 from typing import Any, Optional, Union
 
@@ -104,6 +106,7 @@ class FlightRecorder:
         environment: Optional[str] = None,
         http_client: Optional[httpx.Client] = None,
         async_http_client: Optional[httpx.AsyncClient] = None,
+        capture_runtime: Optional[bool] = None,
     ) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.actor_id: str = actor["id"]  # type: ignore[assignment]
@@ -113,6 +116,12 @@ class FlightRecorder:
         self.environment: Optional[str] = environment
         self._http_client = http_client
         self._async_http_client = async_http_client
+        self._runtime_metadata_registered: bool = False
+        if capture_runtime is None:
+            is_pytest = "PYTEST_CURRENT_TEST" in os.environ
+            self.capture_runtime = (not is_pytest) and os.getenv("AEROGRAPH_CAPTURE_RUNTIME", "true").lower() in ("true", "1")
+        else:
+            self.capture_runtime = capture_runtime
 
     # ------------------------------------------------------------------
     # ID helpers
@@ -172,6 +181,104 @@ class FlightRecorder:
             return self._async_http_client
         return httpx.AsyncClient()
 
+    def _collect_runtime_metadata(self) -> dict[str, Any]:
+        """Collect current execution context (working dir, venv, command)."""
+        project_root = os.getcwd()
+        virtual_env = os.environ.get("VIRTUAL_ENV") or os.environ.get("CONDA_PREFIX")
+        if not virtual_env and hasattr(sys, "base_prefix") and sys.prefix != sys.base_prefix:
+            virtual_env = sys.prefix
+
+        executable_path = sys.executable
+        entrypoint: Optional[str] = None
+        command: Optional[list[str]] = None
+
+        if sys.argv and len(sys.argv) > 0 and sys.argv[0]:
+            raw_entry = sys.argv[0]
+            if os.path.isabs(raw_entry):
+                try:
+                    rel = os.path.relpath(raw_entry, project_root)
+                    if not rel.startswith(".."):
+                        entrypoint = rel
+                    else:
+                        entrypoint = raw_entry
+                except Exception:
+                    entrypoint = raw_entry
+            else:
+                entrypoint = raw_entry
+
+            if entrypoint.endswith(".py"):
+                command = ["python", entrypoint, *sys.argv[1:]]
+            else:
+                command = list(sys.argv)
+
+        meta: dict[str, Any] = {
+            "projectRoot": project_root,
+        }
+        if virtual_env:
+            meta["virtualEnv"] = virtual_env
+        if executable_path:
+            meta["executablePath"] = executable_path
+        if entrypoint:
+            meta["entrypoint"] = entrypoint
+        if command:
+            meta["command"] = command
+
+        return meta
+
+    def _register_runtime_metadata_sync(self) -> None:
+        """Register runtime execution metadata with the collector synchronously."""
+        self._runtime_metadata_registered = True
+        try:
+            meta = self._collect_runtime_metadata()
+            url = f"{self.endpoint}/v1/traces/{self.trace_id}/runtime-metadata"
+            if self._http_client is not None:
+                self._http_client.post(
+                    url,
+                    json=meta,
+                    headers={"content-type": "application/json"},
+                )
+            else:
+                with httpx.Client(timeout=2.0) as client:
+                    client.post(
+                        url,
+                        json=meta,
+                        headers={"content-type": "application/json"},
+                    )
+        except Exception:
+            # Non-blocking best-effort registration
+            pass
+
+    async def _register_runtime_metadata_async(self) -> None:
+        """Register runtime execution metadata with the collector asynchronously."""
+        self._runtime_metadata_registered = True
+        try:
+            meta = self._collect_runtime_metadata()
+            url = f"{self.endpoint}/v1/traces/{self.trace_id}/runtime-metadata"
+            if self._async_http_client is not None:
+                await self._async_http_client.post(
+                    url,
+                    json=meta,
+                    headers={"content-type": "application/json"},
+                )
+            else:
+                async with httpx.AsyncClient(timeout=2.0) as client:
+                    await client.post(
+                        url,
+                        json=meta,
+                        headers={"content-type": "application/json"},
+                    )
+        except Exception:
+            # Non-blocking best-effort registration
+            pass
+
+    def register_runtime_metadata(self) -> None:
+        """Explicitly register runtime execution metadata with the collector."""
+        self._register_runtime_metadata_sync()
+
+    async def register_runtime_metadata_async(self) -> None:
+        """Explicitly register runtime execution metadata with the collector asynchronously."""
+        await self._register_runtime_metadata_async()
+
     def emit(self, event: _TraceEventModel) -> _TraceEventModel:
         """
         Emit a single event synchronously.
@@ -185,13 +292,23 @@ class FlightRecorder:
         Raises:
             EmissionError: On non-2xx HTTP response.
         """
+        if self.capture_runtime and not self._runtime_metadata_registered:
+            self._register_runtime_metadata_sync()
+
         body = self._serialize_event(event)
-        with self._get_client() as client:
-            response = client.post(
+        if self._http_client is not None:
+            response = self._http_client.post(
                 f"{self.endpoint}/v1/events",
                 content=body,
                 headers={"content-type": "application/json"},
             )
+        else:
+            with httpx.Client() as client:
+                response = client.post(
+                    f"{self.endpoint}/v1/events",
+                    content=body,
+                    headers={"content-type": "application/json"},
+                )
         if not response.is_success:
             raise EmissionError(response.status_code, response.text)
         return event
@@ -209,13 +326,23 @@ class FlightRecorder:
         Raises:
             EmissionError: On non-2xx HTTP response.
         """
+        if self.capture_runtime and not self._runtime_metadata_registered:
+            await self._register_runtime_metadata_async()
+
         body = self._serialize_event(event)
-        async with self._get_async_client() as client:
-            response = await client.post(
+        if self._async_http_client is not None:
+            response = await self._async_http_client.post(
                 f"{self.endpoint}/v1/events",
                 content=body,
                 headers={"content-type": "application/json"},
             )
+        else:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.endpoint}/v1/events",
+                    content=body,
+                    headers={"content-type": "application/json"},
+                )
         if not response.is_success:
             raise EmissionError(response.status_code, response.text)
         return event
@@ -235,14 +362,24 @@ class FlightRecorder:
         Raises:
             EmissionError: On non-2xx HTTP response.
         """
+        if self.capture_runtime and not self._runtime_metadata_registered:
+            self._register_runtime_metadata_sync()
+
         ordered = self._sort_batch(events)
         body = json.dumps([self._event_to_dict(e) for e in ordered])
-        with self._get_client() as client:
-            response = client.post(
+        if self._http_client is not None:
+            response = self._http_client.post(
                 f"{self.endpoint}/v1/events",
                 content=body,
                 headers={"content-type": "application/json"},
             )
+        else:
+            with httpx.Client() as client:
+                response = client.post(
+                    f"{self.endpoint}/v1/events",
+                    content=body,
+                    headers={"content-type": "application/json"},
+                )
         if not response.is_success:
             raise EmissionError(response.status_code, response.text)
         return ordered
@@ -264,14 +401,24 @@ class FlightRecorder:
         Raises:
             EmissionError: On non-2xx HTTP response.
         """
+        if self.capture_runtime and not self._runtime_metadata_registered:
+            await self._register_runtime_metadata_async()
+
         ordered = self._sort_batch(events)
         body = json.dumps([self._event_to_dict(e) for e in ordered])
-        async with self._get_async_client() as client:
-            response = await client.post(
+        if self._async_http_client is not None:
+            response = await self._async_http_client.post(
                 f"{self.endpoint}/v1/events",
                 content=body,
                 headers={"content-type": "application/json"},
             )
+        else:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.endpoint}/v1/events",
+                    content=body,
+                    headers={"content-type": "application/json"},
+                )
         if not response.is_success:
             raise EmissionError(response.status_code, response.text)
         return ordered
@@ -304,6 +451,8 @@ class FlightRecorder:
         occurred_at: Optional[str] = None,
         links: Optional[list[TraceLink]] = None,
         telemetry: Optional["TelemetryBlock"] = None,
+        model: Optional[Any] = None,
+        **kwargs: Any,
     ) -> PromptEvent:
         """Emit a prompt event synchronously.
 
@@ -323,6 +472,8 @@ class FlightRecorder:
             occurred_at=occurred_at,
             links=links,
             telemetry=telemetry,
+            model=model,
+            **kwargs,
         )
         self.emit(event)
         return event
@@ -339,6 +490,8 @@ class FlightRecorder:
         status: TraceEventStatus = TraceEventStatus.ok,
         streaming_telemetry: Optional[dict[str, Any]] = None,
         telemetry: Optional["TelemetryBlock"] = None,
+        model: Optional[Any] = None,
+        **kwargs: Any,
     ) -> ResponseEvent:
         """Emit a response event synchronously.
 
@@ -359,6 +512,8 @@ class FlightRecorder:
             status=status,
             streaming_telemetry=streaming_telemetry,
             telemetry=telemetry,
+            model=model,
+            **kwargs,
         )
         self.emit(event)
         return event
@@ -605,6 +760,8 @@ class FlightRecorder:
         occurred_at: Optional[str] = None,
         links: Optional[list[TraceLink]] = None,
         telemetry: Optional["TelemetryBlock"] = None,
+        model: Optional[Any] = None,
+        **kwargs: Any,
     ) -> PromptEvent:
         """Emit a prompt event asynchronously."""
         event = build_prompt_event(
@@ -618,6 +775,8 @@ class FlightRecorder:
             occurred_at=occurred_at,
             links=links,
             telemetry=telemetry,
+            model=model,
+            **kwargs,
         )
         await self.emit_async(event)
         return event
@@ -634,6 +793,8 @@ class FlightRecorder:
         status: TraceEventStatus = TraceEventStatus.ok,
         streaming_telemetry: Optional[dict[str, Any]] = None,
         telemetry: Optional["TelemetryBlock"] = None,
+        model: Optional[Any] = None,
+        **kwargs: Any,
     ) -> ResponseEvent:
         """Emit a response event asynchronously."""
         event = build_response_event(
@@ -649,6 +810,8 @@ class FlightRecorder:
             status=status,
             streaming_telemetry=streaming_telemetry,
             telemetry=telemetry,
+            model=model,
+            **kwargs,
         )
         await self.emit_async(event)
         return event

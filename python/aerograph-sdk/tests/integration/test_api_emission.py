@@ -1,6 +1,7 @@
 import pytest
 import httpx
 from aerograph_sdk.recorder import FlightRecorder
+from aerograph_sdk.ids import new_trace_id, new_span_id
 from aerograph_sdk.events import build_prompt_event
 
 
@@ -14,8 +15,8 @@ def test_sdk_api_emission():
     recorder = FlightRecorder(endpoint="http://localhost:4317", actor={"id": "integration-test"})
 
     event = build_prompt_event(
-        trace_id="t_int_123",
-        span_id="s_int_123",
+        trace_id=new_trace_id(),
+        span_id=new_span_id(),
         parent_span_id=None,
         actor_id="test_actor",
         actor_name="Test Actor",

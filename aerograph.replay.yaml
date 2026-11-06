@@ -1,0 +1,10 @@
+tools:
+  - match: https://openrouter.ai/*
+    toolName: openrouter_chat_completion
+    class: replay_safe
+  - match: https://api.weatherapi.com/*
+    toolName: live_weather_lookup
+    class: must_execute
+  - match: https://api.stripe.com/*
+    toolName: stripe_charge
+    class: must_execute

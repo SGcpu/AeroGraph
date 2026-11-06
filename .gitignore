@@ -14,6 +14,8 @@ apps/collector/data/
 Thumbs.db
 .agents/
 apps/collector/data/
+data/
+*.sqlite*
 
 # Python
 __pycache__/
@@ -36,5 +38,12 @@ docs/architecture
 AGENTS.md
 uv.lock
 bump.js
-fix-deps.js
 fix.js
+fix-deps.js
+
+int_docs/
+
+# Runtime cassettes, certs, and binaries
+.aerograph/
+.agent-replay/
+*.exe

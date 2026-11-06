@@ -335,3 +335,39 @@ async def test_async_span_context_manager(httpx_mock) -> None:
     async with recorder.async_span(parent_span_id="s_root") as ctx:
         assert "span_id" in ctx
         assert ctx["span_id"].startswith("s_")
+
+
+def test_collect_runtime_metadata() -> None:
+    recorder = make_recorder()
+    meta = recorder._collect_runtime_metadata()
+    assert "projectRoot" in meta
+    assert isinstance(meta["projectRoot"], str)
+
+
+def test_register_runtime_metadata_sync(httpx_mock) -> None:
+    httpx_mock.add_response(
+        url="http://localhost:4317/v1/traces/t_test_001/runtime-metadata",
+        status_code=201,
+        json={"ok": True},
+    )
+    recorder = make_recorder()
+    recorder.register_runtime_metadata()
+    assert recorder._runtime_metadata_registered is True
+    requests = httpx_mock.get_requests()
+    assert len(requests) == 1
+    assert requests[0].url.path == "/v1/traces/t_test_001/runtime-metadata"
+
+
+@pytest.mark.asyncio
+async def test_register_runtime_metadata_async(httpx_mock) -> None:
+    httpx_mock.add_response(
+        url="http://localhost:4317/v1/traces/t_test_001/runtime-metadata",
+        status_code=201,
+        json={"ok": True},
+    )
+    recorder = make_recorder()
+    await recorder.register_runtime_metadata_async()
+    assert recorder._runtime_metadata_registered is True
+    requests = httpx_mock.get_requests()
+    assert len(requests) == 1
+    assert requests[0].url.path == "/v1/traces/t_test_001/runtime-metadata"

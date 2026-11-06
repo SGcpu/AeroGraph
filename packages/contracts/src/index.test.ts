@@ -185,3 +185,52 @@ describe("contracts: trace-events parity fixtures", () => {
     });
   }
 });
+
+describe("contracts: replay metadata extension", () => {
+  const baseValidEvent = {
+    schemaVersion: traceEventSchemaVersion,
+    traceId: "t-replay-1",
+    spanId: "s-replay-1",
+    parentSpanId: null,
+    occurredAt: new Date().toISOString(),
+    actor: { kind: "agent", id: "agent-replay" },
+    kind: "prompt",
+    status: "ok",
+    title: "Replay Test",
+    payload: { text: "Hello replay" },
+    links: []
+  };
+
+  it("still parses existing v1.1.0 event without replay fields", () => {
+    const parsed = validateTraceEvent(baseValidEvent);
+    expect(parsed.traceId).toBe("t-replay-1");
+  });
+
+  it("accepts valid optional replay fields", () => {
+    const eventWithReplay = {
+      ...baseValidEvent,
+      replaySource: "cache",
+      requestKey: "abc123sha256",
+      tokensSaved: 42,
+      replayLatencyMs: 3.5,
+      streamingPreserved: true,
+      overridden: false
+    };
+    const parsed = validateTraceEvent(eventWithReplay);
+    expect(parsed.replaySource).toBe("cache");
+    expect(parsed.requestKey).toBe("abc123sha256");
+    expect(parsed.tokensSaved).toBe(42);
+    expect(parsed.replayLatencyMs).toBe(3.5);
+    expect(parsed.streamingPreserved).toBe(true);
+    expect(parsed.overridden).toBe(false);
+  });
+
+  it("rejects invalid replaySource values", () => {
+    const eventWithBadReplaySource = {
+      ...baseValidEvent,
+      replaySource: "invalid_source"
+    };
+    expect(() => validateTraceEvent(eventWithBadReplaySource)).toThrow();
+  });
+});
+

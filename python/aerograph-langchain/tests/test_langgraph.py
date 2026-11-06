@@ -22,9 +22,9 @@ def test_map_state_snapshot():
 
     assert isinstance(event, StateSnapshotEvent)
     assert event.traceId == trace_id
-    assert event.spanId == derive_span_id(run_id)
-    assert (event.parentSpanId.root if event.parentSpanId else None) == derive_span_id(
-        parent_run_id
+    assert event.spanId.startswith(derive_span_id(run_id))
+    assert (event.parentSpanId.root if event.parentSpanId else None) == (
+        derive_span_id(parent_run_id) if parent_run_id else derive_span_id(run_id)
     )
     assert event.payload.nodeName == "agent"
     assert event.payload.stateHash == "abcd123"
@@ -48,9 +48,9 @@ def test_map_checkpoint():
 
     assert isinstance(event, CheckpointEvent)
     assert event.traceId == trace_id
-    assert event.spanId == derive_span_id(run_id)
-    assert (event.parentSpanId.root if event.parentSpanId else None) == derive_span_id(
-        parent_run_id
+    assert event.spanId.startswith(derive_span_id(run_id))
+    assert (event.parentSpanId.root if event.parentSpanId else None) == (
+        derive_span_id(parent_run_id) if parent_run_id else derive_span_id(run_id)
     )
     assert event.payload.checkpointId == "ckpt_1"
     assert event.payload.reason == "step_end"

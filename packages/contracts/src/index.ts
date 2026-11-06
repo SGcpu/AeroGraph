@@ -62,6 +62,30 @@ export const traceLinkSchema = z.object({
   spanId: z.string().min(1)
 });
 
+import { replaySourceSchema } from "./cassette.js";
+
+export const replayMetaSchema = z.object({
+  /** "cache" = served from cassette, "live" = real network call. Null if not a replay run. */
+  replaySource: replaySourceSchema.nullable().optional(),
+  /** SHA-256 content key K(method ‖ normalizedUrl ‖ bodyHash) used for cassette lookup. */
+  requestKey: z.string().nullable().optional(),
+  /** Estimated tokens saved vs. a live call. Null for live calls or non-LLM spans. */
+  tokensSaved: z.number().int().nonnegative().nullable().optional(),
+  /** Wall-clock time in ms to hydrate this span from cassette. Null for live calls. */
+  replayLatencyMs: z.number().nonnegative().nullable().optional(),
+  /** False if streaming chunks could not be preserved individually in the cassette. */
+  streamingPreserved: z.boolean().nullable().optional(),
+  /** True if this span's response was manually overridden by aerorepl /override. */
+  overridden: z.boolean().nullable().optional(),
+  /** Replay decision: "cache_hit" | "must_execute" | "fallback" | "live_record" */
+  decision: z.string().nullable().optional(),
+  /** Matched rule pattern from aerograph.replay.yaml */
+  matchedPattern: z.string().nullable().optional(),
+  /** Safety class from aerograph.replay.yaml: "replay_safe" | "must_execute" */
+  effectiveClass: z.string().nullable().optional()
+});
+export type ReplayMeta = z.infer<typeof replayMetaSchema>;
+
 const baseEventSchema = z.object({
   schemaVersion: z.union([
     z.literal(traceEventSchemaVersion),
@@ -83,7 +107,26 @@ const baseEventSchema = z.object({
   /** Deployment environment (e.g. development, staging, production). */
   environment: z.string().min(1).optional(),
   /** Arbitrary key-value telemetry tags. */
-  tags: z.record(z.string(), z.string()).optional()
+  tags: z.record(z.string(), z.string()).optional(),
+  // ── Replay Metadata Fields (v1.1.0 additive, all optional) ──
+  /** "cache" = served from cassette, "live" = real network call. Null if not a replay run. */
+  replaySource: replaySourceSchema.nullable().optional(),
+  /** SHA-256 content key K(method ‖ normalizedUrl ‖ bodyHash) used for cassette lookup. */
+  requestKey: z.string().nullable().optional(),
+  /** Estimated tokens saved vs. a live call. Null for live calls or non-LLM spans. */
+  tokensSaved: z.number().int().nonnegative().nullable().optional(),
+  /** Wall-clock time in ms to hydrate this span from cassette. Null for live calls. */
+  replayLatencyMs: z.number().nonnegative().nullable().optional(),
+  /** False if streaming chunks could not be preserved individually in the cassette. */
+  streamingPreserved: z.boolean().nullable().optional(),
+  /** True if this span's response was manually overridden by aerorepl /override. */
+  overridden: z.boolean().nullable().optional(),
+  /** Replay decision: "cache_hit" | "must_execute" | "fallback" | "live_record" */
+  decision: z.string().nullable().optional(),
+  /** Matched rule pattern from aerograph.replay.yaml */
+  matchedPattern: z.string().nullable().optional(),
+  /** Safety class from aerograph.replay.yaml: "replay_safe" | "must_execute" */
+  effectiveClass: z.string().nullable().optional()
 });
 
 export const promptPayloadSchema = z.object({ 
@@ -241,7 +284,15 @@ export const traceMetaSchema = z.object({
     .optional(),
   projectId: z.string().min(1).optional(),
   environment: z.string().min(1).optional(),
-  isDeleted: z.boolean().optional()
+  isDeleted: z.boolean().optional(),
+  replayRun: z
+    .object({
+      runId: z.string().min(1),
+      mode: z.enum(["record", "replay", "fork"]),
+      cassetteRunId: z.string().nullable().optional(),
+      sourceTraceId: z.string().nullable().optional()
+    })
+    .optional()
 });
 export type TraceMeta = z.infer<typeof traceMetaSchema>;
 
@@ -280,7 +331,14 @@ export const traceAnalysisSchema = z.object({
     totalTokens: z.number().int().nonnegative().nullable().optional(),
     totalDurationMs: z.number().int().nonnegative().nullable().optional(),
     modelNamesUsed: z.array(z.string()).optional()
-  })
+  }),
+  routingSummary: z
+    .object({
+      cacheHits: z.number().int().nonnegative(),
+      liveCalls: z.number().int().nonnegative(),
+      unclassifiedWarnings: z.number().int().nonnegative()
+    })
+    .optional()
 });
 export type TraceAnalysis = z.infer<typeof traceAnalysisSchema>;
 
@@ -302,7 +360,9 @@ export const modelBreakdownEntrySchema = z.object({
   spanCount: z.number().int().nonnegative(),
   inputTokens: z.number().int().nonnegative().optional(),
   outputTokens: z.number().int().nonnegative().optional(),
-  totalTokens: z.number().int().nonnegative().optional()
+  totalTokens: z.number().int().nonnegative().optional(),
+  cachedTokens: z.number().int().nonnegative().optional(),
+  liveTokens: z.number().int().nonnegative().optional()
 });
 export type ModelBreakdownEntry = z.infer<typeof modelBreakdownEntrySchema>;
 
@@ -324,6 +384,19 @@ export const traceStatsSchema = z.object({
   totalOutputTokens: z.number().int().nonnegative().nullable(),
   /** Sum of totalTokens across all response spans with usage data. */
   totalTokens: z.number().int().nonnegative().nullable(),
+  // ── Scenario-Aware Token Accounting ─────────────────────────────────────
+  /** Execution mode of the run: record, replay, or fork. */
+  executionMode: z.enum(["record", "replay", "fork"]).optional(),
+  /** Tokens executed live over the wire during this specific run (billable). */
+  liveInputTokens: z.number().int().nonnegative().nullable().optional(),
+  liveOutputTokens: z.number().int().nonnegative().nullable().optional(),
+  liveTotalTokens: z.number().int().nonnegative().nullable().optional(),
+  /** Tokens served from local cassette cache or inherited pre-fork ($0.00). */
+  cachedInputTokens: z.number().int().nonnegative().nullable().optional(),
+  cachedOutputTokens: z.number().int().nonnegative().nullable().optional(),
+  cachedTotalTokens: z.number().int().nonnegative().nullable().optional(),
+  /** Percentage of workflow tokens served from cache (0-100). */
+  savingsPercentage: z.number().min(0).max(100).nullable().optional(),
   // ── Duration ────────────────────────────────────────────────────────────
   /** Sum of durationMs across all spans that carry that field. */
   totalDurationMs: z.number().int().nonnegative().nullable(),
@@ -388,7 +461,24 @@ export const traceDiffResultSchema = z.object({
       bSpanId: z.string().min(1).optional(),
       reason: z.string().min(1)
     })
-  )
+  ),
+  statsDelta: z
+    .object({
+      totalTokensDelta: z.number().int(),
+      inputTokensDelta: z.number().int(),
+      outputTokensDelta: z.number().int(),
+      durationDeltaMs: z.number().int(),
+      liveTokensB: z.number().int().nonnegative().optional(),
+      savingsPercentageB: z.number().min(0).max(100).optional()
+    })
+    .optional(),
+  loopDelta: z
+    .object({
+      aLoopCount: z.number().int().nonnegative(),
+      bLoopCount: z.number().int().nonnegative(),
+      resolved: z.boolean()
+    })
+    .optional()
 });
 export type TraceDiffResult = z.infer<typeof traceDiffResultSchema>;
 
@@ -446,3 +536,6 @@ export function validateTraceStats(input: unknown): TraceStats {
 }
 
 export * from "./utils/hash.js";
+export * from "./cassette.js";
+export * from "./orchestrator.js";
+export * from "./policy.js";

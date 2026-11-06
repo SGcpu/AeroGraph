@@ -1,37 +1,51 @@
-name: Python SDK & Adapter
+name: Python Matrix Test Suite
 
 on:
   push:
-    branches: [main]
+    branches: [main, '00*']
   pull_request:
     paths:
       - "python/**"
       - "packages/schema-exporter/artifacts/**"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: Python ${{ matrix.python-version }} Tests
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Install uv
         run: pip install uv
+
       - name: Install aerograph-sdk dependencies
-        run: uv pip install --system -e python/aerograph-sdk[dev]
+        run: uv pip install --system -e python/aerograph-sdk[dev] pytest-asyncio
+
       - name: Install aerograph-langchain dependencies
         run: uv pip install --system -e python/aerograph-langchain[dev]
+
       - name: Install aerograph-otel dependencies
         run: uv pip install --system -e python/aerograph-otel[dev]
+
       - name: Test aerograph-sdk
         run: pytest python/aerograph-sdk/tests
+
       - name: Test aerograph-langchain
         run: pytest python/aerograph-langchain/tests
+
       - name: Test aerograph-otel
         run: pytest python/aerograph-otel/src/aerograph_otel/tests
+
       - name: Check Model Drift
         run: python python/aerograph-sdk/tools/check_generated_contracts.py
