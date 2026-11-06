@@ -90,6 +90,20 @@ describe("aerorepl CLI (T073)", () => {
 
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
+
+  it("renders landing screen when invoked with no arguments", async () => {
+    vi.spyOn(mockClient, "listRuns").mockResolvedValue([]);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const program = createProgram(mockClient);
+    await program.parseAsync(["node", "aerorepl"]);
+
+    expect(logSpy).toHaveBeenCalled();
+    const calls = logSpy.mock.calls.map((c) => c[0]).join("\n");
+    expect(calls).toContain("Flight Recorder for Autonomous AI Workflows");
+    expect(calls).toContain("System Health:");
+    expect(calls).toContain("Quick Commands:");
+  });
 });
 
 describe("aerorepl REPL session subcommands (T074)", () => {

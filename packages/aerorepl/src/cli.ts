@@ -4,6 +4,7 @@ import { Command } from "commander";
 import readline from "readline";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import yaml from "js-yaml";
 import { AereplClient, SessionInfo } from "./client.js";
 import {
@@ -165,6 +166,117 @@ export async function handleSessionCommand(
   return `Unknown session command: ${trimmed}. Type /step, /inspect <spanId>, /override <spanId> <json>, /rewind <N>, /fork <spanId>, or /quit.`;
 }
 
+export async function renderLandingScreen(
+  config: AerographProjectConfig,
+  client: AereplClient
+): Promise<void> {
+  const cyan = "\x1b[36m";
+  const brightCyan = "\x1b[1;36m";
+  const green = "\x1b[32m";
+  const yellow = "\x1b[33m";
+  const dim = "\x1b[90m";
+  const bold = "\x1b[1m";
+  const reset = "\x1b[0m";
+
+  const banner = `
+${brightCyan}   ___  ___ ___  ___   ____ ___    _   ___ _  _ 
+  / _ \\/ __| _ \\/ _ \\ / ___| _ \\  /_\\ | _ \\ || |
+ / /_\\ \\ _| |   / (_) | | _| |   / _ \\|  _/ __ |
+/_/   \\_\\___|_|_\\\\___/ \\____|_| /_/ \\_\\_| |_||_|${reset}
+${cyan}Flight Recorder for Autonomous AI Workflows${reset} ${dim}· v0.3.0${reset}
+`;
+
+  console.log(banner);
+
+  const collectorUrl = client.collectorUrl || config.collectorUrl || "http://localhost:4317";
+  const orchestratorUrl = client.orchestratorUrl || config.orchestratorUrl || "http://localhost:4318";
+
+  let collectorOnline = false;
+  let orchestratorOnline = false;
+  let recentRuns: any[] = [];
+
+  try {
+    const colRes = await fetch(`${collectorUrl}/v1/traces`, {
+      signal: AbortSignal.timeout(600),
+      headers: { Accept: "application/json" }
+    });
+    if (colRes.ok) collectorOnline = true;
+  } catch {}
+
+  try {
+    const runs = await client.listRuns();
+    orchestratorOnline = true;
+    if (Array.isArray(runs)) {
+      recentRuns = runs.slice(0, 3);
+    }
+  } catch {}
+
+  // Check replay binary
+  const ext = process.platform === "win32" ? ".exe" : "";
+  let binaryFound = false;
+  try {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const possiblePaths = [
+      process.env.AERO_REPLAY_CORE_BIN,
+      path.resolve(process.cwd(), "packages", "replay-core", "bin", `aerograph-replay-core${ext}`),
+      path.resolve(process.cwd(), "bin", `aerograph-replay-core${ext}`),
+      path.resolve(__dirname, "..", "..", "replay-core", "bin", `aerograph-replay-core${ext}`),
+      path.resolve(__dirname, "..", "..", "..", "packages", "replay-core", "bin", `aerograph-replay-core${ext}`)
+    ].filter(Boolean) as string[];
+    binaryFound = possiblePaths.some((p) => fs.existsSync(p));
+  } catch {}
+
+  // Check project config
+  const projectCmd =
+    Array.isArray(config.command) && config.command.length > 0
+      ? config.command.join(" ")
+      : "Not configured (run 'aerorepl config set <cmd>' to save)";
+
+  console.log(`${bold}System Health:${reset}`);
+  console.log(
+    `  ${dim}●${reset} Collector:     ${
+      collectorOnline ? `${green}🟢 Online${reset}  (${collectorUrl})` : `${dim}⚪ Offline${reset} (${collectorUrl})`
+    }`
+  );
+  console.log(
+    `  ${dim}●${reset} Orchestrator:  ${
+      orchestratorOnline ? `${green}🟢 Online${reset}  (${orchestratorUrl})` : `${dim}⚪ Offline${reset} (${orchestratorUrl})`
+    }`
+  );
+  console.log(
+    `  ${dim}●${reset} Replay Proxy:  ${
+      binaryFound ? `${green}🟢 Ready${reset}   (aerograph-replay-core${ext})` : `${yellow}🟡 Build needed${reset} (go build in packages/replay-core)`
+    }`
+  );
+  console.log(`  ${dim}●${reset} Project Agent: ${cyan}${projectCmd}${reset}`);
+
+  if (recentRuns.length > 0) {
+    console.log(`\n${bold}Recent Executions:${reset}`);
+    for (const r of recentRuns) {
+      const statusIcon = r.status === "completed" ? `${green}✓${reset}` : `${yellow}⚠${reset}`;
+      const modeBadge =
+        r.mode === "replay"
+          ? `${green}[replay · $0.00]${reset}`
+          : r.mode === "fork"
+          ? `${cyan}[fork & resume]${reset}`
+          : `${dim}[record]${reset}`;
+      const dateStr = r.startedAt ? new Date(r.startedAt).toLocaleTimeString() : "";
+      console.log(`  ${statusIcon} ${bold}${r.runId}${reset} ${modeBadge} ${dim}${r.command?.join(" ") || ""} (${dateStr})${reset}`);
+    }
+  }
+
+  console.log(`\n${bold}Quick Commands:${reset}`);
+  console.log(`  ${brightCyan}aerorepl record <cmd>${reset}      Record an agent run into a deterministic cassette`);
+  console.log(`  ${brightCyan}aerorepl replay <runId>${reset}    Replay a run from cassette at zero cost ($0.00, <5ms)`);
+  console.log(`  ${brightCyan}aerorepl session <runId>${reset}   Interactive step-by-step REPL debugger (/step, /override)`);
+  console.log(`  ${brightCyan}aerorepl list${reset}              List all recorded, replayed, and forked runs`);
+  console.log(`  ${brightCyan}aerorepl config${reset}            View or update project command & tool safety policies`);
+
+  console.log(`\n${dim}Web UI:${reset}     http://localhost:5173`);
+  console.log(`${dim}Need help?${reset} Run ${cyan}aerorepl --help${reset} for complete command flags and options.\n`);
+}
+
 export function createProgram(customClient?: AereplClient): Command {
   const config = getProjectConfig();
   const client =
@@ -176,7 +288,10 @@ export function createProgram(customClient?: AereplClient): Command {
     .name("aerorepl")
     .description("Interactive CLI for AeroGraph deterministic replay, recording, and step inspection.")
     .version("0.3.0")
-    .enablePositionalOptions();
+    .enablePositionalOptions()
+    .action(async () => {
+      await renderLandingScreen(config, client);
+    });
 
   function handleError(err: any) {
     console.error(`Error: ${err.message || String(err)}`);
