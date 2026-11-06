@@ -23,7 +23,7 @@
   "scripts": {
     "build": "npm run build -w @aerograph/contracts -w @aerograph/sdk -w @aerograph/adapter-langchain -w @aerograph/schema-exporter -w @aerograph/otel -w @aerograph/aerorepl -w apps-collector -w apps-demo -w apps-web",
     "dev": "npm run --workspaces --if-present dev",
-    "test": "npm run build -w @aerograph/contracts -w @aerograph/sdk -w @aerograph/adapter-langchain -w @aerograph/schema-exporter -w @aerograph/otel && npm run --workspaces --if-present test",
+    "test": "npm run build && npm run --workspaces --if-present test",
     "test:integration": "vitest run tests/integration",
     "lint": "npm run --workspaces --if-present lint",
     "schema:export": "npm run build -w @aerograph/contracts -w @aerograph/schema-exporter && npm run schema:export -w @aerograph/schema-exporter",
