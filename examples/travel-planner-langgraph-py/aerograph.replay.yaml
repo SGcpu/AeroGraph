@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../../packages/contracts/schemas/aerograph-replay-yaml.schema.json
+tools:
+  # OpenRouter model calls are cached deterministically during replay & fork (zero cost)
+  - match: "https://openrouter.ai/*"
+    toolName: "openrouter_chat_completion"
+    class: "replay_safe"
+

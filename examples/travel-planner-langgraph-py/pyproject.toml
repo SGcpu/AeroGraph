@@ -1,0 +1,19 @@
+[project]
+name = "travel-planner-langgraph-py"
+version = "0.1.0"
+description = "AeroGraph + LangGraph AI Travel Planner Agent Example"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aerograph-sdk",
+    "aerograph-langchain",
+    "langchain-openai>=0.1.0",
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+    "python-dotenv>=1.0.0",
+]
+
+[tool.uv.sources]
+aerograph-sdk = { path = "../../python/aerograph-sdk", editable = true }
+aerograph-langchain = { path = "../../python/aerograph-langchain", editable = true }
+
