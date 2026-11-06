@@ -13,7 +13,7 @@
     "@aerograph/sdk": "^0.4.0",
     "@aerograph/adapter-langchain": "^0.4.0",
     "langchain": "^0.3.0",
-    "@langchain/core": "^0.3.0"
+    "@langchain/core": "^1.2.2"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",

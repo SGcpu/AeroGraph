@@ -20,7 +20,7 @@ async function main() {
 
   console.log("Invoking model...");
   await model.invoke("Hello, how are you?", {
-    callbacks: [handler]
+    callbacks: [handler as any]
   });
 
   console.log("Done! Check the web UI to see the trace.");
