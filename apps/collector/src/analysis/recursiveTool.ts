@@ -25,11 +25,11 @@ function extractInputTokens(input: Record<string, unknown>): Set<string> {
     const lower = k.toLowerCase();
     if (lower === "attempt" || lower === "iteration" || lower === "retry" || lower === "count") continue;
     if (typeof v === "string") {
-      tokens.push(...v.toLowerCase().split(/[\s,._\-:;/?!&"'{}\[\]]+/));
+      tokens.push(...v.toLowerCase().split(/[\s,._\-:;/?!&"'{}[\]]+/));
     } else if (typeof v === "number" || typeof v === "boolean") {
       tokens.push(String(v));
     } else if (v && typeof v === "object") {
-      tokens.push(...JSON.stringify(v).toLowerCase().split(/[\s,._\-:;/?!&"'{}\[\]]+/));
+      tokens.push(...JSON.stringify(v).toLowerCase().split(/[\s,._\-:;/?!&"'{}[\]]+/));
     }
   }
   return new Set(tokens.filter((t) => t.length > 0));
