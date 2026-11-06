@@ -54,6 +54,7 @@
   - [How it works](#how-it-works)
   - [Scenario-Aware Analytics & Dual Token Accounting](#scenario-aware-analytics--dual-token-accounting)
   - [Tool Safety Policy](#tool-safety-policy)
+  - [Writing Replay-Ready Agent Scripts](#writing-replay-ready-agent-scripts)
   - [CLI Quickstart (`aerorepl`)](#cli-quickstart-aerorepl)
 - [Development & Running Components](#development--running-components)
   - [Prerequisites](#prerequisites)
@@ -202,6 +203,51 @@ AeroGraph's analytics engine provides transparent financial and performance acco
 - **Wire-Level Routing Summary**: Displays proxy intercept decisions directly in the telemetry header (`✓ X Cache Hits`, `⚡ Y Live Calls`, `⚠ Z Unclassified`).
 - **1-Click Base Comparison**: Any derived trace displays a `[ ⚖ Compare with Base ]` button that immediately opens the Myers diff comparison against its parent run.
 - **Diff Metric Cards**: The visual diff panel highlights **Tokens Delta**, **Duration Delta**, and flags whether an execution resolved a previous infinite loop (`✓ Loop resolved!`).
+
+### Writing Replay-Ready Agent Scripts
+
+AeroGraph executes agent workflows in an **automated, headless environment** when recording, replaying, or forking. To ensure smooth, crash-free execution, follow two simple practices:
+
+#### 1. Pass Inputs via Arguments or Environment Variables (Avoid bare `input()`)
+In background, UI-driven, or CI runs, no interactive keyboard terminal is attached. If a script calls bare `input()`, Python will encounter an `EOFError`.
+
+Instead, structure your script to accept inputs from CLI arguments or environment variables, with a safe fallback:
+
+```python
+import sys
+import os
+
+# ✅ Best Practice: Non-blocking, automated input
+if len(sys.argv) > 1:
+    user_query = " ".join(sys.argv[1:])
+elif os.getenv("AGENT_QUERY"):
+    user_query = os.getenv("AGENT_QUERY")
+elif sys.stdin.isatty():
+    user_query = input("Enter prompt: ")  # Only prompts if run directly in an interactive terminal
+else:
+    user_query = "Plan a 3-day trip to Kashmir from Mumbai"  # Automated fallback
+
+print(f"Running agent with query: {user_query}")
+```
+
+#### 2. Preserve AeroGraph's TLS Proxy Certificates
+When AeroGraph records or replays HTTPS traffic, it automatically manages `REQUESTS_CA_BUNDLE` and `SSL_CERT_FILE` with a local ephemeral certificate so it can inspect model and tool calls.
+
+Avoid hardcoding `certifi.where()` unconditionally over these variables in your code:
+
+```python
+import os
+import certifi
+
+# ❌ Avoid: Overwriting AeroGraph's injected CA bundle triggers SSL verification failures
+# os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+
+# ✅ Recommended: Only set default CA if not already provided by AeroGraph
+if "REQUESTS_CA_BUNDLE" not in os.environ:
+    os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+if "SSL_CERT_FILE" not in os.environ:
+    os.environ["SSL_CERT_FILE"] = certifi.where()
+```
 
 ### CLI Quickstart (`aerorepl`)
 ```bash

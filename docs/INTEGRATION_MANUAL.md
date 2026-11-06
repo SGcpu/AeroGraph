@@ -286,6 +286,11 @@ npx aerorepl record -- npm start
 3. Every outbound model completion and API call is captured to `.aerograph/cassettes/<runId>.json`.
 4. The output outputs the assigned `runId` and `traceId`.
 
+> [!TIP]
+> **Writing Replay-Ready Agent Scripts:**
+> * **Pass Inputs via Arguments/Environment Variables**: Background/Web UI runners are non-interactive. Avoid bare `input()` calls which throw `EOFError`. Accept inputs via `sys.argv` or `os.getenv("AGENT_QUERY")` with a fallback default.
+> * **Do Not Overwrite Proxy Certificates**: AeroGraph sets `REQUESTS_CA_BUNDLE` and `SSL_CERT_FILE` to trust the local MITM proxy. Avoid unconditionally doing `os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()` in your code, as this breaks proxy TLS verification.
+
 ---
 
 ### Step 2: Replay at Zero Cost ($0.00)
