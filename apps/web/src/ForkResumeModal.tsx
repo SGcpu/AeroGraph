@@ -247,6 +247,19 @@ export function ForkResumeModal({
                   boxSizing: "border-box"
                 }}
               />
+              {initialPromptText && (
+                <div
+                  style={{
+                    marginTop: "5px",
+                    fontSize: "11px",
+                    color: promptOverride.trim() !== initialPromptText.trim() ? "#4ade80" : "#facc15"
+                  }}
+                >
+                  {promptOverride.trim() !== initialPromptText.trim()
+                    ? "✓ Modified from parent — forked branch will execute live and show diff."
+                    : "Tip: Edit the text above so the forked branch diverges from the parent run."}
+                </div>
+              )}
             </div>
 
             {/* Execution Strategy Selection */}

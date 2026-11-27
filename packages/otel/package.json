@@ -1,6 +1,6 @@
 {
   "name": "@aerograph/otel",
-  "version": "0.4.0",
+  "version": "0.4.5",
   "private": false,
   "description": "OpenTelemetry bridge for AeroGraph — export/import OTLP traces.",
   "type": "module",
@@ -45,10 +45,10 @@
     "lint": "eslint ."
   },
   "peerDependencies": {
-    "@aerograph/contracts": "^0.4.0"
+    "@aerograph/contracts": "^0.4.5"
   },
   "dependencies": {
-    "@aerograph/contracts": "^0.4.0",
+    "@aerograph/contracts": "^0.4.5",
     "zod": "^3.23.0"
   },
   "devDependencies": {
