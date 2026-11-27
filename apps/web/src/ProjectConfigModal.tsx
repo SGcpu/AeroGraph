@@ -3,27 +3,35 @@ import type { Api } from "./api";
 
 export interface ProjectConfigModalProps {
   api: Api;
+  projectId?: string;
   onClose: () => void;
 }
 
-export function ProjectConfigModal({ api, onClose }: ProjectConfigModalProps): JSX.Element {
+export function ProjectConfigModal({ api, projectId, onClose }: ProjectConfigModalProps): JSX.Element {
   const [configContent, setConfigContent] = useState("");
   const [activeCommand, setActiveCommand] = useState<string | null>(null);
+  const [resolvedRoot, setResolvedRoot] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setConfigContent("");
+    setActiveCommand(null);
     async function load() {
       try {
-        const res = await api.getProjectConfig();
-        if (!cancelled && res?.config) {
-          if (res.config.command && Array.isArray(res.config.command)) {
-            setActiveCommand(res.config.command.join(" "));
-            setConfigContent(
-              `version: "1"\ncommand:\n${res.config.command.map((c: string) => `  - "${c}"`).join("\n")}\n`
-            );
+        const res = await api.getProjectConfig(projectId);
+        if (!cancelled) {
+          if (res?.projectRoot) setResolvedRoot(res.projectRoot);
+          if (res?.config) {
+            if (res.config.command && Array.isArray(res.config.command)) {
+              setActiveCommand(res.config.command.join(" "));
+              setConfigContent(
+                `version: "1"\ncommand:\n${res.config.command.map((c: string) => `  - "${c}"`).join("\n")}\n`
+              );
+            }
           }
         }
       } catch {
@@ -36,7 +44,7 @@ export function ProjectConfigModal({ api, onClose }: ProjectConfigModalProps): J
     return () => {
       cancelled = true;
     };
-  }, [api]);
+  }, [api, projectId]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,17 +59,17 @@ export function ProjectConfigModal({ api, onClose }: ProjectConfigModalProps): J
     }
 
     try {
-      let payload: { command?: string[]; yamlContent?: string };
+      let payload: { command?: string[]; yamlContent?: string; projectId?: string; projectRoot?: string };
       if (trimmed.includes("command:") || trimmed.includes("version:") || trimmed.includes("\n")) {
-        payload = { yamlContent: trimmed };
+        payload = { yamlContent: trimmed, projectId, projectRoot: resolvedRoot ?? undefined };
       } else {
-        payload = { command: trimmed.split(/\s+/) };
+        payload = { command: trimmed.split(/\s+/), projectId, projectRoot: resolvedRoot ?? undefined };
       }
 
       const res = await api.saveProjectConfig(payload);
       setStatusMessage({ text: `✓ Configuration saved and bound to project (${res.path || ".aerograph"})`, type: "success" });
       // Reload config
-      const refreshed = await api.getProjectConfig();
+      const refreshed = await api.getProjectConfig(projectId);
       if (refreshed?.config?.command) {
         setActiveCommand(Array.isArray(refreshed.config.command) ? refreshed.config.command.join(" ") : String(refreshed.config.command));
       }

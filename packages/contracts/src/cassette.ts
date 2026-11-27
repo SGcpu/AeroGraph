@@ -20,13 +20,40 @@ export const cassetteEntrySchema = z.object({
   streamingPreserved: z.boolean(),
   recordedAt: z.string().datetime(),
   /** AeroGraph span ID that triggered this request. Null if correlation failed. */
-  correlatedSpanId: z.string().nullable()
+  correlatedSpanId: z.string().nullable(),
+  /** Deterministic branch path for parallel fan-out correlation. */
+  branchId: z.string().nullable().optional(),
+  /** Per-branch monotonic sequence counter. */
+  localSeq: z.number().int().nonnegative().nullable().optional()
 });
 export type CassetteEntry = z.infer<typeof cassetteEntrySchema>;
 
+export const inboundTurnSchema = z.object({
+  channel: z.enum(["stdin", "http", "hitl"]).default("stdin"),
+  turn: z.number().int().nonnegative(),
+  prompt: z.string(),
+  payload: z.string(),
+  spanId: z.string().nullable().optional(),
+  recordedAt: z.string().datetime().optional()
+});
+export type InboundTurn = z.infer<typeof inboundTurnSchema>;
+
+export const localRetrievalEntrySchema = z.object({
+  provider: z.enum(["chromadb", "faiss", "lancedb"]),
+  queryKey: z.string().min(1),
+  collection: z.string().optional(),
+  queryArgs: z.record(z.string(), z.unknown()).optional(),
+  result: z.record(z.string(), z.unknown()),
+  spanId: z.string().nullable().optional(),
+  branchId: z.string().nullable().optional(),
+  localSeq: z.number().int().nonnegative().optional(),
+  recordedAt: z.string().datetime().optional()
+});
+export type LocalRetrievalEntry = z.infer<typeof localRetrievalEntrySchema>;
+
 export const cassetteSchema = z.object({
   /** Schema version for the cassette format itself. */
-  cassetteVersion: z.literal("1.0.0"),
+  cassetteVersion: z.enum(["1.0.0", "2.0.0"]),
   /** The AeroGraph run ID (also the cassette file name base). */
   runId: z.string().min(1),
   /** The AeroGraph trace ID produced during the record run. */
@@ -34,7 +61,11 @@ export const cassetteSchema = z.object({
   /** The shell command that was wrapped. */
   command: z.array(z.string()),
   recordedAt: z.string().datetime(),
-  entries: z.array(cassetteEntrySchema)
+  entries: z.array(cassetteEntrySchema),
+  /** Recorded inbound human_input / webhook turns (v2.0.0). */
+  inbound: z.array(inboundTurnSchema).optional(),
+  /** Recorded local in-process vector DB retrievals (v2.0.0). */
+  localRetrievals: z.array(localRetrievalEntrySchema).optional()
 });
 export type Cassette = z.infer<typeof cassetteSchema>;
 

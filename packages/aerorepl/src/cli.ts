@@ -344,7 +344,8 @@ export function createProgram(customClient?: AereplClient): Command {
           command: finalCommand,
           projectRoot: config.projectRoot,
           virtualEnv: virtualEnv ?? undefined,
-          executablePath: executablePath ?? undefined
+          executablePath: executablePath ?? undefined,
+          stdinMode: process.stdin.isTTY ? "inherit" : "pipe"
         });
         if (options.json) {
           console.log(JSON.stringify(res, null, 2));

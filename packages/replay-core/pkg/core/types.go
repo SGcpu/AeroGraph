@@ -62,6 +62,10 @@ type HTTPResponse struct {
 	RequestKey string `json:"requestKey,omitempty"`
 	// CorrelatedSpanId is the AeroGraph span ID from X-AeroGraph-Span-Id header, if present.
 	CorrelatedSpanId string `json:"correlatedSpanId,omitempty"`
+	// BranchId is the deterministic branch path from X-AeroGraph-Branch-Id, if present.
+	BranchId string `json:"branchId,omitempty"`
+	// LocalSeq is the per-branch monotonic sequence counter from X-AeroGraph-Local-Seq.
+	LocalSeq int `json:"localSeq,omitempty"`
 	// RecordedAt is the timestamp when this step was recorded.
 	RecordedAt string `json:"recordedAt,omitempty"`
 	// RecordLatencyMs is the actual network round-trip latency during recording.

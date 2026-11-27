@@ -28,6 +28,7 @@ from aerograph_sdk.contracts.generated import (
     StateSnapshotEvent,
     RetrieverEvent,
     CheckpointEvent,
+    HumanInputEvent,
 )
 
 # ---------------------------------------------------------------------------
@@ -65,6 +66,7 @@ KIND_TO_MODEL: dict[str, type] = {
     "state_snapshot": StateSnapshotEvent,
     "retriever": RetrieverEvent,
     "checkpoint": CheckpointEvent,
+    "human_input": HumanInputEvent,
 }
 
 

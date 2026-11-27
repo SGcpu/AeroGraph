@@ -1,3 +1,4 @@
+import { gzipSync } from "node:zlib";
 import { nanoid } from "nanoid";
 import {
   traceEventSchemaVersion,
@@ -6,8 +7,17 @@ import {
   type TelemetryUsage,
   validateTraceEvent
 } from "@aerograph/contracts";
+import { getCurrentBranchId } from "./context.js";
 
 export { buildCanonicalTelemetry, type CanonicalTelemetry } from "./telemetry/mapper.js";
+export {
+  getCurrentSpanId,
+  getCurrentBranchId,
+  nextLocalSeq,
+  resetBranchCounters,
+  childBranchId,
+  runWithSpanContext
+} from "./context.js";
 
 /** Canonical telemetry block — all fields optional, safe for v1.0.0 emitters. */
 export type TelemetryBlock = {
@@ -32,6 +42,10 @@ export type FlightRecorderOptions = {
   fetchFn?: typeof fetch;
   projectId?: string;
   environment?: string;
+  strictTelemetry?: boolean;
+  batching?: boolean;
+  batchSize?: number;
+  flushIntervalMs?: number;
 };
 
 export class FlightRecorder {
@@ -40,7 +54,14 @@ export class FlightRecorder {
   readonly actor: { id: string; name?: string };
   readonly projectId?: string;
   readonly environment?: string;
+  readonly strictTelemetry: boolean;
   private readonly fetchFn: typeof fetch;
+  private readonly useBatcher: boolean;
+  private readonly batchSize: number;
+  private readonly flushIntervalMs: number;
+  private readonly queue: TraceEvent[] = [];
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private flushing = false;
 
   constructor(options: FlightRecorderOptions) {
     this.endpoint = options.endpoint.replace(/\/$/, "");
@@ -49,21 +70,94 @@ export class FlightRecorder {
     this.projectId = options.projectId;
     this.environment = options.environment;
     this.fetchFn = options.fetchFn ?? fetch;
+    this.strictTelemetry = options.strictTelemetry ?? process.env.AEROGRAPH_STRICT_TELEMETRY === "true";
+    this.batchSize = Math.max(1, options.batchSize ?? 20);
+    this.flushIntervalMs = Math.max(10, options.flushIntervalMs ?? 50);
+    this.useBatcher =
+      options.batching ?? (!options.fetchFn && !this.strictTelemetry && process.env.NODE_ENV !== "test");
   }
 
   createSpanId(): string {
     return `s_${nanoid()}`;
   }
 
+  async flush(): Promise<void> {
+    if (this.flushTimer) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    if (this.flushing || this.queue.length === 0) return;
+    this.flushing = true;
+    try {
+      while (this.queue.length > 0) {
+        const batch = this.queue.splice(0, this.batchSize);
+        await this.postBatchWithRetry(batch);
+      }
+    } finally {
+      this.flushing = false;
+    }
+  }
+
+  private async postBatchWithRetry(batch: TraceEvent[]): Promise<void> {
+    const gz = gzipSync(Buffer.from(JSON.stringify({ events: batch }), "utf-8"));
+    const delays = [100, 200, 400];
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+      try {
+        const res = await this.fetchFn(`${this.endpoint}/v1/events`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "content-encoding": "gzip"
+          },
+          body: gz
+        });
+        if (res.ok) return;
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+          console.warn(`[AeroGraph] Dropping ${batch.length} telemetry event(s): HTTP ${res.status}`);
+          return;
+        }
+      } catch (err) {
+        if (attempt === delays.length) {
+          console.warn(`[AeroGraph] Collector unreachable, dropping ${batch.length} event(s):`, err);
+          return;
+        }
+      }
+      if (attempt < delays.length) {
+        await new Promise((r) => setTimeout(r, delays[attempt]));
+      }
+    }
+  }
+
   async emit(event: Omit<TraceEvent, "schemaVersion">): Promise<TraceEvent> {
     const baseEvent: any = { ...event };
     if (this.projectId && !("projectId" in baseEvent)) baseEvent.projectId = this.projectId;
     if (this.environment && !("environment" in baseEvent)) baseEvent.environment = this.environment;
+    const branchId = getCurrentBranchId();
+    if (branchId && branchId !== "root" && !("branchId" in baseEvent)) {
+      baseEvent.branchId = branchId;
+    }
 
     const fullEvent: TraceEvent = validateTraceEvent({
       ...baseEvent,
       schemaVersion: traceEventSchemaVersion
     });
+
+    if (this.useBatcher) {
+      if (this.queue.length >= 4096) {
+        this.queue.shift();
+      }
+      this.queue.push(fullEvent);
+      if (this.queue.length >= this.batchSize) {
+        void this.flush();
+      } else if (!this.flushTimer) {
+        this.flushTimer = setTimeout(() => {
+          this.flushTimer = null;
+          void this.flush();
+        }, this.flushIntervalMs);
+        this.flushTimer.unref?.();
+      }
+      return fullEvent;
+    }
 
     const res = await this.fetchFn(`${this.endpoint}/v1/events`, {
       method: "POST",
@@ -347,6 +441,36 @@ export class FlightRecorder {
         checkpointId: params.checkpointId,
         reason: params.reason,
         state: params.state
+      },
+      links: []
+    });
+  }
+
+  async humanInput(params: {
+    spanId?: string;
+    parentSpanId: string | null;
+    turn: number;
+    prompt: string;
+    text: string;
+    channel?: "stdin" | "http" | "hitl";
+    edited?: boolean;
+  }): Promise<TraceEvent> {
+    const spanId = params.spanId ?? this.createSpanId();
+    return this.emit({
+      traceId: this.traceId,
+      spanId,
+      parentSpanId: params.parentSpanId,
+      occurredAt: new Date().toISOString(),
+      actor: { kind: "system", id: this.actor.id, name: this.actor.name },
+      kind: "human_input",
+      status: "ok",
+      title: `Human Input (Turn ${params.turn})`,
+      payload: {
+        channel: params.channel ?? "stdin",
+        turn: params.turn,
+        prompt: params.prompt,
+        text: params.text,
+        edited: params.edited
       },
       links: []
     });

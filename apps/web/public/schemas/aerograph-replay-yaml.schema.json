@@ -4,7 +4,6 @@
   "title": "AeroGraphReplayPolicy",
   "description": "Tool safety policy schema for aerograph.replay.yaml",
   "type": "object",
-  "required": ["tools"],
   "properties": {
     "tools": {
       "type": "array",
@@ -29,6 +28,33 @@
         },
         "additionalProperties": false
       }
+    },
+    "normalization": {
+      "type": "object",
+      "description": "Transient token masking and header stripping rules for deterministic hashing",
+      "properties": {
+        "strip_headers": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "mask_json_keys": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "mask_regexes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["pattern"],
+            "properties": {
+              "pattern": { "type": "string", "minLength": 1 },
+              "replace": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

@@ -10,7 +10,8 @@ export const traceEventKindSchema = z.enum([
   "note",
   "state_snapshot",
   "retriever",
-  "checkpoint"
+  "checkpoint",
+  "human_input"
 ]);
 export type TraceEventKind = z.infer<typeof traceEventKindSchema>;
 
@@ -82,7 +83,11 @@ export const replayMetaSchema = z.object({
   /** Matched rule pattern from aerograph.replay.yaml */
   matchedPattern: z.string().nullable().optional(),
   /** Safety class from aerograph.replay.yaml: "replay_safe" | "must_execute" */
-  effectiveClass: z.string().nullable().optional()
+  effectiveClass: z.string().nullable().optional(),
+  /** Deterministic branch path for parallel fan-out correlation (v0.5.0). */
+  branchId: z.string().nullable().optional(),
+  /** Monotonic per-branch sequence counter for structural causal keys (v0.5.0). */
+  localSeq: z.number().int().nonnegative().nullable().optional()
 });
 export type ReplayMeta = z.infer<typeof replayMetaSchema>;
 
@@ -126,7 +131,11 @@ const baseEventSchema = z.object({
   /** Matched rule pattern from aerograph.replay.yaml */
   matchedPattern: z.string().nullable().optional(),
   /** Safety class from aerograph.replay.yaml: "replay_safe" | "must_execute" */
-  effectiveClass: z.string().nullable().optional()
+  effectiveClass: z.string().nullable().optional(),
+  /** Deterministic branch path for parallel fan-out correlation (v0.5.0). */
+  branchId: z.string().nullable().optional(),
+  /** Monotonic per-branch sequence counter for structural causal keys (v0.5.0). */
+  localSeq: z.number().int().nonnegative().nullable().optional()
 });
 
 export const promptPayloadSchema = z.object({ 
@@ -246,6 +255,20 @@ export const checkpointEventSchema = baseEventSchema.extend({
   payload: checkpointPayloadSchema
 });
 
+export const humanInputPayloadSchema = z.object({
+  channel: z.enum(["stdin", "http", "hitl"]).default("stdin"),
+  turn: z.number().int().nonnegative(),
+  prompt: z.string(),
+  text: z.string(),
+  edited: z.boolean().optional()
+});
+
+export const humanInputEventSchema = baseEventSchema.extend({
+  kind: z.literal("human_input"),
+  actor: systemActorSchema,
+  payload: humanInputPayloadSchema
+});
+
 export const traceEventSchema = z.discriminatedUnion("kind", [
   promptEventSchema,
   responseEventSchema,
@@ -256,7 +279,8 @@ export const traceEventSchema = z.discriminatedUnion("kind", [
   noteEventSchema,
   stateSnapshotEventSchema,
   retrieverEventSchema,
-  checkpointEventSchema
+  checkpointEventSchema,
+  humanInputEventSchema
 ]);
 
 export type TraceEvent = z.infer<typeof traceEventSchema>;

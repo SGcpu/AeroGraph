@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../../apps/web/public/schemas/aerograph-replay-yaml.schema.json
+tools:
+  - match: "https://openrouter.ai/*"
+    toolName: "openrouter_chat_completion"
+    class: "replay_safe"
+  - match: "https://api.tavily.com/*"
+    toolName: "tavily_search"
+    class: "replay_safe"
+  - match: "https://api.openweathermap.org/*"
+    toolName: "openweather_current"
+    class: "replay_safe"
+
+normalization:
+  strip_headers:
+    - "X-Request-Id"
+    - "Date"
+    - "Authorization"
+    - "X-Api-Key"
+    - "traceparent"
+    - "X-AeroGraph-*"
+  mask_json_keys:
+    - "session_id"
+    - "request_id"
+    - "timestamp"
+    - "created_at"
+  mask_regexes:
+    - pattern: "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z?"
+      replace: "[DYNAMIC_TIMESTAMP]"
+    - pattern: "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+      replace: "[DYNAMIC_UUID]"

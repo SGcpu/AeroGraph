@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./shim": {
+      "types": "./dist/shim.d.ts",
+      "import": "./dist/shim.js"
     }
   },
   "files": [

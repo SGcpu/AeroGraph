@@ -39,6 +39,14 @@ export type Api = {
   getAnalysis(traceId: string): Promise<TraceAnalysis>;
   getStats(traceId: string): Promise<TraceStats>;
   deleteTrace(traceId: string): Promise<void>;
+  startRecordRun(options?: {
+    command?: string[];
+    projectRoot?: string;
+    virtualEnv?: string | null;
+    executablePath?: string | null;
+  }): Promise<{ runId: string; traceId: string; status: string }>;
+  getInputWait(runId: string): Promise<{ waiting: boolean; turn: number | null; prompt: string | null }>;
+  submitInput(runId: string, turn: number, payload: string): Promise<{ ok: boolean }>;
   replayTrace(traceId: string, cassetteRunId?: string): Promise<ReplayRunResponse>;
   getRun(runId: string): Promise<GetRunResponse>;
   cancelRun(runId: string): Promise<{ success: boolean; message: string }>;
@@ -53,6 +61,7 @@ export type Api = {
       virtualEnv?: string;
       executablePath?: string;
       mode?: "fork" | "record";
+      inboundOverrides?: Record<string, string>;
     }
   ): Promise<ForkAndResumeResponse>;
   getRuntimeMetadata(traceId: string): Promise<{
@@ -65,8 +74,8 @@ export type Api = {
     cassetteRunId?: string | null;
     hasCassette?: boolean;
   } | null>;
-  getProjectConfig(): Promise<{ config: any }>;
-  saveProjectConfig(payload: { yamlContent?: string; command?: string | string[] }): Promise<{ ok: boolean; path: string }>;
+  getProjectConfig(projectId?: string): Promise<{ config: any; projectRoot?: string }>;
+  saveProjectConfig(payload: { yamlContent?: string; command?: string | string[]; projectId?: string; projectRoot?: string }): Promise<{ ok: boolean; path: string }>;
 };
 
 export function createApi(
@@ -169,9 +178,10 @@ export function createApi(
       return await res.json();
     },
 
-    async getProjectConfig() {
+    async getProjectConfig(projectId?: string) {
       try {
-        const res = await fetch(`${base}/v1/project/config`);
+        const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+        const res = await fetch(`${base}/v1/project/config${qs}`);
         if (!res.ok) return { config: null };
         return await res.json();
       } catch {
@@ -199,6 +209,43 @@ export function createApi(
       }
     },
 
+    async startRecordRun(options) {
+      const res = await fetch(`${orchBase}/v1/runs`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          mode: "record",
+          command: options?.command,
+          projectRoot: options?.projectRoot,
+          virtualEnv: options?.virtualEnv,
+          executablePath: options?.executablePath,
+          stdinMode: "pipe"
+        })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return await res.json();
+    },
+
+    async getInputWait(runId: string) {
+      try {
+        const res = await fetch(`${orchBase}/v1/runs/${encodeURIComponent(runId)}/input-wait`);
+        if (!res.ok) return { waiting: false, turn: null, prompt: null };
+        return await res.json();
+      } catch {
+        return { waiting: false, turn: null, prompt: null };
+      }
+    },
+
+    async submitInput(runId: string, turn: number, payload: string) {
+      const res = await fetch(`${orchBase}/v1/runs/${encodeURIComponent(runId)}/input-submit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ turn, payload })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return await res.json();
+    },
+
     async forkAndResume(traceId, forkFromSpanId, overrides, options) {
       const res = await fetch(`${base}/v1/traces/${encodeURIComponent(traceId)}/fork-and-resume`, {
         method: "POST",
@@ -211,7 +258,8 @@ export function createApi(
           projectRoot: options?.projectRoot,
           virtualEnv: options?.virtualEnv,
           executablePath: options?.executablePath,
-          mode: options?.mode
+          mode: options?.mode,
+          inboundOverrides: options?.inboundOverrides
         })
       });
       if (!res.ok) throw new Error(await res.text());

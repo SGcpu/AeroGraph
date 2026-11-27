@@ -40,3 +40,6 @@ security_report_agrepl.md
 .aerograph/
 .agent-replay/
 *.exe
+
+aerograph_architecture_deterministic_replay_blueprint.html
+aerograph_v0_5_build_spec.md

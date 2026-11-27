@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { Api } from "./api";
 import { RunStatusBadge } from "./RunStatusBadge";
+import { HumanInputModal } from "./HumanInputModal";
 import type { GetRunResponse } from "@aerograph/contracts";
 
 export interface ForkResumeModalProps {
@@ -492,6 +493,7 @@ export function ForkResumeModal({
             </div>
           </form>
         )}
+        <HumanInputModal api={api} runId={activeRunId} />
       </div>
     </div>
   );

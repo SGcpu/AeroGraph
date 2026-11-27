@@ -17,6 +17,26 @@ import { loadPolicy, computeLiveHosts } from "./policy.js";
 import { commandHasExistingScript, resolveCommandScriptPaths } from "./commandResolver.js";
 
 /**
+ * Resolves the default project root. When Collector runs via `npm run dev` inside
+ * `apps/collector`, `process.cwd()` is `.../apps/collector`; walk up to the
+ * monorepo root so `examples/*` and `.aerograph/` resolve correctly.
+ */
+export function resolveDefaultProjectRoot(cwd: string = process.cwd()): string {
+  if (process.env.AEROGRAPH_PROJECT_ROOT) {
+    return path.resolve(process.env.AEROGRAPH_PROJECT_ROOT);
+  }
+  const resolved = path.resolve(cwd);
+  if (
+    path.basename(resolved) === "collector" &&
+    path.basename(path.dirname(resolved)) === "apps" &&
+    fs.existsSync(path.resolve(resolved, "..", "..", "package.json"))
+  ) {
+    return path.resolve(resolved, "..", "..");
+  }
+  return resolved;
+}
+
+/**
  * Loads and parses aerograph.project.yaml from projectRoot if it exists,
  * traversing up parent directories until found or reaching filesystem root.
  */
@@ -110,7 +130,7 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
       sourceRun = store.getRunById(parsedReq.cassetteRunId);
     }
 
-    const projectRoot = parsedReq.projectRoot || sourceRun?.projectRoot || process.cwd();
+    let projectRoot = parsedReq.projectRoot || sourceRun?.projectRoot || resolveDefaultProjectRoot();
     const virtualEnv = parsedReq.virtualEnv ?? sourceRun?.virtualEnv ?? null;
     const executablePath = parsedReq.executablePath ?? sourceRun?.executablePath ?? null;
     const entrypoint = parsedReq.entrypoint ?? sourceRun?.entrypoint ?? null;
@@ -118,6 +138,9 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
 
     if (!command || command.length === 0) {
       const config = loadProjectConfig(projectRoot);
+      if (!parsedReq.projectRoot && !sourceRun?.projectRoot && config?.configDir) {
+        projectRoot = config.configDir;
+      }
       if (sourceRun && sourceRun.command && commandHasExistingScript(sourceRun.command, projectRoot)) {
         command = sourceRun.command;
       } else if (config && config.command && commandHasExistingScript(config.command, projectRoot)) {
@@ -130,6 +153,10 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
     }
 
     if (command && command.length > 0) {
+      // Split accidental multi-word first token like "uv run" into ["uv", "run"]
+      if (command[0] && /\s/.test(command[0]) && !fs.existsSync(command[0])) {
+        command = [...command[0].trim().split(/\s+/), ...command.slice(1)];
+      }
       command = resolveCommandScriptPaths(command, projectRoot);
     }
 
@@ -181,7 +208,9 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
       parentTraceId,
       liveHosts,
       virtualEnv,
-      executablePath
+      executablePath,
+      stdinMode: parsedReq.stdinMode,
+      inboundOverrides: parsedReq.inboundOverrides
     }).catch((err) => {
       console.error(`[Orchestrator] Run ${runId} encountered background error:`, err);
     });
@@ -202,6 +231,76 @@ export function createOrchestratorApp(store: SqliteTraceStore, runner: Runner): 
     });
 
     res.json({ success: true, message: `Run ${req.params.id} cancelled` });
+  });
+
+  // ── WP-3 & WP-4: Human Input Long-Poll, Inbound Turns & Local Retrievals ────
+  interface PendingInputState {
+    waiting: boolean;
+    turn: number | null;
+    prompt: string | null;
+    spanId?: string | null;
+    payload?: string;
+  }
+  const inputWaitStates = new Map<string, PendingInputState>();
+
+  app.post("/v1/runs/:id/input-wait", (req: Request, res: Response) => {
+    const runId = req.params.id;
+    const { turn, prompt, spanId } = req.body || {};
+    inputWaitStates.set(runId, {
+      waiting: true,
+      turn: typeof turn === "number" ? turn : 0,
+      prompt: typeof prompt === "string" ? prompt : "",
+      spanId: spanId ?? null
+    });
+    res.json({ ok: true, waiting: true });
+  });
+
+  app.get("/v1/runs/:id/input-wait", (req: Request, res: Response) => {
+    const state = inputWaitStates.get(req.params.id);
+    if (!state) {
+      return res.json({ waiting: false, turn: null, prompt: null });
+    }
+    res.json(state);
+  });
+
+  app.post("/v1/runs/:id/input-submit", (req: Request, res: Response) => {
+    const runId = req.params.id;
+    const { turn, payload } = req.body || {};
+    const prev = inputWaitStates.get(runId);
+    inputWaitStates.set(runId, {
+      waiting: false,
+      turn: typeof turn === "number" ? turn : (prev?.turn ?? 0),
+      prompt: prev?.prompt ?? "",
+      spanId: prev?.spanId ?? null,
+      payload: String(payload ?? "")
+    });
+    res.json({ ok: true, waiting: false });
+  });
+
+  app.post("/v1/runs/:id/inbound", (req: Request, res: Response) => {
+    const runId = req.params.id;
+    runner.addInboundTurn(runId, req.body || {});
+    res.status(201).json({ ok: true });
+  });
+
+  app.get("/v1/runs/:id/inbound", (req: Request, res: Response) => {
+    const runId = req.params.id;
+    const run = store.getRunById(runId);
+    const inbound = runner.getInboundTurns(runId, run?.projectRoot);
+    res.json({ inbound });
+  });
+
+  app.post("/v1/runs/:id/local-retrievals", (req: Request, res: Response) => {
+    const runId = req.params.id;
+    runner.addLocalRetrieval(runId, req.body || {});
+    res.status(201).json({ ok: true });
+  });
+
+  app.get("/v1/runs/:id/local-retrievals", (req: Request, res: Response) => {
+    const runId = req.params.id;
+    const run = store.getRunById(runId);
+    const localRetrievals = runner.getLocalRetrievals(runId, run?.projectRoot);
+    res.json({ localRetrievals });
   });
 
   // ── Interactive Session API (T075) ──────────────────────────────────────────

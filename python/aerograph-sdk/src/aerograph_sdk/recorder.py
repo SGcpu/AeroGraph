@@ -17,18 +17,26 @@ Usage (async):
 
 from __future__ import annotations
 
+import atexit
+from collections import deque
+import gzip
 import json
 import os
 import sys
+import threading
+import time
+import warnings
 from contextlib import contextmanager, asynccontextmanager
 from typing import Any, Optional, Union
 
 import httpx
 
+from aerograph_sdk.context import get_current_branch_id
 from aerograph_sdk.contracts.generated import (
     CheckpointEvent,
     ErrorEvent,
     HandoffEvent,
+    HumanInputEvent,
     NoteEvent,
     PromptEvent,
     ResponseEvent,
@@ -43,6 +51,7 @@ from aerograph_sdk.events import (
     build_checkpoint_event,
     build_error_event,
     build_handoff_event,
+    build_human_input_event,
     build_note_event,
     build_prompt_event,
     build_response_event,
@@ -69,6 +78,7 @@ _TraceEventModel = Union[
     StateSnapshotEvent,
     RetrieverEvent,
     CheckpointEvent,
+    HumanInputEvent,
 ]
 
 
@@ -107,6 +117,9 @@ class FlightRecorder:
         http_client: Optional[httpx.Client] = None,
         async_http_client: Optional[httpx.AsyncClient] = None,
         capture_runtime: Optional[bool] = None,
+        strict_telemetry: Optional[bool] = None,
+        batch_size: int = 20,
+        flush_interval_ms: int = 50,
     ) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.actor_id: str = actor["id"]  # type: ignore[assignment]
@@ -117,11 +130,34 @@ class FlightRecorder:
         self._http_client = http_client
         self._async_http_client = async_http_client
         self._runtime_metadata_registered: bool = False
+        self.strict_telemetry = (
+            strict_telemetry
+            if strict_telemetry is not None
+            else os.getenv("AEROGRAPH_STRICT_TELEMETRY", "false").lower() in ("true", "1")
+        )
+        self._batch_size = max(1, batch_size)
+        self._flush_interval_s = max(0.01, flush_interval_ms / 1000.0)
+        self._queue: deque[dict[str, Any]] = deque(maxlen=4096)
+        self._queue_lock = threading.Lock()
+        self._flush_event = threading.Event()
+        self._stop_event = threading.Event()
+        self._worker_thread: Optional[threading.Thread] = None
         if capture_runtime is None:
             is_pytest = "PYTEST_CURRENT_TEST" in os.environ
             self.capture_runtime = (not is_pytest) and os.getenv("AEROGRAPH_CAPTURE_RUNTIME", "true").lower() in ("true", "1")
         else:
             self.capture_runtime = capture_runtime
+
+        # Enable background async ring-buffer batching only when using real HTTP transport
+        self._use_background_batcher = (
+            self._http_client is None
+            and self._async_http_client is None
+            and not self.strict_telemetry
+            and "PYTEST_CURRENT_TEST" not in os.environ
+        )
+        if self._use_background_batcher:
+            self._start_worker()
+            atexit.register(self.flush)
 
     # ------------------------------------------------------------------
     # ID helpers
@@ -168,7 +204,10 @@ class FlightRecorder:
             data["projectId"] = self.project_id
         if self.environment is not None and "environment" not in data:
             data["environment"] = self.environment
-            
+        branch_id = get_current_branch_id()
+        if branch_id and branch_id != "root" and "branchId" not in data:
+            data["branchId"] = branch_id
+
         return data
 
     def _get_client(self) -> httpx.Client:
@@ -279,21 +318,87 @@ class FlightRecorder:
         """Explicitly register runtime execution metadata with the collector asynchronously."""
         await self._register_runtime_metadata_async()
 
+    def _start_worker(self) -> None:
+        if self._worker_thread is not None and self._worker_thread.is_alive():
+            return
+        self._worker_thread = threading.Thread(
+            target=self._batch_worker_loop,
+            name="aerograph-telemetry-flush",
+            daemon=True,
+        )
+        self._worker_thread.start()
+
+    def _batch_worker_loop(self) -> None:
+        while not self._stop_event.is_set():
+            self._flush_event.wait(timeout=self._flush_interval_s)
+            self._flush_event.clear()
+            self._drain_and_send()
+        self._drain_and_send()
+
+    def _drain_and_send(self) -> None:
+        while True:
+            batch: list[dict[str, Any]] = []
+            with self._queue_lock:
+                while self._queue and len(batch) < self._batch_size:
+                    batch.append(self._queue.popleft())
+            if not batch:
+                return
+            self._post_batch_with_retry(batch)
+
+    def _post_batch_with_retry(self, batch: list[dict[str, Any]]) -> None:
+        payload_bytes = json.dumps({"events": batch}).encode("utf-8")
+        gz_bytes = gzip.compress(payload_bytes)
+        headers = {
+            "content-type": "application/json",
+            "content-encoding": "gzip",
+        }
+        url = f"{self.endpoint}/v1/events"
+        delays = (0.1, 0.2, 0.4)
+        for attempt in range(len(delays) + 1):
+            try:
+                with httpx.Client(timeout=5.0) as client:
+                    resp = client.post(url, content=gz_bytes, headers=headers)
+                if resp.is_success:
+                    return
+                if 400 <= resp.status_code < 500 and resp.status_code != 429:
+                    warnings.warn(f"[AeroGraph] Dropping {len(batch)} telemetry event(s): HTTP {resp.status_code}")
+                    return
+            except Exception as exc:
+                if attempt == len(delays):
+                    warnings.warn(f"[AeroGraph] Collector unreachable, dropping {len(batch)} event(s): {exc}")
+                    return
+            if attempt < len(delays):
+                time.sleep(delays[attempt])
+
+    def flush(self, timeout: float = 2.0) -> None:
+        """Flush any queued background telemetry events."""
+        if not self._use_background_batcher:
+            return
+        self._drain_and_send()
+
+    def close(self) -> None:
+        """Flush and stop the background telemetry worker."""
+        if not self._use_background_batcher:
+            return
+        self._stop_event.set()
+        self._flush_event.set()
+        if self._worker_thread is not None and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=2.0)
+
     def emit(self, event: _TraceEventModel) -> _TraceEventModel:
         """
-        Emit a single event synchronously.
-
-        Args:
-            event: A validated TraceEvent model.
-
-        Returns:
-            The same event (for chaining).
-
-        Raises:
-            EmissionError: On non-2xx HTTP response.
+        Emit a single event synchronously (or enqueue when background batching is active).
         """
         if self.capture_runtime and not self._runtime_metadata_registered:
             self._register_runtime_metadata_sync()
+
+        if self._use_background_batcher:
+            with self._queue_lock:
+                self._queue.append(self._event_to_dict(event))
+                should_signal = len(self._queue) >= self._batch_size
+            if should_signal:
+                self._flush_event.set()
+            return event
 
         body = self._serialize_event(event)
         if self._http_client is not None:
@@ -315,19 +420,18 @@ class FlightRecorder:
 
     async def emit_async(self, event: _TraceEventModel) -> _TraceEventModel:
         """
-        Emit a single event asynchronously.
-
-        Args:
-            event: A validated TraceEvent model.
-
-        Returns:
-            The same event (for chaining).
-
-        Raises:
-            EmissionError: On non-2xx HTTP response.
+        Emit a single event asynchronously (or enqueue when background batching is active).
         """
         if self.capture_runtime and not self._runtime_metadata_registered:
             await self._register_runtime_metadata_async()
+
+        if self._use_background_batcher:
+            with self._queue_lock:
+                self._queue.append(self._event_to_dict(event))
+                should_signal = len(self._queue) >= self._batch_size
+            if should_signal:
+                self._flush_event.set()
+            return event
 
         body = self._serialize_event(event)
         if self._async_http_client is not None:
@@ -853,20 +957,16 @@ class FlightRecorder:
         *,
         span_id: Optional[str] = None,
         parent_span_id: Optional[str] = None,
+        branch_id: Optional[str] = None,
     ):
         """
-        Context manager for tracking a span lifecycle.
-
-        Yields a dict with ``span_id`` and ``parent_span_id`` for use
-        in event builders. Does not emit events automatically — callers
-        emit via recorder methods.
-
-        Example:
-            with recorder.span(parent_span_id=root_span) as ctx:
-                recorder.prompt(parent_span_id=ctx["parent_span_id"], ...)
+        Context manager for tracking a span lifecycle and propagating span/branch context.
         """
+        from aerograph_sdk.context import span_context
+
         sid = span_id or new_span_id()
-        yield {"span_id": sid, "parent_span_id": parent_span_id}
+        with span_context(sid, branch_id):
+            yield {"span_id": sid, "parent_span_id": parent_span_id, "branch_id": branch_id}
 
     @asynccontextmanager
     async def async_span(
@@ -874,11 +974,42 @@ class FlightRecorder:
         *,
         span_id: Optional[str] = None,
         parent_span_id: Optional[str] = None,
+        branch_id: Optional[str] = None,
     ):
         """
-        Async context manager for tracking a span lifecycle.
-
-        Yields a dict with ``span_id`` and ``parent_span_id``.
+        Async context manager for tracking a span lifecycle and propagating span/branch context.
         """
+        from aerograph_sdk.context import span_context
+
         sid = span_id or new_span_id()
-        yield {"span_id": sid, "parent_span_id": parent_span_id}
+        with span_context(sid, branch_id):
+            yield {"span_id": sid, "parent_span_id": parent_span_id, "branch_id": branch_id}
+
+    def human_input(
+        self,
+        *,
+        turn: int,
+        prompt: str,
+        text: str,
+        channel: str = "stdin",
+        edited: Optional[bool] = None,
+        parent_span_id: Optional[str] = None,
+        span_id: Optional[str] = None,
+        occurred_at: Optional[str] = None,
+        links: Optional[list[TraceLink]] = None,
+    ) -> HumanInputEvent:
+        """Emit a human_input event synchronously."""
+        event = build_human_input_event(
+            trace_id=self.trace_id,
+            turn=turn,
+            prompt=prompt,
+            text=text,
+            channel=channel,
+            edited=edited,
+            parent_span_id=parent_span_id,
+            span_id=span_id,
+            occurred_at=occurred_at,
+            links=links,
+        )
+        self.emit(event)
+        return event

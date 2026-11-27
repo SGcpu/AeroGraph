@@ -48,6 +48,7 @@ class TravelState(TypedDict):
     destination: str
     duration_days: int
     hotel_options: str
+    selected_hotel: str
     itinerary: str
     messages: List[BaseMessage]
 
@@ -127,10 +128,26 @@ def hotel_search_node(state: TravelState) -> dict:
     }
 
 
+def hotel_selection_node(state: TravelState) -> dict:
+    """Node 2.5: Ask the user to choose between the recommended hotels."""
+    hotels = state["hotel_options"]
+    choice = input(
+        f"\n🏨 Recommended Hotels:\n{hotels}\n\nChoose between the 2 hotels (1, 2, or hotel name): "
+    ).strip()
+    if not choice:
+        choice = "1"
+    print(f"   ✅ Selected Hotel: {choice}")
+    return {
+        "selected_hotel": choice,
+        "messages": [HumanMessage(content=f"Selected hotel: {choice}")],
+    }
+
+
 def itinerary_synthesizer_node(state: TravelState) -> dict:
     """Node 3: Synthesize day-by-day itinerary."""
     query = state["user_query"]
     hotels = state["hotel_options"]
+    selected_hotel = state.get("selected_hotel", "")
     print(f"\n📝 [Step 3: Itinerary Synthesizer] Compiling finalized travel schedule")
 
     if llm:
@@ -138,6 +155,7 @@ def itinerary_synthesizer_node(state: TravelState) -> dict:
             f"Create a practical, budget-aware day-by-day travel itinerary based on:\n"
             f"Request: {query}\n"
             f"Hotel Options:\n{hotels}\n"
+            f"User's Chosen Hotel: {selected_hotel}\n"
             "Format cleanly with Day 1, Day 2, Day 3 bullet points."
         )
         response = llm.invoke([HumanMessage(content=prompt)])
@@ -163,11 +181,13 @@ builder = StateGraph(TravelState)
 
 builder.add_node("planner", planner_node)
 builder.add_node("hotel_search", hotel_search_node)
+builder.add_node("hotel_selection", hotel_selection_node)
 builder.add_node("itinerary_synthesizer", itinerary_synthesizer_node)
 
 builder.add_edge(START, "planner")
 builder.add_edge("planner", "hotel_search")
-builder.add_edge("hotel_search", "itinerary_synthesizer")
+builder.add_edge("hotel_search", "hotel_selection")
+builder.add_edge("hotel_selection", "itinerary_synthesizer")
 builder.add_edge("itinerary_synthesizer", END)
 
 travel_graph = builder.compile()
@@ -177,15 +197,13 @@ travel_graph = builder.compile()
 # 6. Main Execution with AeroGraph Instrumentation
 # ---------------------------------------------------------------------------
 def main():
-    # Best Practice: Non-blocking input (supports CLI args, env var, or fallback)
+    # Zero-refactor input(): works in CLI TTY, headless Web UI modal, and 0ms deterministic replay
     if len(sys.argv) > 1:
         user_query = " ".join(sys.argv[1:])
-    elif os.getenv("TRAVEL_QUERY"):
-        user_query = os.getenv("TRAVEL_QUERY")
-    elif sys.stdin.isatty():
-        user_query = input("Enter travel request: ")
     else:
-        user_query = "Plan a 3-day trip to Kashmir from Mumbai"
+        user_query = input("Enter travel request (e.g. Plan a 3-day trip to Kashmir from Mumbai): ").strip()
+        if not user_query:
+            user_query = "Plan a 3-day trip to Kashmir from Mumbai"
 
     print("=" * 65)
     print("🚀 AeroGraph LangGraph Travel Planner")
@@ -213,6 +231,7 @@ def main():
         "destination": "",
         "duration_days": 0,
         "hotel_options": "",
+        "selected_hotel": "",
         "itinerary": "",
         "messages": [HumanMessage(content=user_query)],
     }

@@ -24,6 +24,7 @@ class TraceEventKind(Enum):
     state_snapshot = 'state_snapshot'
     retriever = 'retriever'
     checkpoint = 'checkpoint'
+    human_input = 'human_input'
 
 
 class TraceEventStatus(Enum):
@@ -141,6 +142,40 @@ class ParentSpanId(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
 
 
+class ReplaySource(Enum):
+    cache = 'cache'
+    live = 'live'
+
+
+class TokensSaved(RootModel[int]):
+    root: Annotated[int, Field(ge=0)]
+
+
+class ReplayLatencyMs(RootModel[float]):
+    root: Annotated[float, Field(ge=0.0)]
+
+
+class LocalSeq(RootModel[int]):
+    root: Annotated[int, Field(ge=0)]
+
+
+class Channel(Enum):
+    stdin = 'stdin'
+    http = 'http'
+    hitl = 'hitl'
+
+
+class HumanInputPayload(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    channel: Channel = 'stdin'
+    turn: Annotated[int, Field(ge=0)]
+    prompt: str
+    text: str
+    edited: bool | None = None
+
+
 class RootSpanId(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
 
@@ -153,6 +188,22 @@ class DerivedFrom(BaseModel):
     forkedFromSpanId: Annotated[str, Field(min_length=1)]
 
 
+class Mode(Enum):
+    record = 'record'
+    replay = 'replay'
+    fork = 'fork'
+
+
+class ReplayRun(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    runId: Annotated[str, Field(min_length=1)]
+    mode: Mode
+    cassetteRunId: str | None = None
+    sourceTraceId: str | None = None
+
+
 class TraceMeta(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -163,6 +214,10 @@ class TraceMeta(BaseModel):
     eventCount: Annotated[int, Field(ge=0)]
     rootSpanId: RootSpanId | None
     derivedFrom: DerivedFrom | None = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    isDeleted: bool | None = None
+    replayRun: ReplayRun | None = None
 
 
 class Id(RootModel[str]):
@@ -182,16 +237,51 @@ class AgentActor(BaseModel):
     name: Annotated[str | None, Field(min_length=1)] = None
 
 
+class HumanInputPayloadModel(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    channel: Channel = 'stdin'
+    turn: Annotated[int, Field(ge=0)]
+    prompt: str
+    text: str
+    edited: bool | None = None
+
+
+class BranchId(RootModel[str | None]):
+    root: str | None
+
+
+class Decision(RootModel[str | None]):
+    root: str | None
+
+
 class DurationMs(RootModel[int]):
     root: Annotated[int, Field(ge=0)]
+
+
+class EffectiveClass(RootModel[str | None]):
+    root: str | None
 
 
 class Environment(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
 
 
+class LocalSeqModel(RootModel[LocalSeq | None]):
+    root: LocalSeq | None
+
+
+class MatchedPattern(RootModel[str | None]):
+    root: str | None
+
+
 class OccurredAt(RootModel[AwareDatetime]):
     root: AwareDatetime
+
+
+class Overridden(RootModel[bool | None]):
+    root: bool | None
 
 
 class ParentSpanIdModel(RootModel[ParentSpanId | None]):
@@ -202,8 +292,24 @@ class ProjectId(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
 
 
+class ReplayLatencyMsModel(RootModel[ReplayLatencyMs | None]):
+    root: ReplayLatencyMs | None
+
+
+class ReplaySourceModel(RootModel[ReplaySource | None]):
+    root: ReplaySource | None
+
+
+class RequestKey(RootModel[str | None]):
+    root: str | None
+
+
 class SpanId(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
+
+
+class StreamingPreserved(RootModel[bool | None]):
+    root: bool | None
 
 
 class Tags(RootModel[dict[str, str]]):
@@ -212,6 +318,10 @@ class Tags(RootModel[dict[str, str]]):
 
 class Title(RootModel[str]):
     root: Annotated[str, Field(min_length=1)]
+
+
+class TokensSavedModel(RootModel[TokensSaved | None]):
+    root: TokensSaved | None
 
 
 class TraceId(RootModel[str]):
@@ -252,6 +362,16 @@ class TraceLink(BaseModel):
     spanId: Annotated[str, Field(min_length=1)]
 
 
+class ReplayRun1(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    runId: Annotated[str, Field(min_length=1)]
+    mode: Mode
+    cassetteRunId: str | None = None
+    sourceTraceId: str | None = None
+
+
 class TraceMetaModel(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -262,6 +382,10 @@ class TraceMetaModel(BaseModel):
     eventCount: Annotated[int, Field(ge=0)]
     rootSpanId: RootSpanId | None
     derivedFrom: DerivedFrom | None = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    isDeleted: bool | None = None
+    replayRun: ReplayRun1 | None = None
 
 
 class Actor(BaseModel):
@@ -319,6 +443,17 @@ class RetrieverEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['retriever']
     payload: RetrieverPayload
 
@@ -340,6 +475,17 @@ class StateSnapshotEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['state_snapshot']
     payload: StateSnapshotPayload
 
@@ -361,6 +507,17 @@ class ToolCallEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['tool_call']
     payload: ToolCallPayload
 
@@ -382,6 +539,17 @@ class ToolResultEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['tool_result']
     payload: ToolResultPayload
 
@@ -403,6 +571,17 @@ class PromptEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['prompt']
     payload: PromptPayload
 
@@ -424,6 +603,17 @@ class ResponseEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['response']
     payload: ResponsePayload
 
@@ -445,6 +635,17 @@ class HandoffEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['handoff']
     payload: HandoffPayload
 
@@ -466,6 +667,17 @@ class ErrorEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['error']
     payload: ErrorPayload
 
@@ -487,6 +699,17 @@ class NoteEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['note']
     payload: dict[str, Any]
 
@@ -508,8 +731,51 @@ class CheckpointEvent(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['checkpoint']
     payload: CheckpointPayload
+
+
+class HumanInputEvent(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: SchemaVersion
+    traceId: Annotated[str, Field(min_length=1)]
+    spanId: Annotated[str, Field(min_length=1)]
+    parentSpanId: ParentSpanId | None
+    occurredAt: AwareDatetime
+    actor: SystemActor
+    status: TraceEventStatus
+    title: Annotated[str | None, Field(min_length=1)] = None
+    links: list[TraceLink] | None = None
+    durationMs: Annotated[int | None, Field(ge=0)] = None
+    projectId: Annotated[str | None, Field(min_length=1)] = None
+    environment: Annotated[str | None, Field(min_length=1)] = None
+    tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
+    kind: Literal['human_input']
+    payload: HumanInputPayloadModel
 
 
 class PromptEventModel(BaseModel):
@@ -529,6 +795,17 @@ class PromptEventModel(BaseModel):
     projectId: Annotated[str | None, Field(min_length=1)] = None
     environment: Annotated[str | None, Field(min_length=1)] = None
     tags: dict[str, str] | None = None
+    replaySource: ReplaySource | None = None
+    requestKey: str | None = None
+    tokensSaved: TokensSaved | None = None
+    replayLatencyMs: ReplayLatencyMs | None = None
+    streamingPreserved: bool | None = None
+    overridden: bool | None = None
+    decision: str | None = None
+    matchedPattern: str | None = None
+    effectiveClass: str | None = None
+    branchId: str | None = None
+    localSeq: LocalSeq | None = None
     kind: Literal['prompt']
     payload: PromptPayload
 
@@ -551,6 +828,7 @@ class Trace(BaseModel):
         | StateSnapshotEvent
         | RetrieverEvent
         | CheckpointEvent
+        | HumanInputEvent
     ]
 
 
@@ -570,6 +848,7 @@ class TraceWithMeta(BaseModel):
         | StateSnapshotEvent
         | RetrieverEvent
         | CheckpointEvent
+        | HumanInputEvent
     ]
 
 
@@ -617,6 +896,8 @@ class AeroGraph(BaseModel):
     ]
     RetrieverEvent_1: Annotated[RetrieverEvent, Field(alias='RetrieverEvent')]
     CheckpointEvent_1: Annotated[CheckpointEvent, Field(alias='CheckpointEvent')]
+    HumanInputPayload_1: Annotated[HumanInputPayload, Field(alias='HumanInputPayload')]
+    HumanInputEvent_1: Annotated[HumanInputEvent, Field(alias='HumanInputEvent')]
     TraceEvent: (
         PromptEventModel
         | ResponseEvent
@@ -628,6 +909,7 @@ class AeroGraph(BaseModel):
         | StateSnapshotEvent
         | RetrieverEvent
         | CheckpointEvent
+        | HumanInputEvent
     )
     Trace_1: Annotated[Trace, Field(alias='Trace')]
     TraceMeta_1: Annotated[TraceMeta, Field(alias='TraceMeta')]
