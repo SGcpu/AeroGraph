@@ -177,15 +177,20 @@ export class Runner {
       overrideFile
     } = options;
     let liveHosts = options.liveHosts;
+    let normalizationFile: string | null = null;
 
-    // Load policy live-hosts if not explicitly passed
-    if (!liveHosts || liveHosts.length === 0) {
-      try {
-        const policy = loadPolicy(projectRoot);
+    // Load policy live-hosts & normalization rules
+    try {
+      const policy = loadPolicy(projectRoot) as any;
+      if (!liveHosts || liveHosts.length === 0) {
         liveHosts = computeLiveHosts(policy);
-      } catch {
-        // Policy optional if not configured
       }
+      if (policy?.normalization) {
+        normalizationFile = path.join(os.tmpdir(), `afr_norm_${runId}.json`);
+        fs.writeFileSync(normalizationFile, JSON.stringify(policy.normalization), "utf-8");
+      }
+    } catch {
+      // Policy optional if not configured
     }
 
     // Write prompt override JSON if provided
@@ -349,6 +354,10 @@ export class Runner {
         args.push("--override-file", effectiveOverrideFile);
       }
 
+      if (normalizationFile) {
+        args.push("--normalization-file", normalizationFile);
+      }
+
       args.push(targetCassetteId);
       args.push(...resolvedCommand);
     }
@@ -471,6 +480,10 @@ export class Runner {
 
       child.on("close", (exitCode: number | null) => {
         const completedAt = new Date().toISOString();
+
+        if (normalizationFile) {
+          try { fs.unlinkSync(normalizationFile); } catch { /* ignore */ }
+        }
 
         // Merge any Orchestrator-captured inbound / localRetrievals after replay-core exits (zero race)
         this.mergeSidecarDataIntoCassette(runId, projectRoot, cassetteRunId);

@@ -96,6 +96,13 @@ No CA key material persists after the process ends (FR-037).`,
 			}
 		}
 
+		// Apply normalization policy file if provided
+		if normFilePath, _ := cmd.Flags().GetString("normalization-file"); normFilePath != "" {
+			if err := httpInterceptor.LoadNormalizationFile(normFilePath); err != nil {
+				fmt.Fprintf(os.Stderr, "\033[33m[REPLAY] Warning: failed to load normalization file '%s': %v\033[0m\n", normFilePath, err)
+			}
+		}
+
 		modeStr := "STRICT (no network allowed)"
 		if fallback {
 			modeStr = "FALLBACK ENABLED (real network allowed)"
@@ -218,6 +225,7 @@ func init() {
 	replayCmd.Flags().String("live-hosts", "", "Comma-separated host glob patterns to always forward live (must_execute)")
 	replayCmd.Flags().String("annotation-log", "", "Path to write per-request annotation log (JSON array)")
 	replayCmd.Flags().String("override-file", "", "Path to JSON file containing prompt/span overrides")
+	replayCmd.Flags().String("normalization-file", "", "Path to JSON file containing transient masking rules")
 	rootCmd.AddCommand(replayCmd)
 }
 

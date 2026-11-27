@@ -15,6 +15,31 @@ import {
   AerographProjectConfig
 } from "./config.js";
 
+const c = {
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[90m",
+  cyan: "\x1b[36m",
+  brightCyan: "\x1b[1;36m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  red: "\x1b[31m",
+  magenta: "\x1b[35m",
+  blue: "\x1b[34m"
+};
+
+function formatModeBadge(mode: string): string {
+  if (mode === "replay") return `${c.green}[replay · $0.00]${c.reset}`;
+  if (mode === "fork") return `${c.cyan}[fork & resume]${c.reset}`;
+  return `${c.magenta}[record]${c.reset}`;
+}
+
+function formatStatusBadge(status: string): string {
+  if (status === "completed") return `${c.green}✓ completed${c.reset}`;
+  if (status === "running" || status === "pending") return `${c.yellow}⟳ ${status}${c.reset}`;
+  return `${c.red}✗ ${status}${c.reset}`;
+}
+
 function getProjectConfig(): AerographProjectConfig {
   try {
     return loadProjectConfig();
@@ -34,19 +59,32 @@ export async function handleSessionCommand(
 ): Promise<string> {
   const trimmed = input.trim();
 
+  if (trimmed === "/help" || trimmed === "?") {
+    return [
+      `${c.bold}Interactive Session Commands:${c.reset}`,
+      `  ${c.brightCyan}/step${c.reset}                          Advance to the next span and show a preview`,
+      `  ${c.brightCyan}/inspect <spanId>${c.reset}              Print full JSON payload for a span`,
+      `  ${c.brightCyan}/override <spanId> <text|@file>${c.reset} Override prompt text for a span before forking`,
+      `  ${c.brightCyan}/rewind <N>${c.reset}                    Rewind N steps and branch a new trace`,
+      `  ${c.brightCyan}/fork <spanId>${c.reset}                 Fork & resume from <spanId> with any overrides`,
+      `  ${c.brightCyan}/quit${c.reset}                          Exit the interactive REPL`
+    ].join("\n");
+  }
+
   if (trimmed === "/step") {
     const result = await client.stepSession(session.sessionId);
     session.currentStep = result.step;
     if (!result.spanSummary) {
       const runStatus = (session as any).runStatus;
       if (runStatus === "failed" || runStatus === "crashed") {
-        return `Step ${result.step}: No further spans (Run ${session.runId} ended with status '${runStatus}')`;
+        return `${c.yellow}Step ${result.step}:${c.reset} No further spans (Run ${session.runId} ended with status '${runStatus}')`;
       }
-      return `Step ${result.step}: No further spans`;
+      return `${c.dim}Step ${result.step}: End of trace (no further spans). Type /quit or /fork <spanId>.${c.reset}`;
     }
-    return `Step ${result.step}: ${result.spanSummary.kind} [${result.spanSummary.spanId}] (${
+    const statusColor = result.spanSummary.status === "error" ? c.red : c.green;
+    return `${c.bold}Step ${result.step}:${c.reset} ${c.cyan}[${result.spanSummary.kind}]${c.reset} ${c.bold}${result.spanSummary.spanId}${c.reset} ${statusColor}(${
       result.spanSummary.status || "ok"
-    })`;
+    })${c.reset}  ${c.dim}→ /inspect ${result.spanSummary.spanId}${c.reset}`;
   }
 
   if (trimmed.startsWith("/inspect")) {
@@ -160,10 +198,13 @@ export async function handleSessionCommand(
       config.projectRoot,
       config.command && config.command.length > 0 ? config.command : undefined
     );
-    return `Forked trace ${session.traceId} at ${spanId} -> child trace: ${result.childTraceId} (run: ${result.runId}, status: ${result.status})`;
+    return `${c.green}✓ Forked trace${c.reset} ${session.traceId} at ${c.bold}${spanId}${c.reset}\n` +
+      `  Child Trace: ${c.cyan}${result.childTraceId}${c.reset}\n` +
+      `  Run ID:      ${c.bold}${result.runId}${c.reset} (${result.status})\n` +
+      `  Inspect:     ${c.dim}aerorepl status ${result.runId}  |  http://localhost:5173${c.reset}`;
   }
 
-  return `Unknown session command: ${trimmed}. Type /step, /inspect <spanId>, /override <spanId> <json>, /rewind <N>, /fork <spanId>, or /quit.`;
+  return `${c.yellow}Unknown command:${c.reset} ${trimmed}. Type ${c.brightCyan}/help${c.reset} to see available commands.`;
 }
 
 export async function renderLandingScreen(
@@ -183,7 +224,7 @@ ${brightCyan}   ___  ___ ___  ___   ____ ___    _   ___ _  _
   / _ \\/ __| _ \\/ _ \\ / ___| _ \\  /_\\ | _ \\ || |
  / /_\\ \\ _| |   / (_) | | _| |   / _ \\|  _/ __ |
 /_/   \\_\\___|_|_\\\\___/ \\____|_| /_/ \\_\\_| |_||_|${reset}
-${cyan}Flight Recorder for Autonomous AI Workflows${reset} ${dim}· v0.3.0${reset}
+${cyan}Flight Recorder for Autonomous AI Workflows${reset} ${dim}· v0.4.5${reset}
 `;
 
   console.log(banner);
@@ -266,12 +307,18 @@ ${cyan}Flight Recorder for Autonomous AI Workflows${reset} ${dim}· v0.3.0${rese
     }
   }
 
+  const latestRunId = recentRuns[0]?.runId || "<runId>";
+  if (!collectorOnline || !orchestratorOnline) {
+    console.log(`\n${yellow}Tip:${c.reset} Start local services with ${brightCyan}npm run dev${reset} to enable recording, replay, and Web UI.`);
+  }
+
   console.log(`\n${bold}Quick Commands:${reset}`);
-  console.log(`  ${brightCyan}aerorepl record <cmd>${reset}      Record an agent run into a deterministic cassette`);
-  console.log(`  ${brightCyan}aerorepl replay <runId>${reset}    Replay a run from cassette at zero cost ($0.00, <5ms)`);
-  console.log(`  ${brightCyan}aerorepl session <runId>${reset}   Interactive step-by-step REPL debugger (/step, /override)`);
-  console.log(`  ${brightCyan}aerorepl list${reset}              List all recorded, replayed, and forked runs`);
-  console.log(`  ${brightCyan}aerorepl config${reset}            View or update project command & tool safety policies`);
+  console.log(`  ${brightCyan}aerorepl record <cmd>${reset}         Record an agent run into a deterministic cassette (add -w to watch)`);
+  console.log(`  ${brightCyan}aerorepl replay ${latestRunId}${reset}   Replay a run from cassette at zero cost ($0.00, <5ms)`);
+  console.log(`  ${brightCyan}aerorepl session ${latestRunId}${reset}  Interactive step-by-step REPL debugger (/step, /override, /fork)`);
+  console.log(`  ${brightCyan}aerorepl list${reset}                 List all recorded, replayed, and forked runs`);
+  console.log(`  ${brightCyan}aerorepl status ${latestRunId}${reset}   Check run status, errors, and trace ID`);
+  console.log(`  ${brightCyan}aerorepl config get${reset}           View project command & tool safety policies`);
 
   console.log(`\n${dim}Web UI:${reset}     http://localhost:5173`);
   console.log(`${dim}Need help?${reset} Run ${cyan}aerorepl --help${reset} for complete command flags and options.\n`);
@@ -298,12 +345,37 @@ export function createProgram(customClient?: AereplClient): Command {
     process.exit(1);
   }
 
+  async function watchRunUntilDone(runId: string): Promise<void> {
+    const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let frameIdx = 0;
+    while (true) {
+      const run = await client.getRun(runId);
+      if (run.status !== "pending" && run.status !== "running") {
+        if (process.stdout.isTTY) {
+          process.stdout.write("\r\x1b[K");
+        }
+        console.log(`\n${formatStatusBadge(run.status)}  Run ${c.bold}${run.runId}${c.reset} (Trace: ${c.cyan}${run.traceId}${c.reset})`);
+        if (run.errorMessage) {
+          console.log(`${c.red}Error:${c.reset} ${run.errorMessage}`);
+        }
+        console.log(`${c.dim}Next:${c.reset}  aerorepl replay ${run.runId}  |  aerorepl session ${run.runId}  |  http://localhost:5173`);
+        return;
+      }
+      if (process.stdout.isTTY) {
+        const spinner = frames[frameIdx++ % frames.length];
+        process.stdout.write(`\r${c.cyan}${spinner}${c.reset} Running ${c.bold}${runId}${c.reset} (${run.status})...`);
+      }
+      await new Promise((r) => setTimeout(r, 400));
+    }
+  }
+
   program
     .command("record [command...]")
     .description("Record an agent execution run (command optional if already configured)")
     .passThroughOptions()
     .option("--json", "Output response in JSON format")
-    .action(async (cmdArray: string[] | undefined, options: { json?: boolean }) => {
+    .option("-w, --watch", "Wait for run completion and print final status")
+    .action(async (cmdArray: string[] | undefined, options: { json?: boolean; watch?: boolean }) => {
       try {
         let finalCommand = cmdArray;
         if (!finalCommand || finalCommand.length === 0) {
@@ -353,6 +425,13 @@ export function createProgram(customClient?: AereplClient): Command {
           console.log(
             `Started record run ${res.runId} (trace: ${res.traceId}, status: ${res.status})`
           );
+          console.log(`  ${c.dim}Command:${c.reset} ${finalCommand.join(" ")}`);
+          console.log(`  ${c.dim}Web UI:${c.reset}  http://localhost:5173`);
+          if (options.watch) {
+            await watchRunUntilDone(res.runId);
+          } else {
+            console.log(`  ${c.dim}Next:${c.reset}    aerorepl status ${res.runId}  |  aerorepl replay ${res.runId}`);
+          }
         }
       } catch (err: any) {
         handleError(err);
@@ -502,7 +581,8 @@ export function createProgram(customClient?: AereplClient): Command {
     .command("replay <runId>")
     .description("Replay an existing run from cassette cache")
     .option("--json", "Output response in JSON format")
-    .action(async (runId: string, options: { json?: boolean }) => {
+    .option("-w, --watch", "Wait for replay completion and print final status")
+    .action(async (runId: string, options: { json?: boolean; watch?: boolean }) => {
       try {
         const res = await client.startRun({
           mode: "replay",
@@ -515,6 +595,12 @@ export function createProgram(customClient?: AereplClient): Command {
           console.log(
             `Started replay run ${res.runId} (trace: ${res.traceId}, status: ${res.status})`
           );
+          console.log(`  ${c.dim}Web UI:${c.reset} http://localhost:5173`);
+          if (options.watch) {
+            await watchRunUntilDone(res.runId);
+          } else {
+            console.log(`  ${c.dim}Next:${c.reset}   aerorepl status ${res.runId}  |  aerorepl session ${res.runId}`);
+          }
         }
       } catch (err: any) {
         handleError(err);
@@ -532,16 +618,17 @@ export function createProgram(customClient?: AereplClient): Command {
           console.log(JSON.stringify(runs, null, 2));
         } else {
           if (!runs || runs.length === 0) {
-            console.log("No runs found.");
+            console.log(`${c.dim}No runs found. Start one with:${c.reset} aerorepl record`);
             return;
           }
           console.log(
-            `${"RUN ID".padEnd(20)} ${"TRACE ID".padEnd(20)} ${"MODE".padEnd(10)} ${"STATUS".padEnd(12)} ${"STARTED"}`
+            `${c.bold}${"RUN ID".padEnd(20)} ${"TRACE ID".padEnd(20)} ${"MODE".padEnd(18)} ${"STATUS".padEnd(14)} ${"STARTED"}${c.reset}`
           );
-          console.log("-".repeat(80));
+          console.log(c.dim + "-".repeat(92) + c.reset);
           for (const run of runs) {
+            const started = run.startedAt ? new Date(run.startedAt).toLocaleString() : "N/A";
             console.log(
-              `${run.runId.padEnd(20)} ${run.traceId.padEnd(20)} ${run.mode.padEnd(10)} ${run.status.padEnd(12)} ${run.startedAt || "N/A"}`
+              `${c.bold}${run.runId.padEnd(20)}${c.reset} ${c.cyan}${run.traceId.padEnd(20)}${c.reset} ${formatModeBadge(run.mode).padEnd(27)} ${formatStatusBadge(run.status).padEnd(23)} ${c.dim}${started}${c.reset}`
             );
           }
         }
@@ -560,15 +647,16 @@ export function createProgram(customClient?: AereplClient): Command {
         if (options.json) {
           console.log(JSON.stringify(run, null, 2));
         } else {
-          console.log(`Run ID:        ${run.runId}`);
-          console.log(`Trace ID:      ${run.traceId}`);
-          console.log(`Mode:          ${run.mode}`);
-          console.log(`Status:        ${run.status}`);
-          console.log(`Started:       ${run.startedAt || "N/A"}`);
-          console.log(`Completed:     ${run.completedAt || "N/A"}`);
+          console.log(`${c.bold}Run ID:${c.reset}        ${run.runId}`);
+          console.log(`${c.bold}Trace ID:${c.reset}      ${c.cyan}${run.traceId}${c.reset}`);
+          console.log(`${c.bold}Mode:${c.reset}          ${formatModeBadge(run.mode)}`);
+          console.log(`${c.bold}Status:${c.reset}        ${formatStatusBadge(run.status)}`);
+          console.log(`${c.bold}Started:${c.reset}       ${run.startedAt ? new Date(run.startedAt).toLocaleString() : "N/A"}`);
+          console.log(`${c.bold}Completed:${c.reset}     ${run.completedAt ? new Date(run.completedAt).toLocaleString() : "N/A"}`);
           if (run.errorMessage) {
-            console.log(`Error:         ${run.errorMessage}`);
+            console.log(`${c.red}Error:${c.reset}         ${run.errorMessage}`);
           }
+          console.log(`${c.dim}Next:${c.reset}          aerorepl replay ${run.runId}  |  aerorepl session ${run.runId}`);
         }
       } catch (err: any) {
         handleError(err);
@@ -610,16 +698,16 @@ export function createProgram(customClient?: AereplClient): Command {
           // Non-blocking
         }
 
-        console.log(`Interactive REPL session started: ${session.sessionId} (Run: ${runId})`);
+        console.log(`${c.green}✓ Interactive REPL session started:${c.reset} ${c.bold}${session.sessionId}${c.reset} (Run: ${c.cyan}${runId}${c.reset})`);
         if (runStatus === "failed" || runStatus === "crashed") {
-          console.log(`⚠️  Warning: Run ${runId} has status '${runStatus}'.`);
+          console.log(`${c.yellow}⚠️  Warning: Run ${runId} has status '${runStatus}'.${c.reset}`);
           if (runErrorMessage) {
             const firstLine = runErrorMessage.trim().split("\n")[0];
             console.log(`   Error: ${firstLine}`);
           }
           console.log("   Cassette steps can be replayed and inspected, but live agent spans are not available.\n");
         }
-        console.log("Commands: /step, /inspect <spanId>, /override <spanId> [text|json|@file], /rewind <N>, /fork <spanId>, /quit\n");
+        console.log(`${c.dim}Commands: /step, /inspect <spanId>, /override <spanId> [text|json|@file], /rewind <N>, /fork <spanId>, /help, /quit${c.reset}\n`);
 
         const rl = readline.createInterface({
           input: process.stdin,

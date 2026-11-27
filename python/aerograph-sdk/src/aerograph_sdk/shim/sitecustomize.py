@@ -17,6 +17,7 @@ Features:
 from __future__ import annotations
 
 import builtins
+import contextvars
 import functools
 import hashlib
 import importlib.machinery
@@ -512,7 +513,30 @@ def _patch_lancedb(mod: Any) -> None:
         pass
 
 
+def _patch_concurrent(mod: Any) -> None:
+    """Propagate contextvars (X-AeroGraph-Span-Id/Branch-Id) across ThreadPoolExecutor.submit."""
+    try:
+        import concurrent.futures as _cf  # type: ignore
+
+        def _submit_wrapper(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+            if not args:
+                return wrapped(*args, **kwargs)
+            fn, *rest = args
+            ctx = contextvars.copy_context()
+
+            @functools.wraps(fn)
+            def _ctx_runner(*f_args: Any, **f_kwargs: Any) -> Any:
+                return ctx.run(fn, *f_args, **f_kwargs)
+
+            return wrapped(_ctx_runner, *rest, **kwargs)
+
+        _wrap_func(_cf.ThreadPoolExecutor, "submit", _submit_wrapper)
+    except Exception:
+        pass
+
+
 _PATCHERS: dict[str, Callable[[Any], None]] = {
+    "concurrent": _patch_concurrent,
     "httpx": _patch_httpx,
     "requests": _patch_requests,
     "aiohttp": _patch_aiohttp,

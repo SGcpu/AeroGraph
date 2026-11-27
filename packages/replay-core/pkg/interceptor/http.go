@@ -1084,6 +1084,36 @@ func (i *HTTPInterceptor) LoadOverrideFile(filePath string) error {
 	return nil
 }
 
+// LoadNormalizationFile loads transient token masking and header stripping rules from JSON.
+func (i *HTTPInterceptor) LoadNormalizationFile(filePath string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	var cfg NormalizationConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+	def := defaultNormalizationConfig()
+	if len(cfg.StripHeaders) == 0 {
+		cfg.StripHeaders = def.StripHeaders
+	}
+	if len(cfg.MaskJSONKeys) == 0 {
+		cfg.MaskJSONKeys = def.MaskJSONKeys
+	}
+	if len(cfg.MaskRegexes) == 0 {
+		cfg.MaskRegexes = def.MaskRegexes
+	}
+	cfg.compile()
+	i.Normalization = &cfg
+	for _, h := range cfg.StripHeaders {
+		if !strings.HasSuffix(h, "*") {
+			i.IgnoreHeaders = append(i.IgnoreHeaders, h)
+		}
+	}
+	return nil
+}
+
 // WriteAnnotationLog serializes the annotation log to JSON. Called by the Orchestrator
 // via --annotation-log flag after a run completes.
 func (i *HTTPInterceptor) WriteAnnotationLog() []byte {

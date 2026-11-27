@@ -9,6 +9,8 @@ export interface ForkResumeModalProps {
   baseTraceId: string;
   forkFromSpanId: string;
   initialPromptText?: string;
+  forkSpanKind?: string;
+  humanInputTurn?: number;
   onClose: () => void;
   onForkCompleted: (childTraceId: string, parentTraceId: string) => void;
 }
@@ -18,6 +20,8 @@ export function ForkResumeModal({
   baseTraceId,
   forkFromSpanId,
   initialPromptText,
+  forkSpanKind,
+  humanInputTurn,
   onClose,
   onForkCompleted
 }: ForkResumeModalProps): JSX.Element {
@@ -97,7 +101,12 @@ export function ForkResumeModal({
         });
         setManualGeneratedId(res.traceId);
       } else {
-        const overrides = promptOverride.trim() ? { promptText: promptOverride.trim() } : undefined;
+        const isHumanInput = forkSpanKind === "human_input";
+        const overrides = !isHumanInput && promptOverride.trim() ? { promptText: promptOverride.trim() } : undefined;
+        const inboundOverrides =
+          isHumanInput && promptOverride.trim()
+            ? { [String(humanInputTurn ?? 0)]: promptOverride.trim() }
+            : undefined;
         let commandOption: string[] | undefined;
         let yamlOption: string | undefined;
 
@@ -116,7 +125,8 @@ export function ForkResumeModal({
           projectRoot: runtimeMeta?.projectRoot,
           virtualEnv: runtimeMeta?.virtualEnv ?? undefined,
           executablePath: runtimeMeta?.executablePath ?? undefined,
-          mode: executionMode
+          mode: executionMode,
+          inboundOverrides
         });
         setChildTraceId(res.childTraceId);
         setActiveRunId(res.runId);
@@ -215,7 +225,9 @@ export function ForkResumeModal({
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
             <div>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 500, marginBottom: "6px", color: "#cbd5e1" }}>
-                Prompt Override (Optional)
+                {forkSpanKind === "human_input"
+                  ? `Human Input Override (Turn ${(humanInputTurn ?? 0) + 1})`
+                  : "Prompt Override (Optional)"}
               </label>
               <textarea
                 value={promptOverride}
