@@ -23,7 +23,11 @@ export const startRunRequestSchema = z.object({
   /** Optional: exact executable path (e.g. /path/to/.venv/bin/python) */
   executablePath: z.string().optional().nullable(),
   /** Optional: entrypoint script file */
-  entrypoint: z.string().optional().nullable()
+  entrypoint: z.string().optional().nullable(),
+  /** Optional: stdin mode ("inherit" for interactive CLI, "pipe" for headless UI/replay) */
+  stdinMode: z.enum(["inherit", "pipe"]).optional(),
+  /** Optional: edited human_input turns keyed by turn index */
+  inboundOverrides: z.record(z.string(), z.string()).optional()
 });
 export type StartRunRequest = z.infer<typeof startRunRequestSchema>;
 
@@ -71,9 +75,52 @@ export const forkAndResumeRequestSchema = z.object({
   virtualEnv: z.string().optional().nullable(),
   executablePath: z.string().optional().nullable(),
   entrypoint: z.string().optional().nullable(),
-  mode: runModeSchema.optional()
+  mode: runModeSchema.optional(),
+  inboundOverrides: z.record(z.string(), z.string()).optional()
 });
 export type ForkAndResumeRequest = z.infer<typeof forkAndResumeRequestSchema>;
+
+export const inputWaitRequestSchema = z.object({
+  turn: z.number().int().nonnegative(),
+  prompt: z.string(),
+  spanId: z.string().optional()
+});
+export type InputWaitRequest = z.infer<typeof inputWaitRequestSchema>;
+
+export const inputSubmitRequestSchema = z.object({
+  turn: z.number().int().nonnegative(),
+  payload: z.string()
+});
+export type InputSubmitRequest = z.infer<typeof inputSubmitRequestSchema>;
+
+export const inputWaitStateSchema = z.object({
+  waiting: z.boolean(),
+  turn: z.number().int().nonnegative().nullable(),
+  prompt: z.string().nullable(),
+  spanId: z.string().nullable().optional()
+});
+export type InputWaitState = z.infer<typeof inputWaitStateSchema>;
+
+export const inboundRecordRequestSchema = z.object({
+  channel: z.enum(["stdin", "http", "hitl"]).default("stdin"),
+  turn: z.number().int().nonnegative(),
+  prompt: z.string(),
+  payload: z.string(),
+  spanId: z.string().nullable().optional()
+});
+export type InboundRecordRequest = z.infer<typeof inboundRecordRequestSchema>;
+
+export const localRetrievalRecordRequestSchema = z.object({
+  provider: z.enum(["chromadb", "faiss", "lancedb"]),
+  queryKey: z.string().min(1),
+  collection: z.string().optional(),
+  queryArgs: z.record(z.string(), z.unknown()).optional(),
+  result: z.record(z.string(), z.unknown()),
+  spanId: z.string().nullable().optional(),
+  branchId: z.string().nullable().optional(),
+  localSeq: z.number().int().nonnegative().optional()
+});
+export type LocalRetrievalRecordRequest = z.infer<typeof localRetrievalRecordRequestSchema>;
 
 export const runtimeMetadataSchema = z.object({
   projectRoot: z.string().min(1),

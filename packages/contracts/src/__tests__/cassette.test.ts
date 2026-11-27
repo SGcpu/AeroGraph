@@ -61,8 +61,23 @@ describe("contracts: cassette schemas", () => {
     expect(parsed.entries).toHaveLength(1);
   });
 
+  it("validates a v2.0.0 cassette with inbound and localRetrievals", () => {
+    const v2 = {
+      ...validCassette,
+      cassetteVersion: "2.0.0" as const,
+      inbound: [{ channel: "stdin" as const, turn: 0, prompt: "You: ", payload: "hello" }],
+      localRetrievals: [
+        { provider: "chromadb" as const, queryKey: "qk_1", result: { documents: [["doc1"]] } }
+      ]
+    };
+    const parsed = validateCassette(v2);
+    expect(parsed.cassetteVersion).toBe("2.0.0");
+    expect(parsed.inbound).toHaveLength(1);
+    expect(parsed.localRetrievals).toHaveLength(1);
+  });
+
   it("rejects invalid cassetteVersion", () => {
-    const invalid = { ...validCassette, cassetteVersion: "2.0.0" } as any;
+    const invalid = { ...validCassette, cassetteVersion: "99.0.0" } as any;
     expect(() => validateCassette(invalid)).toThrow();
   });
 });

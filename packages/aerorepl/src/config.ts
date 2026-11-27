@@ -10,6 +10,30 @@ export interface AerographProjectConfig {
   projectRoot: string;
 }
 
+export function detectVirtualEnv(projectRoot: string = process.cwd()): {
+  virtualEnv: string | null;
+  executablePath: string | null;
+} {
+  const candidates = [
+    process.env.VIRTUAL_ENV,
+    process.env.CONDA_PREFIX,
+    path.join(projectRoot, ".venv"),
+    path.join(projectRoot, "venv"),
+    path.join(process.cwd(), ".venv"),
+    path.join(process.cwd(), "venv")
+  ].filter(Boolean) as string[];
+
+  for (const dir of candidates) {
+    if (!fs.existsSync(dir)) continue;
+    const venvBin = process.platform === "win32" ? path.join(dir, "Scripts") : path.join(dir, "bin");
+    const venvPy = process.platform === "win32" ? path.join(venvBin, "python.exe") : path.join(venvBin, "python");
+    if (fs.existsSync(venvPy)) {
+      return { virtualEnv: dir, executablePath: venvPy };
+    }
+  }
+  return { virtualEnv: null, executablePath: null };
+}
+
 export function findProjectConfigPath(cwd: string = process.cwd()): string | null {
   let currentDir = path.resolve(cwd);
   while (true) {

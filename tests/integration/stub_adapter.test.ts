@@ -39,7 +39,7 @@ describe("Framework-Agnostic Adapter Authoring & Replay Inheritance (US5 - T084,
     expect(importLines).not.toContain("aerorepl");
     expect(importLines).not.toContain("replay");
     expect(importLines).not.toContain("cassette");
-    
+    expect(importLines).not.toContain("agrepl");
     expect(importLines).toContain("aerograph_sdk");
   });
 

@@ -30,14 +30,17 @@ describe("ReplayControlPanel component", () => {
     forkAndResume: vi.fn(),
     getProjectConfig: vi.fn().mockResolvedValue({ config: null }),
     saveProjectConfig: vi.fn().mockResolvedValue({ ok: true, path: "/test" }),
-    getRuntimeMetadata: vi.fn().mockResolvedValue(null)
+    getRuntimeMetadata: vi.fn().mockResolvedValue(null),
+    startRecordRun: vi.fn().mockResolvedValue({ runId: "run-rec-1", traceId: "t-rec-1", status: "pending" }),
+    getInputWait: vi.fn().mockResolvedValue({ waiting: false, turn: null, prompt: null }),
+    submitInput: vi.fn().mockResolvedValue({ ok: true })
   };
 
-  it("renders empty when activeTraceId is null", () => {
+  it("renders Record Run button when activeTraceId is null", () => {
     const html = renderToString(
       <ReplayControlPanel api={mockApi} activeTraceId={null} />
     );
-    expect(html).toBe("");
+    expect(html).toContain("Record Run");
   });
 
   it("renders replay button when activeTraceId is present", () => {
@@ -73,7 +76,10 @@ describe("RunStatusBadge component", () => {
     forkAndResume: vi.fn(),
     getProjectConfig: vi.fn().mockResolvedValue({ config: null }),
     saveProjectConfig: vi.fn().mockResolvedValue({ ok: true, path: "/test" }),
-    getRuntimeMetadata: vi.fn().mockResolvedValue(null)
+    getRuntimeMetadata: vi.fn().mockResolvedValue(null),
+    startRecordRun: vi.fn(),
+    getInputWait: vi.fn().mockResolvedValue({ waiting: false, turn: null, prompt: null }),
+    submitInput: vi.fn().mockResolvedValue({ ok: true })
   };
 
   it("renders initial loading badge", () => {

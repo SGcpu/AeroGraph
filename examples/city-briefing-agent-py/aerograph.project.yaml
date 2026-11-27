@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../../apps/web/public/schemas/aerograph-project-yaml.schema.json
+version: "1"
+command:
+  - "python"
+  - "city_briefing_agent.py"
+
+collectorUrl: "http://127.0.0.1:4317"
+orchestratorUrl: "http://127.0.0.1:4318"

@@ -32,6 +32,7 @@ IGNORED_FILES = {
     ".env.example",
     "check_security_hygiene.py",
     "Feature-006-v2_Reality-Check-and-Revised-Approach.md",
+    "Feature-006-v2_AeroGraph-agrepl-Integration-Plan.md",
 }
 
 

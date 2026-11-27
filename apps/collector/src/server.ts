@@ -22,7 +22,7 @@ import { runMigrations } from "./sqlite/migrate";
 import { SqliteTraceStore } from "./sqliteStore";
 import { createOtlpIngestHandler } from "./otel/ingest";
 import { Runner } from "./replay/runner.js";
-import { createOrchestratorApp, loadProjectConfig } from "./replay/orchestrator.js";
+import { createOrchestratorApp, loadProjectConfig, resolveDefaultProjectRoot } from "./replay/orchestrator.js";
 import { commandHasExistingScript, resolveCommandScriptPaths } from "./replay/commandResolver.js";
 import { cassetteExists } from "./replay/cassette.js";
 
@@ -34,7 +34,7 @@ export type CreateAppOptions = {
 export function createApp(options: CreateAppOptions = {}): express.Express {
   const app = express();
   app.use(cors());
-  app.use(express.json({ limit: "2mb" }));
+  app.use(express.json({ limit: "16mb" }));
 
   const dbPath = options.dbPath ?? process.env.AFR_DB_PATH ?? "data/afr.sqlite";
   const db = getDatabase(dbPath);
@@ -65,14 +65,60 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     res.json({ ok: true });
   });
 
+  function resolveProjectRootForProject(projectId?: string, explicitRoot?: string): string {
+    if (explicitRoot) return explicitRoot;
+    const defaultRoot = resolveDefaultProjectRoot();
+    if (!projectId) return defaultRoot;
+
+    // 1. Check most recent trace/run for this projectId
+    try {
+      const { traces } = store.listTraces({ projectId });
+      for (const t of traces) {
+        const meta = store.getTraceRuntimeMetadata(t.traceId);
+        if (meta?.projectRoot && fs.existsSync(meta.projectRoot)) {
+          return meta.projectRoot;
+        }
+        const run = store.getRunByTraceId(t.traceId);
+        if (run?.projectRoot && fs.existsSync(run.projectRoot)) {
+          return run.projectRoot;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Match examples/<projectId>* directory in repo root
+    try {
+      const examplesDir = path.join(defaultRoot, "examples");
+      if (fs.existsSync(examplesDir)) {
+        const normProj = projectId.toLowerCase();
+        for (const entry of fs.readdirSync(examplesDir, { withFileTypes: true })) {
+          if (entry.isDirectory() && entry.name.toLowerCase().startsWith(normProj)) {
+            return path.join(examplesDir, entry.name);
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return defaultRoot;
+  }
+
   app.get("/v1/project/config", (req, res) => {
-    const projectRoot = (req.query.projectRoot as string) || process.cwd();
+    const projectRoot = resolveProjectRootForProject(
+      req.query.projectId as string | undefined,
+      req.query.projectRoot as string | undefined
+    );
     const config = loadProjectConfig(projectRoot);
-    res.json({ config: config || null });
+    res.json({ config: config ? { ...config, projectRoot: config.configDir || projectRoot } : null, projectRoot });
   });
 
   app.post("/v1/project/config", (req, res) => {
-    const projectRoot = (req.body.projectRoot as string) || process.cwd();
+    const projectRoot = resolveProjectRootForProject(
+      req.body.projectId as string | undefined,
+      req.body.projectRoot as string | undefined
+    );
     const { yamlContent, command } = req.body;
     try {
       const dotAerograph = path.join(projectRoot, ".aerograph");
@@ -99,8 +145,12 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.post("/v1/events", (req, res) => {
     try {
       const body = req.body;
-      const events = Array.isArray(body) ? body : [body];
-      const parsed = events.map((e) => validateTraceEvent(e));
+      const events = Array.isArray(body)
+        ? body
+        : Array.isArray(body?.events)
+          ? body.events
+          : [body];
+      const parsed = events.map((e: unknown) => validateTraceEvent(e));
       for (const event of parsed) {
         store.appendEvent(event);
       }
@@ -409,7 +459,8 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
       forkFromSpanId,
       forkOverrides: overrides,
       virtualEnv,
-      executablePath
+      executablePath,
+      inboundOverrides: parseResult.data.inboundOverrides
     }).catch((err) => {
       console.error(`[Server] Background ${executionMode} run ${runId} failed:`, err);
     });

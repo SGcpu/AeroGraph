@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,14 +44,137 @@ const (
 // It is consumed by the AeroGraph Orchestrator to produce span annotations.
 type AnnotationEntry struct {
 	RequestKey         string  `json:"requestKey"`
+	RequestURL         string  `json:"requestUrl,omitempty"`
 	CorrelatedSpanId   string  `json:"correlatedSpanId,omitempty"`
+	BranchId           string  `json:"branchId,omitempty"`
+	LocalSeq           int     `json:"localSeq,omitempty"`
 	ReplaySource       string  `json:"replaySource"` // "cache" | "live"
+	CachedReplay       bool    `json:"cachedReplay,omitempty"`
 	ReplayLatencyMs    float64 `json:"replayLatencyMs,omitempty"`
 	StreamingPreserved bool    `json:"streamingPreserved"`
 	Decision           string  `json:"decision"` // "cache_hit" | "cache_miss_error" | "must_execute" | "fallback" | "live_record"
 	MatchedPattern     string  `json:"matchedPattern,omitempty"`
 	EffectiveClass     string  `json:"effectiveClass,omitempty"` // "replay_safe" | "must_execute"
 	Overridden         bool    `json:"overridden,omitempty"`
+}
+
+// MaskRegexRule defines a regex pattern and replacement for transient token masking.
+type MaskRegexRule struct {
+	Pattern  string `json:"pattern" yaml:"pattern"`
+	Replace  string `json:"replace" yaml:"replace"`
+	compiled *regexp.Regexp
+}
+
+// NormalizationConfig controls header stripping and in-memory transient token masking for hashing.
+type NormalizationConfig struct {
+	StripHeaders []string        `json:"strip_headers" yaml:"strip_headers"`
+	MaskJSONKeys []string        `json:"mask_json_keys" yaml:"mask_json_keys"`
+	MaskRegexes  []MaskRegexRule `json:"mask_regexes" yaml:"mask_regexes"`
+}
+
+func defaultNormalizationConfig() *NormalizationConfig {
+	return &NormalizationConfig{
+		StripHeaders: []string{"X-Request-Id", "Date", "Authorization", "X-Api-Key", "traceparent", "X-AeroGraph-*"},
+		MaskJSONKeys: []string{"session_id", "request_id", "timestamp", "created_at"},
+		MaskRegexes: []MaskRegexRule{
+			{Pattern: `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?`, Replace: "[DYNAMIC_TIMESTAMP]"},
+			{Pattern: `[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`, Replace: "[DYNAMIC_UUID]"},
+		},
+	}
+}
+
+func (nc *NormalizationConfig) compile() {
+	if nc == nil {
+		return
+	}
+	for idx := range nc.MaskRegexes {
+		if nc.MaskRegexes[idx].compiled == nil && nc.MaskRegexes[idx].Pattern != "" {
+			if re, err := regexp.Compile(nc.MaskRegexes[idx].Pattern); err == nil {
+				nc.MaskRegexes[idx].compiled = re
+			}
+		}
+	}
+}
+
+func maskStringWithRegexes(s string, norm *NormalizationConfig) string {
+	if norm == nil {
+		return s
+	}
+	norm.compile()
+	out := s
+	for _, r := range norm.MaskRegexes {
+		if r.compiled != nil {
+			rep := r.Replace
+			if rep == "" {
+				rep = "[DYNAMIC_VALUE]"
+			}
+			out = r.compiled.ReplaceAllString(out, rep)
+		}
+	}
+	return out
+}
+
+func maskJSONValue(v any, maskKeys map[string]bool, norm *NormalizationConfig) any {
+	switch val := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(val))
+		for k, child := range val {
+			if maskKeys[strings.ToLower(k)] {
+				out[k] = "[MASKED_KEY]"
+			} else {
+				out[k] = maskJSONValue(child, maskKeys, norm)
+			}
+		}
+		return out
+	case []any:
+		out := make([]any, len(val))
+		for idx, child := range val {
+			out[idx] = maskJSONValue(child, maskKeys, norm)
+		}
+		return out
+	case string:
+		return maskStringWithRegexes(val, norm)
+	default:
+		return v
+	}
+}
+
+// CanonicalizeAndMaskBody returns a key-sorted, transient-masked copy of body for hashing only.
+func CanonicalizeAndMaskBody(body []byte, norm *NormalizationConfig) []byte {
+	if len(body) == 0 {
+		return body
+	}
+	if norm == nil {
+		norm = defaultNormalizationConfig()
+	}
+	maskKeys := make(map[string]bool, len(norm.MaskJSONKeys))
+	for _, k := range norm.MaskJSONKeys {
+		maskKeys[strings.ToLower(strings.TrimSpace(k))] = true
+	}
+
+	var parsed any
+	if err := json.Unmarshal(body, &parsed); err == nil {
+		masked := maskJSONValue(parsed, maskKeys, norm)
+		if canonical, err := json.Marshal(masked); err == nil {
+			return canonical
+		}
+	}
+	return []byte(maskStringWithRegexes(string(body), norm))
+}
+
+// StructuralRequestKey computes SHA-256(branchId || localSeq || method || normalizedURL || SHA-256(maskedBody)).
+// Falls back to content-only RequestKey when branchId is empty.
+func StructuralRequestKey(branchId string, localSeq int, method, normalizedURL string, body []byte, norm *NormalizationConfig) string {
+	maskedBody := CanonicalizeAndMaskBody(body, norm)
+	if strings.TrimSpace(branchId) == "" {
+		return RequestKey(method, normalizedURL, maskedBody)
+	}
+	bodyHash := sha256.Sum256(maskedBody)
+	bodyHashHex := hex.EncodeToString(bodyHash[:])
+	m := strings.ToUpper(strings.TrimSpace(method))
+	combined := branchId + "\n" + strconv.Itoa(localSeq) + "\n" + m + "\n" + normalizedURL + "\n" + bodyHashHex
+	h := sha256.Sum256([]byte(combined))
+	return hex.EncodeToString(h[:])
 }
 
 // OverrideConfig represents prompt/span substitutions supplied via --override-file.
@@ -87,7 +211,7 @@ type cassetteIndex struct {
 	used    map[int]bool
 }
 
-func newCassetteIndex(steps []core.Step, normalizeURL func(string) string) *cassetteIndex {
+func newCassetteIndex(steps []core.Step, normalizeURL func(string) string, norm *NormalizationConfig) *cassetteIndex {
 	ci := &cassetteIndex{
 		buckets: make(map[string][]int),
 		used:    make(map[int]bool),
@@ -96,8 +220,22 @@ func newCassetteIndex(steps []core.Step, normalizeURL func(string) string) *cass
 		if step.Type != core.StepTypeHTTP || step.Request == nil {
 			continue
 		}
-		key := RequestKey(step.Request.Method, normalizeURL(step.Request.URL), step.Request.Body)
-		ci.buckets[key] = append(ci.buckets[key], idx)
+		normURL := normalizeURL(step.Request.URL)
+		rawContentKey := RequestKey(step.Request.Method, normURL, step.Request.Body)
+		ci.buckets[rawContentKey] = append(ci.buckets[rawContentKey], idx)
+
+		maskedBody := CanonicalizeAndMaskBody(step.Request.Body, norm)
+		contentKey := RequestKey(step.Request.Method, normURL, maskedBody)
+		if contentKey != rawContentKey {
+			ci.buckets[contentKey] = append(ci.buckets[contentKey], idx)
+		}
+
+		if step.Response != nil && step.Response.BranchId != "" {
+			structKey := StructuralRequestKey(step.Response.BranchId, step.Response.LocalSeq, step.Request.Method, normURL, step.Request.Body, norm)
+			if structKey != contentKey {
+				ci.buckets[structKey] = append(ci.buckets[structKey], idx)
+			}
+		}
 	}
 	return ci
 }
@@ -122,7 +260,7 @@ func (ci *cassetteIndex) lookup(key string) int {
 
 // NewCassetteIndexExported exports newCassetteIndex for external benchmarks and tests.
 func NewCassetteIndexExported(steps []core.Step) *cassetteIndex {
-	return newCassetteIndex(steps, func(u string) string { return u })
+	return newCassetteIndex(steps, func(u string) string { return u }, defaultNormalizationConfig())
 }
 
 // LookupWithoutMarking inspects the cassette index for a matching step index without consuming the FIFO entry.
@@ -149,6 +287,7 @@ type HTTPInterceptor struct {
 	IgnoreHeaders     []string
 	IgnoreQueryParams []string
 	LiveHosts         []string // Host glob patterns that always go live (must_execute)
+	Normalization     *NormalizationConfig
 	AnnotationLog     []AnnotationEntry
 	OverrideConfig    *OverrideConfig
 	overrideApplied   bool
@@ -185,8 +324,9 @@ func NewHTTPInterceptor(mode Mode, s storage.Storage, currentRun *core.Run) *HTT
 		Mode:              mode,
 		Storage:           s,
 		CurrentRun:        currentRun,
-		IgnoreHeaders:     []string{"User-Agent", "Date", "Authorization", "X-Amz-Date"},
+		IgnoreHeaders:     []string{"User-Agent", "Date", "Authorization", "X-Amz-Date", "X-AeroGraph-Span-Id", "X-AeroGraph-Branch-Id", "X-AeroGraph-Local-Seq"},
 		IgnoreQueryParams: []string{"timestamp", "nonce", "api_key"},
+		Normalization:     defaultNormalizationConfig(),
 		AnnotationLog:     []AnnotationEntry{},
 	}
 }
@@ -373,6 +513,20 @@ func matchHostGlob(pattern, host string) bool {
 	return pattern == host
 }
 
+func extractAndStripAeroHeaders(req *http.Request) (spanId string, branchId string, localSeq int) {
+	spanId = req.Header.Get("X-AeroGraph-Span-Id")
+	branchId = req.Header.Get("X-AeroGraph-Branch-Id")
+	if seqStr := req.Header.Get("X-AeroGraph-Local-Seq"); seqStr != "" {
+		if parsed, err := strconv.Atoi(seqStr); err == nil && parsed >= 0 {
+			localSeq = parsed
+		}
+	}
+	req.Header.Del("X-AeroGraph-Span-Id")
+	req.Header.Del("X-AeroGraph-Branch-Id")
+	req.Header.Del("X-AeroGraph-Local-Seq")
+	return spanId, branchId, localSeq
+}
+
 // executeAndRecordLive executes an outbound live HTTP request, streaming chunks through to
 // the caller in real-time, while capturing, sanitizing, and persisting the step to the cassette.
 func (i *HTTPInterceptor) executeAndRecordLive(
@@ -380,6 +534,8 @@ func (i *HTTPInterceptor) executeAndRecordLive(
 	reqBodyBytes []byte,
 	normalizedURL string,
 	correlatedSpanId string,
+	branchId string,
+	localSeq int,
 	decision string,
 	effectiveClass string,
 	isOverridden bool,
@@ -395,7 +551,7 @@ func (i *HTTPInterceptor) executeAndRecordLive(
 	i.NetworkCallCount++
 	i.mu.Unlock()
 
-	reqKey := RequestKey(req.Method, normalizedURL, reqBodyBytes)
+	reqKey := StructuralRequestKey(branchId, localSeq, req.Method, normalizedURL, reqBodyBytes, i.Normalization)
 
 	contentType := resp.Header.Get("Content-Type")
 	isSSE := strings.Contains(contentType, "text/event-stream")
@@ -430,6 +586,8 @@ func (i *HTTPInterceptor) executeAndRecordLive(
 				StreamingPreserved: streamingPreserved,
 				RequestKey:         reqKey,
 				CorrelatedSpanId:   correlatedSpanId,
+				BranchId:           branchId,
+				LocalSeq:           localSeq,
 				RecordedAt:         time.Now().UTC().Format(time.RFC3339Nano),
 				RecordLatencyMs:    latencyMs,
 			},
@@ -447,8 +605,12 @@ func (i *HTTPInterceptor) executeAndRecordLive(
 
 		i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
 			RequestKey:         reqKey,
+			RequestURL:         sanitizeURL(req.URL.String()),
 			CorrelatedSpanId:   correlatedSpanId,
+			BranchId:           branchId,
+			LocalSeq:           localSeq,
 			ReplaySource:       "live",
+			CachedReplay:       false,
 			ReplayLatencyMs:    latencyMs,
 			StreamingPreserved: streamingPreserved,
 			Decision:           decision,
@@ -534,7 +696,7 @@ func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, er
 	}
 
 	normalizedURL := i.normalizeURL(req.URL.String())
-	correlatedSpanId := req.Header.Get("X-AeroGraph-Span-Id")
+	correlatedSpanId, branchId, localSeq := extractAndStripAeroHeaders(req)
 
 	isOverridden := false
 	if i.OverrideConfig != nil && !i.overrideApplied && i.OverrideConfig.PromptText != "" {
@@ -569,7 +731,7 @@ func (i *HTTPInterceptor) recordRoundTrip(req *http.Request) (*http.Response, er
 	fmt.Printf("%s[RECORD]%s Proxying HTTP: %s %s\n",
 		colorCyan, colorReset, req.Method, req.URL.String())
 
-	return i.executeAndRecordLive(req, reqBodyBytes, normalizedURL, correlatedSpanId, "live_record", "", isOverridden)
+	return i.executeAndRecordLive(req, reqBodyBytes, normalizedURL, correlatedSpanId, branchId, localSeq, "live_record", "", isOverridden)
 }
 
 // stripRolePrefix removes leading role tags like "human: ", "user: ", "system: ", "assistant: "
@@ -651,7 +813,7 @@ func RewriteRequestBodyPrompt(body []byte, originalPrompt, newPrompt string) ([]
 
 func (i *HTTPInterceptor) ensureCassetteIndex() {
 	i.idxOnce.Do(func() {
-		i.cassetteIdx = newCassetteIndex(i.CurrentRun.Steps, i.normalizeURL)
+		i.cassetteIdx = newCassetteIndex(i.CurrentRun.Steps, i.normalizeURL, i.Normalization)
 	})
 }
 
@@ -671,15 +833,15 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 	}
 
 	normalizedURL := i.normalizeURL(req.URL.String())
-	reqKey := RequestKey(req.Method, normalizedURL, incomingReqBodyBytes)
-	correlatedSpanId := req.Header.Get("X-AeroGraph-Span-Id")
+	correlatedSpanId, branchId, localSeq := extractAndStripAeroHeaders(req)
+	reqKey := StructuralRequestKey(branchId, localSeq, req.Method, normalizedURL, incomingReqBodyBytes, i.Normalization)
 
 	isOverridden := false
-	if i.OverrideConfig != nil && !i.overrideApplied && i.OverrideConfig.PromptText != "" {
-		shouldOverride := false
-		if correlatedSpanId != "" && (correlatedSpanId == i.OverrideConfig.ForkFromSpanId || (i.OverrideConfig.Overrides != nil && i.OverrideConfig.Overrides[correlatedSpanId] != "")) {
-			shouldOverride = true
-		} else if i.OverrideConfig.OriginalPromptText != "" {
+	forceLiveFork := false
+	if i.OverrideConfig != nil && !i.overrideApplied {
+		spanMatched := correlatedSpanId != "" && (correlatedSpanId == i.OverrideConfig.ForkFromSpanId || (i.OverrideConfig.Overrides != nil && i.OverrideConfig.Overrides[correlatedSpanId] != ""))
+		shouldOverride := spanMatched
+		if !shouldOverride && i.OverrideConfig.PromptText != "" && i.OverrideConfig.OriginalPromptText != "" {
 			cleanOrig := stripRolePrefix(i.OverrideConfig.OriginalPromptText)
 			prefixLen := len(cleanOrig)
 			if prefixLen > 30 {
@@ -691,31 +853,37 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 		}
 
 		if shouldOverride {
-			if rewritten, ok := RewriteRequestBodyPrompt(incomingReqBodyBytes, i.OverrideConfig.OriginalPromptText, i.OverrideConfig.PromptText); ok {
-				incomingReqBodyBytes = rewritten
-				req.Body = io.NopCloser(bytes.NewBuffer(rewritten))
-				req.ContentLength = int64(len(rewritten))
-				req.Header.Set("Content-Length", strconv.Itoa(len(rewritten)))
-				reqKey = RequestKey(req.Method, normalizedURL, rewritten)
-				isOverridden = true
-				i.overrideApplied = true
-				fmt.Printf("%s[REPLAY] Rewrote request body with prompt override: %s (key: %s...)%s\n",
-					colorCyan, req.URL.String(), reqKey[:8], colorReset)
+			if spanMatched {
+				forceLiveFork = true
+			}
+			if i.OverrideConfig.PromptText != "" {
+				if rewritten, ok := RewriteRequestBodyPrompt(incomingReqBodyBytes, i.OverrideConfig.OriginalPromptText, i.OverrideConfig.PromptText); ok {
+					incomingReqBodyBytes = rewritten
+					req.Body = io.NopCloser(bytes.NewBuffer(rewritten))
+					req.ContentLength = int64(len(rewritten))
+					req.Header.Set("Content-Length", strconv.Itoa(len(rewritten)))
+					reqKey = StructuralRequestKey(branchId, localSeq, req.Method, normalizedURL, rewritten, i.Normalization)
+					isOverridden = true
+					i.overrideApplied = true
+					forceLiveFork = true
+					fmt.Printf("%s[REPLAY] Rewrote request body with prompt override: %s (key: %s...)%s\n",
+						colorCyan, req.URL.String(), reqKey[:8], colorReset)
+				}
 			}
 		}
 	}
 
-	if isOverridden {
-		fmt.Printf("%s[REPLAY] Executing overridden prompt live: %s %s%s\n",
+	if forceLiveFork {
+		fmt.Printf("%s[REPLAY] Executing forked span live (bypassing cache): %s %s%s\n",
 			colorCyan, req.Method, req.URL.String(), colorReset)
-		return i.executeAndRecordLive(req, incomingReqBodyBytes, normalizedURL, correlatedSpanId, "fallback", "replay_safe", true)
+		return i.executeAndRecordLive(req, incomingReqBodyBytes, normalizedURL, correlatedSpanId, branchId, localSeq, "fallback", "replay_safe", isOverridden || forceLiveFork)
 	}
 
 	// must_execute: if host is in live-hosts list, always forward live
 	if i.isLiveHost(req.URL.Host) {
 		fmt.Printf("%s[REPLAY] must_execute: %s %s (matches live-host pattern)%s\n",
 			colorYellow, req.Method, req.URL.String(), colorReset)
-		return i.executeAndRecordLive(req, incomingReqBodyBytes, normalizedURL, correlatedSpanId, "must_execute", "must_execute", false)
+		return i.executeAndRecordLive(req, incomingReqBodyBytes, normalizedURL, correlatedSpanId, branchId, localSeq, "must_execute", "must_execute", false)
 	}
 
 	// O(1) hash-map lookup
@@ -732,8 +900,12 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 		i.mu.Lock()
 		i.AnnotationLog = append(i.AnnotationLog, AnnotationEntry{
 			RequestKey:         reqKey,
+			RequestURL:         sanitizeURL(req.URL.String()),
 			CorrelatedSpanId:   correlatedSpanId,
+			BranchId:           branchId,
+			LocalSeq:           localSeq,
 			ReplaySource:       "cache",
+			CachedReplay:       true,
 			ReplayLatencyMs:    lookupMs,
 			StreamingPreserved: recordedResp.StreamingPreserved,
 			Decision:           "cache_hit",
@@ -775,7 +947,7 @@ func (i *HTTPInterceptor) replayRoundTrip(req *http.Request) (*http.Response, er
 	if i.Fallback {
 		fmt.Printf("%s[REPLAY] Cache miss — fallback to live: %s %s%s\n",
 			colorYellow, req.Method, req.URL.String(), colorReset)
-		return i.executeAndRecordLive(req, incomingReqBodyBytes, normalizedURL, correlatedSpanId, "fallback", "replay_safe", false)
+		return i.executeAndRecordLive(req, incomingReqBodyBytes, normalizedURL, correlatedSpanId, branchId, localSeq, "fallback", "replay_safe", false)
 	}
 
 	fmt.Printf("%s[REPLAY] ERROR: No cache entry for %s %s (key: %s...)%s\n",
@@ -909,6 +1081,36 @@ func (i *HTTPInterceptor) LoadOverrideFile(filePath string) error {
 		return err
 	}
 	i.OverrideConfig = &cfg
+	return nil
+}
+
+// LoadNormalizationFile loads transient token masking and header stripping rules from JSON.
+func (i *HTTPInterceptor) LoadNormalizationFile(filePath string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	var cfg NormalizationConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+	def := defaultNormalizationConfig()
+	if len(cfg.StripHeaders) == 0 {
+		cfg.StripHeaders = def.StripHeaders
+	}
+	if len(cfg.MaskJSONKeys) == 0 {
+		cfg.MaskJSONKeys = def.MaskJSONKeys
+	}
+	if len(cfg.MaskRegexes) == 0 {
+		cfg.MaskRegexes = def.MaskRegexes
+	}
+	cfg.compile()
+	i.Normalization = &cfg
+	for _, h := range cfg.StripHeaders {
+		if !strings.HasSuffix(h, "*") {
+			i.IgnoreHeaders = append(i.IgnoreHeaders, h)
+		}
+	}
 	return nil
 }
 

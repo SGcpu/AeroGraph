@@ -692,3 +692,144 @@ func TestStrictOverrideMatching_NoAccidentalHijack(t *testing.T) {
 	resp.Body.Close()
 }
 
+func TestTransientTokenMasking_CanonicalHashMatch(t *testing.T) {
+	run := &core.Run{RunID: "mask-001", Steps: []core.Step{}}
+	recInter := interceptor.NewHTTPInterceptor(interceptor.ModeRecord, nil, run)
+	recInter.Transport = &mockRoundTripper{
+		roundTripFunc: func(r *http.Request) (*http.Response, error) {
+			// Ensure X-AeroGraph-* headers are stripped before reaching upstream
+			if r.Header.Get("X-AeroGraph-Span-Id") != "" || r.Header.Get("X-AeroGraph-Branch-Id") != "" {
+				t.Fatalf("Internal X-AeroGraph-* headers leaked upstream!")
+			}
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(bytes.NewBufferString(`{"answer":"42"}`)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	}
+
+	reqBody1 := `{"session_id":"sess-111","messages":[{"role":"system","content":"Time: 2026-11-27T10:00:00Z id: 123e4567-e89b-12d3-a456-426614174000"}]}`
+	req1, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBufferString(reqBody1))
+	req1.Header.Set("X-AeroGraph-Span-Id", "sp_1")
+	req1.Header.Set("X-AeroGraph-Branch-Id", "root")
+	req1.Header.Set("X-AeroGraph-Local-Seq", "0")
+	resp1, err := recInter.RoundTrip(req1)
+	if err != nil {
+		t.Fatalf("Record failed: %v", err)
+	}
+	resp1.Body.Close()
+
+	// Replay with different timestamp, UUID, and session_id
+	repInter := interceptor.NewHTTPInterceptor(interceptor.ModeReplay, nil, run)
+	reqBody2 := `{"messages":[{"role":"system","content":"Time: 2026-11-28T12:34:56.789Z id: 987fcdeb-51a2-43d1-b987-123456789abc"}],"session_id":"sess-999"}`
+	req2, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBufferString(reqBody2))
+	req2.Header.Set("X-AeroGraph-Span-Id", "sp_1")
+	req2.Header.Set("X-AeroGraph-Branch-Id", "root")
+	req2.Header.Set("X-AeroGraph-Local-Seq", "0")
+	resp2, err := repInter.RoundTrip(req2)
+	if err != nil {
+		t.Fatalf("Replay failed (expected cache hit despite dynamic tokens): %v", err)
+	}
+	body2, _ := io.ReadAll(resp2.Body)
+	resp2.Body.Close()
+	if string(body2) != `{"answer":"42"}` {
+		t.Fatalf("Unexpected replay body: %s", string(body2))
+	}
+	if repInter.NetworkCallCount != 0 {
+		t.Fatalf("Expected 0 network calls on replay, got %d", repInter.NetworkCallCount)
+	}
+}
+
+func TestStructuralCausalKey_ParallelFanoutDisambiguation(t *testing.T) {
+	run := &core.Run{RunID: "fanout-001", Steps: []core.Step{}}
+	recInter := interceptor.NewHTTPInterceptor(interceptor.ModeRecord, nil, run)
+	recInter.Transport = &mockRoundTripper{
+		roundTripFunc: func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(bytes.NewBufferString(`{"branch":"ok"}`)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	}
+
+	for idx, br := range []string{"root.rag[0]", "root.rag[1]"} {
+		req, _ := http.NewRequest("POST", "https://api.openai.com/v1/embeddings", bytes.NewBufferString(`{"input":"same query"}`))
+		req.Header.Set("X-AeroGraph-Span-Id", fmt.Sprintf("sp_%d", idx))
+		req.Header.Set("X-AeroGraph-Branch-Id", br)
+		req.Header.Set("X-AeroGraph-Local-Seq", "0")
+		resp, err := recInter.RoundTrip(req)
+		if err != nil {
+			t.Fatalf("Record failed: %v", err)
+		}
+		resp.Body.Close()
+	}
+
+	// Replay in reverse order — structural keys must still hit deterministically
+	repInter := interceptor.NewHTTPInterceptor(interceptor.ModeReplay, nil, run)
+	for _, br := range []string{"root.rag[1]", "root.rag[0]"} {
+		req, _ := http.NewRequest("POST", "https://api.openai.com/v1/embeddings", bytes.NewBufferString(`{"input":"same query"}`))
+		req.Header.Set("X-AeroGraph-Branch-Id", br)
+		req.Header.Set("X-AeroGraph-Local-Seq", "0")
+		resp, err := repInter.RoundTrip(req)
+		if err != nil {
+			t.Fatalf("Replay failed for %s: %v", br, err)
+		}
+		resp.Body.Close()
+	}
+}
+
+func TestForceLiveOnForkedSpan_EvenOnCoincidentalMatch(t *testing.T) {
+	run := &core.Run{RunID: "fork-live-001", Steps: []core.Step{}}
+	recInter := interceptor.NewHTTPInterceptor(interceptor.ModeRecord, nil, run)
+	recInter.Transport = &mockRoundTripper{
+		roundTripFunc: func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(bytes.NewBufferString(`{"reply":"cached"}`)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	}
+	req1, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBufferString(`{"messages":[{"role":"user","content":"hello"}]}`))
+	req1.Header.Set("X-AeroGraph-Span-Id", "sp_fork_target")
+	resp1, _ := recInter.RoundTrip(req1)
+	resp1.Body.Close()
+
+	// Replay with ForkFromSpanId == sp_fork_target and no prompt change — must still execute live!
+	repInter := interceptor.NewHTTPInterceptor(interceptor.ModeReplay, nil, run)
+	repInter.Fallback = true
+	repInter.OverrideConfig = &interceptor.OverrideConfig{
+		ForkFromSpanId: "sp_fork_target",
+	}
+	repInter.Transport = &mockRoundTripper{
+		roundTripFunc: func(r *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: 200,
+				Status:     "200 OK",
+				Body:       io.NopCloser(bytes.NewBufferString(`{"reply":"live-forked"}`)),
+				Header:     make(http.Header),
+			}, nil
+		},
+	}
+	req2, _ := http.NewRequest("POST", "https://api.openai.com/v1/chat/completions", bytes.NewBufferString(`{"messages":[{"role":"user","content":"hello"}]}`))
+	req2.Header.Set("X-AeroGraph-Span-Id", "sp_fork_target")
+	resp2, err := repInter.RoundTrip(req2)
+	if err != nil {
+		t.Fatalf("Fork replay failed: %v", err)
+	}
+	b2, _ := io.ReadAll(resp2.Body)
+	resp2.Body.Close()
+	if string(b2) != `{"reply":"live-forked"}` {
+		t.Fatalf("Expected live-forked response, got: %s", string(b2))
+	}
+	if repInter.NetworkCallCount != 1 {
+		t.Fatalf("Expected 1 network call for forked span, got %d", repInter.NetworkCallCount)
+	}
+}
+
+

@@ -115,6 +115,80 @@ export class AereplClient {
     });
   }
 
+  async listTraces(projectId?: string): Promise<{ traces: any[] }> {
+    const qs = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+    return this.request<{ traces: any[] }>(this.collectorUrl, `/v1/traces${qs}`, {
+      method: "GET"
+    });
+  }
+
+  async getTrace(traceId: string): Promise<{ meta: any; events: TraceEvent[] }> {
+    return this.request<{ meta: any; events: TraceEvent[] }>(
+      this.collectorUrl,
+      `/v1/traces/${encodeURIComponent(traceId)}`,
+      { method: "GET" }
+    );
+  }
+
+  async getDiff(aId: string, bId: string): Promise<any> {
+    return this.request<any>(
+      this.collectorUrl,
+      `/v1/traces/${encodeURIComponent(aId)}/diff/${encodeURIComponent(bId)}`,
+      { method: "GET" }
+    );
+  }
+
+  async getProjectConfig(projectId?: string, projectRoot?: string): Promise<{ config: any; projectRoot?: string }> {
+    const params = new URLSearchParams();
+    if (projectId) params.set("projectId", projectId);
+    if (projectRoot) params.set("projectRoot", projectRoot);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    return this.request<{ config: any; projectRoot?: string }>(
+      this.collectorUrl,
+      `/v1/project/config${qs}`,
+      { method: "GET" }
+    );
+  }
+
+  async saveProjectConfig(payload: {
+    yamlContent?: string;
+    command?: string[];
+    projectId?: string;
+    projectRoot?: string;
+  }): Promise<{ ok: boolean; path: string }> {
+    return this.request<{ ok: boolean; path: string }>(
+      this.collectorUrl,
+      "/v1/project/config",
+      {
+        method: "POST",
+        body: JSON.stringify(payload)
+      }
+    );
+  }
+
+  async getInputWait(runId: string): Promise<{ waiting: boolean; turn: number | null; prompt: string | null }> {
+    try {
+      return await this.request<{ waiting: boolean; turn: number | null; prompt: string | null }>(
+        this.orchestratorUrl,
+        `/v1/runs/${encodeURIComponent(runId)}/input-wait`,
+        { method: "GET" }
+      );
+    } catch {
+      return { waiting: false, turn: null, prompt: null };
+    }
+  }
+
+  async submitInput(runId: string, turn: number, payload: string): Promise<{ ok: boolean }> {
+    return this.request<{ ok: boolean }>(
+      this.orchestratorUrl,
+      `/v1/runs/${encodeURIComponent(runId)}/input-submit`,
+      {
+        method: "POST",
+        body: JSON.stringify({ turn, payload })
+      }
+    );
+  }
+
   async createSession(runId: string): Promise<{ sessionId: string; runId: string; status: string }> {
     return this.request<{ sessionId: string; runId: string; status: string }>(
       this.orchestratorUrl,

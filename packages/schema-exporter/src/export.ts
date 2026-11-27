@@ -46,7 +46,9 @@ import {
   noteEventSchema,
   stateSnapshotEventSchema,
   retrieverEventSchema,
-  checkpointEventSchema
+  checkpointEventSchema,
+  humanInputPayloadSchema,
+  humanInputEventSchema
 } from "@aerograph/contracts";
 import { artifactsDir, traceEventSchemaPath, manifestPath, TRACE_EVENT_SCHEMA_FILE } from "./paths.js";
 import { getCurrentVersionConfig } from "./versions.js";
@@ -151,6 +153,8 @@ export function exportSchemas(options?: { dryRun?: boolean }): ExportResult {
     StateSnapshotEvent: stateSnapshotEventSchema,
     RetrieverEvent: retrieverEventSchema,
     CheckpointEvent: checkpointEventSchema,
+    HumanInputPayload: humanInputPayloadSchema,
+    HumanInputEvent: humanInputEventSchema,
     TraceEvent: traceEventSchema,
     Trace: traceSchema,
     TraceMeta: traceMetaSchema,
@@ -270,6 +274,8 @@ export function generateArtifactInMemory(): SchemaArtifact {
     StateSnapshotEvent: stateSnapshotEventSchema,
     RetrieverEvent: retrieverEventSchema,
     CheckpointEvent: checkpointEventSchema,
+    HumanInputPayload: humanInputPayloadSchema,
+    HumanInputEvent: humanInputEventSchema,
     TraceEvent: traceEventSchema,
     Trace: traceSchema,
     TraceMeta: traceMetaSchema,

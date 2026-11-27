@@ -1,6 +1,6 @@
 {
   "name": "@aerograph/sdk",
-  "version": "0.4.0",
+  "version": "0.4.5",
   "private": false,
   "description": "Reference SDK for emitting AeroGraph trace events from AI applications.",
   "type": "module",
@@ -10,6 +10,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./shim": {
+      "types": "./dist/shim.d.ts",
+      "import": "./dist/shim.js"
     }
   },
   "files": [
@@ -43,7 +47,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@aerograph/contracts": "^0.4.0",
+    "@aerograph/contracts": "^0.4.5",
     "nanoid": "^5.0.7"
   },
   "devDependencies": {

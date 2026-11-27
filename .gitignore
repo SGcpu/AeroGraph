@@ -41,9 +41,17 @@ bump.js
 fix.js
 fix-deps.js
 
-int_docs/
+# Internal reports & plans
+Current_State_Report.md
+Feature-006-v2_Reality-Check-and-Revised-Approach.md
+Feature-006-v2_AeroGraph-agrepl-Integration-Plan.md
+AeroGraph_ag_Feasibility_Report.md
+security_report_agrepl.md
 
 # Runtime cassettes, certs, and binaries
 .aerograph/
 .agent-replay/
 *.exe
+
+aerograph_architecture_deterministic_replay_blueprint.html
+aerograph_v0_5_build_spec.md

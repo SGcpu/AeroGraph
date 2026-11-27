@@ -26,10 +26,98 @@ export interface SpawnRunOptions {
   overrideFile?: string | null;
   virtualEnv?: string | null;
   executablePath?: string | null;
+  stdinMode?: "inherit" | "pipe";
+  inboundOverrides?: Record<string, string>;
 }
 
 export class Runner {
+  private pendingInbound = new Map<string, any[]>();
+  private pendingLocalRetrievals = new Map<string, any[]>();
+
   constructor(private store: SqliteTraceStore) {}
+
+  addInboundTurn(runId: string, entry: any): void {
+    const list = this.pendingInbound.get(runId) || [];
+    list.push({ ...entry, recordedAt: new Date().toISOString() });
+    this.pendingInbound.set(runId, list);
+  }
+
+  getInboundTurns(runId: string, projectRoot?: string): any[] {
+    const mem = this.pendingInbound.get(runId);
+    if (mem && mem.length > 0) return mem;
+    if (projectRoot) {
+      const p = path.join(projectRoot, ".aerograph", "cassettes", `${runId}.json`);
+      if (fs.existsSync(p)) {
+        try {
+          const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
+          if (Array.isArray(parsed?.inbound)) return parsed.inbound;
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return [];
+  }
+
+  addLocalRetrieval(runId: string, entry: any): void {
+    const list = this.pendingLocalRetrievals.get(runId) || [];
+    list.push({ ...entry, recordedAt: new Date().toISOString() });
+    this.pendingLocalRetrievals.set(runId, list);
+  }
+
+  getLocalRetrievals(runId: string, projectRoot?: string): any[] {
+    const mem = this.pendingLocalRetrievals.get(runId);
+    if (mem && mem.length > 0) return mem;
+    if (projectRoot) {
+      const p = path.join(projectRoot, ".aerograph", "cassettes", `${runId}.json`);
+      if (fs.existsSync(p)) {
+        try {
+          const parsed = JSON.parse(fs.readFileSync(p, "utf-8"));
+          if (Array.isArray(parsed?.localRetrievals)) return parsed.localRetrievals;
+        } catch {
+          // ignore
+        }
+      }
+    }
+    return [];
+  }
+
+  private mergeSidecarDataIntoCassette(runId: string, projectRoot: string, cassetteRunId?: string | null): void {
+    const inbound = this.pendingInbound.get(runId);
+    const localRetrievals = this.pendingLocalRetrievals.get(runId);
+    if ((!inbound || inbound.length === 0) && (!localRetrievals || localRetrievals.length === 0)) {
+      return;
+    }
+    try {
+      const cassetteDir = path.join(projectRoot, ".aerograph", "cassettes");
+      fs.mkdirSync(cassetteDir, { recursive: true });
+      const cassettePath = path.join(cassetteDir, `${runId}.json`);
+      let data: any = { run_id: runId, steps: [] };
+      if (fs.existsSync(cassettePath)) {
+        data = JSON.parse(fs.readFileSync(cassettePath, "utf-8"));
+      } else if (cassetteRunId) {
+        const parentPath = path.join(cassetteDir, `${cassetteRunId}.json`);
+        if (fs.existsSync(parentPath)) {
+          data = JSON.parse(fs.readFileSync(parentPath, "utf-8"));
+          data.run_id = runId;
+        }
+      }
+      if (inbound && inbound.length > 0) {
+        data.inbound = inbound;
+      }
+      if (localRetrievals && localRetrievals.length > 0) {
+        data.localRetrievals = localRetrievals;
+      }
+      const tmpPath = `${cassettePath}.tmp-${Date.now()}`;
+      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+      fs.renameSync(tmpPath, cassettePath);
+    } catch (err) {
+      console.warn(`[Runner] Failed to merge inbound/localRetrievals into cassette for ${runId}:`, err);
+    } finally {
+      this.pendingInbound.delete(runId);
+      this.pendingLocalRetrievals.delete(runId);
+    }
+  }
 
   /**
    * Resolves the path to the aerograph-replay-core binary.
@@ -89,15 +177,20 @@ export class Runner {
       overrideFile
     } = options;
     let liveHosts = options.liveHosts;
+    let normalizationFile: string | null = null;
 
-    // Load policy live-hosts if not explicitly passed
-    if (!liveHosts || liveHosts.length === 0) {
-      try {
-        const policy = loadPolicy(projectRoot);
+    // Load policy live-hosts & normalization rules
+    try {
+      const policy = loadPolicy(projectRoot) as any;
+      if (!liveHosts || liveHosts.length === 0) {
         liveHosts = computeLiveHosts(policy);
-      } catch {
-        // Policy optional if not configured
       }
+      if (policy?.normalization) {
+        normalizationFile = path.join(os.tmpdir(), `afr_norm_${runId}.json`);
+        fs.writeFileSync(normalizationFile, JSON.stringify(policy.normalization), "utf-8");
+      }
+    } catch {
+      // Policy optional if not configured
     }
 
     // Write prompt override JSON if provided
@@ -154,14 +247,23 @@ export class Runner {
       }
     }
 
-    // In fork mode, produce partial cassette if base cassette exists
+    // In fork mode, load the FULL parent cassette (hybrid replay-to-live via --fallback)
+    // instead of truncating by index, so parallel fan-out branches resolve deterministically.
     let targetCassetteId = cassetteRunId || runId;
-    if (mode === "fork" && cassetteRunId && forkFromSpanId) {
+    if (mode === "fork" && cassetteRunId) {
       try {
-        writeForkCassette(runId, cassetteRunId, forkFromSpanId, projectRoot, originalPromptText);
-        targetCassetteId = runId;
+        const parentCassette = path.join(projectRoot, ".aerograph", "cassettes", `${cassetteRunId}.json`);
+        const runsDir = path.join(projectRoot, ".agent-replay", "runs");
+        fs.mkdirSync(runsDir, { recursive: true });
+        const forkRunFile = path.join(runsDir, `${runId}.json`);
+        if (fs.existsSync(parentCassette) && !fs.existsSync(forkRunFile)) {
+          const parsed = JSON.parse(fs.readFileSync(parentCassette, "utf-8"));
+          parsed.run_id = runId;
+          fs.writeFileSync(forkRunFile, JSON.stringify(parsed, null, 2), "utf-8");
+          targetCassetteId = runId;
+        }
       } catch (err) {
-        console.warn(`[Runner] Could not create partial fork cassette:`, err);
+        console.warn(`[Runner] Could not stage full parent cassette for fork:`, err);
       }
     }
 
@@ -252,6 +354,10 @@ export class Runner {
         args.push("--override-file", effectiveOverrideFile);
       }
 
+      if (normalizationFile) {
+        args.push("--normalization-file", normalizationFile);
+      }
+
       args.push(targetCassetteId);
       args.push(...resolvedCommand);
     }
@@ -268,11 +374,30 @@ export class Runner {
       }
     }
 
+    // Resolve zero-refactor Python & Node shims
+    const repoRoot = path.resolve(__dirname, "..", "..", "..", "..");
+    const pySdkSrc = path.join(repoRoot, "python", "aerograph-sdk", "src");
+    const pyShimDir = path.join(pySdkSrc, "aerograph_sdk", "shim");
+    const existingPyPath = process.env.PYTHONPATH || "";
+    const pyPaths = [pyShimDir, pySdkSrc, existingPyPath].filter(Boolean).join(path.delimiter);
+
+    const nodeShimPath = path.join(repoRoot, "packages", "sdk", "dist", "shim.js");
+    let effectiveNodeOptions = process.env.NODE_OPTIONS || "";
+    if (fs.existsSync(nodeShimPath) && !effectiveNodeOptions.includes(nodeShimPath)) {
+      effectiveNodeOptions = `${effectiveNodeOptions} --require "${nodeShimPath}"`.trim();
+    }
+
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       AFR_RUN_ID: runId,
       AEROREPL_RUN_ID: runId,
       AFR_TRACE_ID: traceId,
+      AEROGRAPH_MODE: mode,
+      AEROGRAPH_ORCHESTRATOR_URL: process.env.AEROGRAPH_ORCHESTRATOR_URL || "http://127.0.0.1:4318",
+      AEROGRAPH_ENDPOINT: process.env.AEROGRAPH_ENDPOINT || "http://127.0.0.1:4317",
+      AEROGRAPH_CASSETTE_RUN_ID: cassetteRunId || runId,
+      AEROGRAPH_THREAD_ID: runId,
+      AEROGRAPH_INBOUND_OVERRIDES: options.inboundOverrides ? JSON.stringify(options.inboundOverrides) : "",
       AFR_PROMPT_OVERRIDE: "",
       AFR_TARGET_NODE: targetNodeName || "",
       AFR_FORK_FROM_SPAN_ID: forkFromSpanId || "",
@@ -282,6 +407,8 @@ export class Runner {
       https_proxy: process.env.https_proxy || "",
       PATH: effectivePath,
       Path: effectivePath,
+      PYTHONPATH: pyPaths,
+      NODE_OPTIONS: effectiveNodeOptions,
       PYTHONUNBUFFERED: "1",
       PYTHONIOENCODING: "utf-8",
       PYTHONUTF8: "1"
@@ -303,16 +430,20 @@ export class Runner {
       }
     }
 
+    const stdinMode = options.stdinMode === "inherit" ? "inherit" : "pipe";
+
     return new Promise<void>((resolve, reject) => {
       let child: ChildProcess;
       try {
         child = child_process.spawn(binary, args, {
           cwd: projectRoot,
           env,
-          stdio: ["pipe", "pipe", "pipe"],
+          stdio: [stdinMode, "pipe", "pipe"],
           shell: false // CRITICAL: Security rule — no shell interpolation
         });
-        child.stdin?.end();
+        if (stdinMode === "pipe") {
+          child.stdin?.end();
+        }
       } catch (err: any) {
         this.store.updateRunStatus(runId, "crashed", {
           completedAt: new Date().toISOString(),
@@ -349,6 +480,13 @@ export class Runner {
 
       child.on("close", (exitCode: number | null) => {
         const completedAt = new Date().toISOString();
+
+        if (normalizationFile) {
+          try { fs.unlinkSync(normalizationFile); } catch { /* ignore */ }
+        }
+
+        // Merge any Orchestrator-captured inbound / localRetrievals after replay-core exits (zero race)
+        this.mergeSidecarDataIntoCassette(runId, projectRoot, cassetteRunId);
 
         // Ingest annotation log if it was produced
         this.ingestAnnotations(traceId, annotationLogPath, options);
@@ -438,11 +576,28 @@ export class Runner {
     }
 
     // 2. Sequential fallback for unassigned entries against prompt & response events
+    // Filter out non-LLM tool HTTP calls so they never overwrite LLM prompt/response spans.
+    const isLikelyLlmEntry = (entry: any): boolean => {
+      const u = String(entry.requestUrl || "").toLowerCase();
+      if (!u) return true;
+      return (
+        u.includes("/chat/completions") ||
+        u.includes("/completions") ||
+        u.includes("/messages") ||
+        u.includes("/responses") ||
+        u.includes("generatecontent") ||
+        u.includes("openrouter.ai") ||
+        u.includes("api.openai.com") ||
+        u.includes("api.anthropic.com") ||
+        u.includes("generativelanguage.googleapis.com")
+      );
+    };
+    const llmUnassigned = unassignedEntries.filter(isLikelyLlmEntry);
     const promptEvents = events.filter(e => e.kind === "prompt" && !annotatedSpans.has(e.spanId));
     const responseEvents = events.filter(e => e.kind === "response" && !annotatedSpans.has(e.spanId));
 
-    for (let i = 0; i < unassignedEntries.length; i++) {
-      const entry = unassignedEntries[i];
+    for (let i = 0; i < llmUnassigned.length; i++) {
+      const entry = llmUnassigned[i];
       if (promptEvents[i]) {
         this.store.appendReplayAnnotation(traceId, promptEvents[i].spanId, {
           replaySource: entry.replaySource,
@@ -454,7 +609,9 @@ export class Runner {
           decision: entry.decision,
           matchedPattern: entry.matchedPattern,
           effectiveClass: entry.effectiveClass,
-          payloadText: entry.overridden && options?.forkOverrides?.promptText ? options.forkOverrides.promptText : undefined
+          payloadText: (entry.overridden || (options?.mode === "fork" && entry.replaySource === "live")) && options?.forkOverrides?.promptText
+            ? options.forkOverrides.promptText
+            : undefined
         });
         annotatedSpans.add(promptEvents[i].spanId);
       }
@@ -510,8 +667,13 @@ export class Runner {
           }
         }
 
-        const replaySource = effectiveClass === "must_execute" ? "live" : "cache";
-        const decision = effectiveClass === "must_execute" ? "must_execute" : "cache_hit";
+        const isRecordMode = options?.mode === "record";
+        const replaySource = isRecordMode || effectiveClass === "must_execute" ? "live" : "cache";
+        const decision = isRecordMode
+          ? "live_record"
+          : effectiveClass === "must_execute"
+            ? "must_execute"
+            : "cache_hit";
 
         this.store.appendReplayAnnotation(traceId, e.spanId, {
           replaySource,

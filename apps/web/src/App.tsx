@@ -1232,10 +1232,11 @@ export default function App() {
           </button>
 
           {/* Replay Control Panel */}
-          {traceId && (viewMode === "trace" || viewMode === "topology") && (
+          {(viewMode === "trace" || viewMode === "topology") && (
             <ReplayControlPanel
               api={api}
               activeTraceId={traceId}
+              projectId={filterProjectId || undefined}
               hasCassette={Boolean(activeMeta?.replayRun)}
               onTraceReplayed={(newId) => {
                 refreshTraces();
@@ -2044,6 +2045,8 @@ export default function App() {
             baseTraceId={traceId}
             forkFromSpanId={forkModalSpanId}
             initialPromptText={initialPrompt}
+            forkSpanKind={targetEvt?.kind}
+            humanInputTurn={(targetEvt as any)?.payload?.turn}
             onClose={() => setForkModalSpanId(null)}
             onForkCompleted={handleForkCompleted}
           />
@@ -2053,6 +2056,7 @@ export default function App() {
       {projectConfigOpen && (
         <ProjectConfigModal
           api={api}
+          projectId={filterProjectId || undefined}
           onClose={() => setProjectConfigOpen(false)}
         />
       )}

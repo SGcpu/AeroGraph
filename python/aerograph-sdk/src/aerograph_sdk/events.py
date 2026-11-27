@@ -29,6 +29,8 @@ from aerograph_sdk.contracts.generated import (
     ErrorPayload,
     HandoffEvent,
     HandoffPayload,
+    HumanInputEvent,
+    HumanInputPayload,
     NoteEvent,
     PromptEvent,
     PromptPayload,
@@ -433,6 +435,47 @@ def build_checkpoint_event(
             reason=reason,
             state=state,
         ),
+        links=links or [],
+    )
+
+
+def build_human_input_event(
+    *,
+    trace_id: str,
+    turn: int,
+    prompt: str,
+    text: str,
+    channel: str = "stdin",
+    edited: Optional[bool] = None,
+    actor_id: str = "human",
+    actor_name: Optional[str] = None,
+    parent_span_id: Optional[str] = None,
+    span_id: Optional[str] = None,
+    occurred_at: Optional[str] = None,
+    links: Optional[list[TraceLink]] = None,
+    status: TraceEventStatus = TraceEventStatus.ok,
+) -> HumanInputEvent:
+    """Build a validated human_input event."""
+    payload_dict: dict[str, Any] = {
+        "channel": channel,
+        "turn": turn,
+        "prompt": prompt,
+        "text": text,
+    }
+    if edited is not None:
+        payload_dict["edited"] = edited
+
+    return HumanInputEvent(
+        schemaVersion=SCHEMA_VERSION,
+        traceId=trace_id,
+        spanId=span_id or new_span_id(),
+        parentSpanId=parent_span_id,
+        occurredAt=occurred_at or _utcnow(),
+        actor=SystemActor(kind="system", id=actor_id, name=actor_name),
+        kind="human_input",
+        status=status,
+        title=f"Human Input (Turn {turn})",
+        payload=payload_dict,  # type: ignore[arg-type]
         links=links or [],
     )
 

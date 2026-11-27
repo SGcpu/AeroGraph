@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://github.com/SGcpu/AeroGraph">
-    <img src="./apps/web/src/public/assets/images/aerograph-logo.png" alt="AeroGraph Logo" width="260" />
+    <img src="./apps/web/src/public/assets/images/aerograph-logo-white.png" alt="AeroGraph Logo" width="260" />
   </a>
 
   <h1 style="margin-top: 20px;">AeroGraph</h1>

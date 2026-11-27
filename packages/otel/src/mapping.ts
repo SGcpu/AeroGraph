@@ -66,6 +66,7 @@ export function getSpanNameForKind(kind: TraceEventKind): string {
     case "retriever":      return "gen_ai.retrieve";
     case "checkpoint":     return "aerograph.checkpoint";
     case "state_snapshot": return "aerograph.state_snapshot";
+    case "human_input":    return "aerograph.human_input";
   }
 }
 
@@ -85,6 +86,7 @@ export function getSpanKindInt(kind: TraceEventKind): number {
     case "note":
     case "checkpoint":
     case "state_snapshot":
+    case "human_input":
       return SPAN_KIND.INTERNAL;
   }
 }
